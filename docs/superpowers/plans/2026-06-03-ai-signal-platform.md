@@ -1,0 +1,3947 @@
+# AI Signal Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Build a personal AI-news aggregation + ranking platform that collects from HackerNews/RSS/Reddit/Twitter, deduplicates, scores items by *personal* value with an LLM, clusters topics, and serves a searchable dashboard with feedback.
+
+**Architecture:** Single TypeScript codebase deployed as two processes — a Next.js 15 (App Router) web app (dashboard + ingest API) and a standalone Node worker that drains a Postgres-backed `jobs` queue through idempotent pipeline stages (normalize → dedup → embed → score → cluster). Storage is Postgres 16 + pgvector. VPS-side sources (HN, RSS) run in-process via cron and call a shared `ingest()` function; Mac-side sources (Twitter, Reddit) POST collected raw items to the bearer-token-protected `/api/ingest` endpoint. The dashboard is protected by HTTP Basic Auth.
+
+**Tech Stack:** TypeScript (Node 20+) · Next.js 15 App Router · Drizzle ORM + drizzle-kit · Postgres 16 + pgvector (`pgvector/pgvector:pg16`) · Vitest (unit + integration against a real test Postgres) · Zod (LLM/response validation) · OpenRouter (scoring + embeddings) · Docker Compose deployment.
+
+**Milestone shape (each milestone is independently shippable + testable):**
+- **M1 Skeleton** — HN → ingest → normalize → store → feed list + Basic Auth. Proves the pipeline backbone end-to-end.
+- **M2 Ranking** (hardest, validated first) — prefilter → LLM batch scoring → composite score → one-line summary → 👍/👎 feedback.
+- **M3 All sources** — RSS (VPS) + Mac collector cursor ingest for Twitter/Reddit digests.
+- **M4 Semantic layer** — embeddings (after a feasibility spike) → pgvector semantic dedup + search → topic clustering → trends page.
+- **M5 Polish** — 30-day rolling retention (favorites kept forever), favorites/archive/read state, rubric re-score of whole DB, Mac-degradation banner.
+
+---
+
+## Decisions Locked For This Plan
+
+These were confirmed before planning; do not re-litigate them while executing:
+
+1. **Stack:** Next.js full-stack (TypeScript). Web + API routes in the Next app; pipeline runs in a separate Node worker process sharing the same `src/` code.
+2. **DB access:** Drizzle ORM + drizzle-kit migrations. pgvector via Drizzle's `vector` column type.
+3. **Dashboard auth:** HTTP Basic Auth implemented in Next.js `middleware.ts`. `/api/ingest` is exempt from Basic Auth and uses a bearer token instead.
+4. **Queue:** the `jobs` table in Postgres (per design "先用 Postgres，必要时上 Redis"). No Redis in this plan.
+5. **Scoring LLM:** OpenRouter, model id from `SCORING_MODEL` env (default `deepseek/deepseek-v4-flash` — **verify the exact slug + pricing on OpenRouter before first real call**, see M2 Task 1).
+6. **Embeddings:** OpenRouter, model id from `EMBEDDING_MODEL` env (default `nvidia/llama-nemotron-embed-vl-1b-v2:free`). **M4 starts with a feasibility spike** — OpenRouter's embeddings endpoint support is uncertain; fallback is a local open embedding model. The pgvector dimension `N` is finalized only after the spike.
+7. **Watched keywords (relevance):** stored as config; matched with word boundaries + case sensitivity for over-broad tokens (`AI`, `Agent`) to avoid matching everything.
+8. **Retention:** rolling 30 days; rows with `is_favorited = true` are never deleted.
+
+## Coding Conventions (apply to every task)
+
+- **Karpathy guidelines (`.cursor/rules/karpathy-guidelines.mdc`) are always on:** minimum code that solves the problem, no speculative abstractions, surgical changes, TDD/goal-driven.
+- **DRY / YAGNI / TDD / frequent commits.**
+- Pure logic (normalization, hashing, URL canonicalization, keyword matching, prefilter rules, composite math, LLM-response parsing) lives in `src/lib/**` and is unit-tested with **no database**.
+- Anything touching Postgres is integration-tested against a **real** test database (pgvector cannot be faked by `pg-mem`).
+- Every DB write that can be re-run is **idempotent** (upserts keyed on natural keys; jobs keyed on `(stage, ref)`).
+- Commit after each task's tests pass. Conventional commit messages (`feat:`, `test:`, `chore:`, `fix:`).
+
+## File Structure
+
+```
+ai-signal/
+  package.json                     # scripts + deps
+  tsconfig.json
+  next.config.ts
+  drizzle.config.ts                # drizzle-kit config (reads DATABASE_URL)
+  vitest.config.ts
+  docker-compose.yml               # db + web + worker (+ profiles for cron)
+  .env.example                     # all env vars documented (no secrets)
+  .gitignore
+  src/
+    config.ts                      # typed env loader (zod), weights, model ids
+    db/
+      schema.ts                    # ALL drizzle tables (grown per milestone)
+      client.ts                    # pooled pg connection + drizzle instance
+      migrations/                  # generated by drizzle-kit (committed)
+    lib/
+      url.ts                       # canonicalizeUrl()
+      hash.ts                      # contentHash()
+      normalize.ts                 # normalizeRawItem(): raw payload -> item fields
+      keywords.ts                  # WATCHED_KEYWORDS + computeRelevance()
+      scoring/
+        prefilter.ts               # selectCandidates(), isNoise()
+        composite.ts               # normalizeHeat(), computeComposite()
+        llm.ts                     # OpenRouter client + scoreBatch()
+        rubric.ts                  # rubric text + RUBRIC_VERSION
+      embeddings.ts                # embedTexts() (M4)
+      cluster.ts                   # assignTopic() online clustering (M4)
+      novelty.ts                   # computeNovelty() vs recent embeddings (M4)
+    ingest/
+      ingest.ts                    # shared ingest(): upsert raw_items + enqueue jobs
+    collectors/
+      hn.ts                        # fetchHackerNews() (Algolia) -> RawPayload[]
+      rss.ts                       # fetchRss() (M3)
+      mac-cursor.ts                # readDigestSince() cursor reader (M3, runs on Mac)
+    pipeline/
+      stages.ts                    # stage handlers: normalize/score/embed/cluster
+      worker.ts                    # poll jobs -> dispatch stage -> retry/backoff
+    app/
+      layout.tsx
+      page.tsx                     # Feed
+      topics/page.tsx              # Trends (M4)
+      search/page.tsx              # Search (M4)
+      api/
+        ingest/route.ts            # POST raw items (bearer token)
+        feedback/route.ts          # POST 👍/👎 (M2)
+        items/[id]/route.ts        # PATCH favorite/archive/read (M5)
+    middleware.ts                  # HTTP Basic Auth (exempts /api/ingest)
+    types.ts                       # shared TS types (RawPayload, NormalizedItem, ...)
+  bin/
+    collect-hn.ts                  # cron entrypoint: fetchHackerNews -> ingest()
+    collect-rss.ts                 # cron entrypoint (M3)
+    cleanup.ts                     # retention cleanup (M5)
+    rescore.ts                     # enqueue rescore for all items (M5)
+    mac-collect.ts                 # Mac-side: read digests -> POST /api/ingest (M3)
+  tests/
+    setup/
+      global-setup.ts              # run migrations against TEST_DATABASE_URL
+      db.ts                        # truncateAll() + test db handle
+    lib/                           # unit tests (no db)
+    integration/                   # db + api tests
+```
+
+---
+
+## M1 — Skeleton (HN → ingest → normalize → store → feed + Basic Auth)
+
+**Goal of M1:** Run `npm run collect:hn`, watch the worker normalize raw HN items into `items`, and see them rendered (newest-first) on a Basic-Auth-protected feed page. This proves the whole backbone before any LLM work.
+
+### Task 1: Project scaffold
+
+**Files:**
+- Create: `ai-signal/package.json`
+- Create: `ai-signal/tsconfig.json`
+- Create: `ai-signal/next.config.ts`
+- Create: `ai-signal/.gitignore`
+- Create: `ai-signal/.env.example`
+- Create: `ai-signal/src/app/layout.tsx`
+- Create: `ai-signal/src/app/page.tsx`
+
+- [ ] **Step 1: Create `package.json`**
+
+```json
+{
+  "name": "ai-signal",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "worker": "tsx src/pipeline/worker.ts",
+    "collect:hn": "tsx bin/collect-hn.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.36.0",
+    "next": "^15.1.0",
+    "pg": "^8.13.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.11.0",
+    "@types/react": "^19.0.0",
+    "drizzle-kit": "^0.30.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  }
+}
+```
+
+- [ ] **Step 2: Install dependencies**
+
+Run: `cd ai-signal && npm install`
+Expected: `node_modules/` created, lockfile written, no peer-dep errors that block install.
+
+- [ ] **Step 3: Create `tsconfig.json`**
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "preserve",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "incremental": true,
+    "baseUrl": ".",
+    "paths": { "@/*": ["src/*"] },
+    "plugins": [{ "name": "next" }]
+  },
+  "include": ["src", "bin", "tests", "*.ts"],
+  "exclude": ["node_modules"]
+}
+```
+
+- [ ] **Step 4: Create `next.config.ts`**
+
+```ts
+import type { NextConfig } from "next";
+
+const config: NextConfig = {
+  experimental: { serverActions: { bodySizeLimit: "5mb" } },
+  // Source uses ESM ".js" import specifiers (needed by tsx for the worker/bin
+  // scripts). Map them back to ".ts"/".tsx" so Next's webpack build resolves them.
+  webpack: (webpackConfig) => {
+    webpackConfig.resolve.extensionAlias = {
+      ".js": [".ts", ".tsx", ".js", ".jsx"],
+      ".mjs": [".mts", ".mjs"],
+    };
+    return webpackConfig;
+  },
+};
+
+export default config;
+```
+
+- [ ] **Step 5: Create `.gitignore`**
+
+```
+node_modules/
+.next/
+.env
+.env.local
+*.log
+.DS_Store
+next-env.d.ts
+*.tsbuildinfo
+```
+
+- [ ] **Step 6: Create `.env.example`**
+
+```
+# Postgres
+DATABASE_URL=postgres://aisignal:aisignal@localhost:5432/aisignal
+TEST_DATABASE_URL=postgres://aisignal:aisignal@localhost:5432/aisignal_test
+
+# Ingest API (Mac collectors POST here)
+INGEST_TOKEN=change-me-long-random
+
+# Dashboard Basic Auth
+BASIC_AUTH_USER=admin
+BASIC_AUTH_PASS=change-me
+
+# OpenRouter (M2+)
+OPENROUTER_API_KEY=
+SCORING_MODEL=deepseek/deepseek-v4-flash
+EMBEDDING_MODEL=nvidia/llama-nemotron-embed-vl-1b-v2:free
+
+# Scoring weights (M2)
+WEIGHT_HEAT=0.2
+WEIGHT_RELEVANCE=0.2
+WEIGHT_NOVELTY=0.15
+WEIGHT_LLM=0.45
+```
+
+- [ ] **Step 7: Create minimal `src/app/layout.tsx`**
+
+```tsx
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+- [ ] **Step 8: Create minimal `src/app/page.tsx`**
+
+```tsx
+export default function Home() {
+  return <main>AI Signal</main>;
+}
+```
+
+- [ ] **Step 9: Verify it typechecks and builds**
+
+Run: `cd ai-signal && npm run typecheck && npm run build`
+Expected: typecheck passes; Next build completes with a static `/` route.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add package.json package-lock.json tsconfig.json next.config.ts .gitignore .env.example src/app
+git commit -m "chore: scaffold Next.js + TypeScript app"
+```
+
+### Task 2: Docker Compose + Postgres pgvector
+
+**Files:**
+- Create: `ai-signal/docker-compose.yml`
+
+- [ ] **Step 1: Create `docker-compose.yml`**
+
+```yaml
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: aisignal
+      POSTGRES_PASSWORD: aisignal
+      POSTGRES_DB: aisignal
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aisignal"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
+```
+
+(Web + worker services are added in Task 14 once the app is runnable; M1 develops against this local db.)
+
+- [ ] **Step 2: Start Postgres and create the test database**
+
+Run:
+```bash
+cd ai-signal && docker compose up -d db
+until docker compose exec -T db pg_isready -U aisignal; do sleep 1; done
+docker compose exec -T db psql -U aisignal -d aisignal -c "CREATE DATABASE aisignal_test;"
+docker compose exec -T db psql -U aisignal -d aisignal -c "CREATE EXTENSION IF NOT EXISTS vector;"
+docker compose exec -T db psql -U aisignal -d aisignal_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
+```
+Expected: both databases exist; `vector` extension installs without error (confirms the pgvector image works).
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add docker-compose.yml
+git commit -m "chore: add postgres+pgvector via docker compose"
+```
+
+### Task 3: Drizzle schema (M1 tables) + connection + first migration
+
+**Files:**
+- Create: `ai-signal/src/config.ts`
+- Create: `ai-signal/src/db/schema.ts`
+- Create: `ai-signal/src/db/client.ts`
+- Create: `ai-signal/drizzle.config.ts`
+- Create: `ai-signal/src/types.ts`
+
+- [ ] **Step 1: Create typed env loader `src/config.ts`**
+
+```ts
+import { z } from "zod";
+
+const schema = z.object({
+  // Default lets `config` import without throwing in tests; the real connection
+  // string is read directly from process.env.DATABASE_URL in src/db/client.ts.
+  DATABASE_URL: z.string().url().default("postgres://aisignal:aisignal@localhost:5432/aisignal"),
+  TEST_DATABASE_URL: z.string().url().optional(),
+  INGEST_TOKEN: z.string().min(1).default("dev-token"),
+  BASIC_AUTH_USER: z.string().default("admin"),
+  BASIC_AUTH_PASS: z.string().default("admin"),
+  OPENROUTER_API_KEY: z.string().default(""),
+  SCORING_MODEL: z.string().default("deepseek/deepseek-v4-flash"),
+  EMBEDDING_MODEL: z.string().default("nvidia/llama-nemotron-embed-vl-1b-v2:free"),
+  WEIGHT_HEAT: z.coerce.number().default(0.2),
+  WEIGHT_RELEVANCE: z.coerce.number().default(0.2),
+  WEIGHT_NOVELTY: z.coerce.number().default(0.15),
+  WEIGHT_LLM: z.coerce.number().default(0.45),
+});
+
+export const config = schema.parse(process.env);
+
+export const weights = {
+  heat: config.WEIGHT_HEAT,
+  relevance: config.WEIGHT_RELEVANCE,
+  novelty: config.WEIGHT_NOVELTY,
+  llm: config.WEIGHT_LLM,
+};
+```
+
+- [ ] **Step 2: Create shared types `src/types.ts`**
+
+```ts
+export type SourceKind = "hn" | "rss" | "reddit" | "twitter";
+
+export interface RawPayload {
+  source: SourceKind;
+  externalId: string;
+  url: string | null;
+  author: string | null;
+  title: string;
+  text: string;
+  createdAt: string; // ISO 8601
+  metrics: Record<string, number>;
+  raw: unknown;
+}
+
+export interface NormalizedItem {
+  source: SourceKind;
+  url: string | null;
+  canonicalUrl: string | null;
+  author: string | null;
+  title: string;
+  text: string;
+  createdAt: Date;
+  metrics: Record<string, number>;
+  contentHash: string;
+}
+```
+
+- [ ] **Step 3: Create Drizzle schema `src/db/schema.ts` (M1 subset)**
+
+```ts
+import {
+  bigint, bigserial, boolean, integer, jsonb, pgTable, text, timestamp, uniqueIndex,
+} from "drizzle-orm/pg-core";
+
+export const sources = pgTable("sources", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  kind: text("kind").notNull(),
+  config: jsonb("config").notNull().default({}),
+  enabled: boolean("enabled").notNull().default(true),
+  lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+});
+
+export const rawItems = pgTable("raw_items", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  sourceId: bigint("source_id", { mode: "number" }).notNull(),
+  externalId: text("external_id").notNull(),
+  payload: jsonb("payload").notNull(),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  uq: uniqueIndex("raw_items_source_external_uq").on(t.sourceId, t.externalId),
+}));
+
+export const items = pgTable("items", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  rawItemId: bigint("raw_item_id", { mode: "number" }).notNull(),
+  source: text("source").notNull(),
+  url: text("url"),
+  canonicalUrl: text("canonical_url"),
+  author: text("author"),
+  title: text("title").notNull(),
+  text: text("text").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  metrics: jsonb("metrics").notNull().default({}),
+  contentHash: text("content_hash").notNull(),
+}, (t) => ({
+  hashUq: uniqueIndex("items_content_hash_uq").on(t.contentHash),
+}));
+
+export const jobs = pgTable("jobs", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  stage: text("stage").notNull(),
+  ref: text("ref").notNull(),
+  status: text("status").notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  error: text("error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  uq: uniqueIndex("jobs_stage_ref_uq").on(t.stage, t.ref),
+}));
+```
+
+- [ ] **Step 4: Create DB client `src/db/client.ts`**
+
+```ts
+import { drizzle } from "drizzle-orm/node-postgres";
+import pg from "pg";
+import * as schema from "./schema.js";
+
+export function makeDb(connectionString: string) {
+  const pool = new pg.Pool({ connectionString });
+  return { db: drizzle(pool, { schema }), pool };
+}
+
+const { db, pool } = makeDb(process.env.DATABASE_URL!);
+export { db, pool, schema };
+```
+
+- [ ] **Step 5: Create `drizzle.config.ts`**
+
+```ts
+import { defineConfig } from "drizzle-kit";
+
+export default defineConfig({
+  schema: "./src/db/schema.ts",
+  out: "./src/db/migrations",
+  dialect: "postgresql",
+  dbCredentials: { url: process.env.DATABASE_URL! },
+});
+```
+
+- [ ] **Step 6: Generate the first migration**
+
+Run: `cd ai-signal && DATABASE_URL=postgres://aisignal:aisignal@localhost:5432/aisignal npm run db:generate`
+Expected: a SQL file appears under `src/db/migrations/` creating `sources`, `raw_items`, `items`, `jobs` with the unique indexes.
+
+- [ ] **Step 7: Apply the migration**
+
+Run: `cd ai-signal && DATABASE_URL=postgres://aisignal:aisignal@localhost:5432/aisignal npm run db:migrate`
+Expected: migration applies; tables exist (verify with `docker compose exec -T db psql -U aisignal -d aisignal -c "\dt"`).
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add src/config.ts src/types.ts src/db drizzle.config.ts
+git commit -m "feat: drizzle schema + connection for M1 tables"
+```
+
+### Task 4: Vitest + real test-database harness
+
+**Files:**
+- Create: `ai-signal/vitest.config.ts`
+- Create: `ai-signal/tests/setup/global-setup.ts`
+- Create: `ai-signal/tests/setup/db.ts`
+
+- [ ] **Step 1: Create `vitest.config.ts`**
+
+```ts
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  test: {
+    globalSetup: ["./tests/setup/global-setup.ts"],
+    include: ["tests/**/*.test.ts"],
+    fileParallelism: false,
+    env: { NODE_ENV: "test" },
+  },
+});
+```
+
+- [ ] **Step 2: Create `tests/setup/global-setup.ts` (runs migrations once)**
+
+```ts
+import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { makeDb } from "../../src/db/client.js";
+
+export default async function setup() {
+  const url = process.env.TEST_DATABASE_URL;
+  if (!url) throw new Error("TEST_DATABASE_URL is required for tests");
+  const { db, pool } = makeDb(url);
+  await pool.query("CREATE EXTENSION IF NOT EXISTS vector");
+  await migrate(db, { migrationsFolder: "./src/db/migrations" });
+  await pool.end();
+}
+```
+
+- [ ] **Step 3: Create `tests/setup/db.ts` (per-test handle + truncate)**
+
+```ts
+import { sql } from "drizzle-orm";
+import { makeDb } from "../../src/db/client.js";
+
+const { db, pool } = makeDb(process.env.TEST_DATABASE_URL!);
+
+export { db, pool };
+
+export async function truncateAll() {
+  await db.execute(
+    sql`TRUNCATE TABLE jobs, items, raw_items, sources RESTART IDENTITY CASCADE`,
+  );
+}
+```
+
+- [ ] **Step 4: Write a smoke integration test `tests/integration/db.test.ts`**
+
+```ts
+import { afterEach, afterAll, expect, it } from "vitest";
+import { sources } from "../../src/db/schema.js";
+import { db, pool, truncateAll } from "../setup/db.js";
+
+afterEach(async () => { await truncateAll(); });
+afterAll(async () => { await pool.end(); });
+
+it("inserts and reads a source", async () => {
+  await db.insert(sources).values({ kind: "hn" });
+  const rows = await db.select().from(sources);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]!.kind).toBe("hn");
+});
+```
+
+- [ ] **Step 5: Run the smoke test**
+
+Run: `cd ai-signal && TEST_DATABASE_URL=postgres://aisignal:aisignal@localhost:5432/aisignal_test npm test`
+Expected: PASS (migrations run against the test db, insert/read works).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add vitest.config.ts tests/setup tests/integration/db.test.ts
+git commit -m "test: vitest harness against real test postgres"
+```
+
+### Task 5: URL canonicalization (pure, TDD)
+
+**Files:**
+- Create: `ai-signal/src/lib/url.ts`
+- Test: `ai-signal/tests/lib/url.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+import { describe, expect, it } from "vitest";
+import { canonicalizeUrl } from "../../src/lib/url.js";
+
+describe("canonicalizeUrl", () => {
+  it("lowercases host, strips tracking params, trailing slash, fragment", () => {
+    expect(canonicalizeUrl("HTTPS://Example.com/Post/?utm_source=x&id=5#frag"))
+      .toBe("https://example.com/Post?id=5");
+  });
+  it("drops www and sorts query params", () => {
+    expect(canonicalizeUrl("https://www.example.com/a?b=2&a=1"))
+      .toBe("https://example.com/a?a=1&b=2");
+  });
+  it("returns null for null/invalid input", () => {
+    expect(canonicalizeUrl(null)).toBeNull();
+    expect(canonicalizeUrl("not a url")).toBeNull();
+  });
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd ai-signal && TEST_DATABASE_URL=postgres://aisignal:aisignal@localhost:5432/aisignal_test npx vitest run tests/lib/url.test.ts`
+Expected: FAIL with "canonicalizeUrl is not a function" / import error.
+
+- [ ] **Step 3: Implement `src/lib/url.ts`**
+
+```ts
+const TRACKING = /^(utm_|fbclid$|gclid$|mc_eid$|ref$|ref_src$)/i;
+
+export function canonicalizeUrl(input: string | null): string | null {
+  if (!input) return null;
+  let u: URL;
+  try { u = new URL(input.trim()); } catch { return null; }
+  if (!/^https?:$/.test(u.protocol)) return null;
+  u.protocol = u.protocol.toLowerCase();
+  u.hostname = u.hostname.toLowerCase().replace(/^www\./, "");
+  u.hash = "";
+  const params = [...u.searchParams.entries()]
+    .filter(([k]) => !TRACKING.test(k))
+    .sort(([a], [b]) => a.localeCompare(b));
+  u.search = "";
+  for (const [k, v] of params) u.searchParams.append(k, v);
+  let out = u.toString();
+  out = out.replace(/\/(\?|$)/, "$1"); // strip trailing slash before query/end
+  return out;
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/lib/url.test.ts`
+Expected: PASS (3 tests).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/lib/url.ts tests/lib/url.test.ts
+git commit -m "feat: url canonicalization for dedup"
+```
+
+### Task 6: Content hash (pure, TDD)
+
+**Files:**
+- Create: `ai-signal/src/lib/hash.ts`
+- Test: `ai-signal/tests/lib/hash.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+import { describe, expect, it } from "vitest";
+import { contentHash } from "../../src/lib/hash.js";
+
+describe("contentHash", () => {
+  it("is stable and ignores case/whitespace noise in title+text", () => {
+    const a = contentHash({ title: "Hello  World", text: "Body" });
+    const b = contentHash({ title: "hello world", text: "body" });
+    expect(a).toBe(b);
+    expect(a).toMatch(/^[a-f0-9]{64}$/);
+  });
+  it("differs when content differs", () => {
+    expect(contentHash({ title: "A", text: "x" }))
+      .not.toBe(contentHash({ title: "B", text: "x" }));
+  });
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd ai-signal && npx vitest run tests/lib/hash.test.ts`
+Expected: FAIL (import error).
+
+- [ ] **Step 3: Implement `src/lib/hash.ts`**
+
+```ts
+import { createHash } from "node:crypto";
+
+export function contentHash(input: { title: string; text: string }): string {
+  const norm = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+  return createHash("sha256")
+    .update(`${norm(input.title)}\n${norm(input.text)}`)
+    .digest("hex");
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/lib/hash.test.ts`
+Expected: PASS (2 tests).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/lib/hash.ts tests/lib/hash.test.ts
+git commit -m "feat: content hash for exact dedup"
+```
+
+### Task 7: Normalize raw payload → item fields (pure, TDD)
+
+**Files:**
+- Create: `ai-signal/src/lib/normalize.ts`
+- Test: `ai-signal/tests/lib/normalize.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+import { describe, expect, it } from "vitest";
+import { normalizeRawItem } from "../../src/lib/normalize.js";
+import type { RawPayload } from "../../src/types.js";
+
+const raw: RawPayload = {
+  source: "hn",
+  externalId: "123",
+  url: "https://www.example.com/post/?utm_source=hn",
+  author: "pg",
+  title: "  A Title ",
+  text: "Body text",
+  createdAt: "2026-05-30T10:00:00Z",
+  metrics: { points: 42, comments: 9 },
+  raw: {},
+};
+
+describe("normalizeRawItem", () => {
+  it("trims title, canonicalizes url, hashes content, parses date", () => {
+    const n = normalizeRawItem(raw);
+    expect(n.title).toBe("A Title");
+    expect(n.canonicalUrl).toBe("https://example.com/post");
+    expect(n.createdAt.toISOString()).toBe("2026-05-30T10:00:00.000Z");
+    expect(n.contentHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(n.metrics).toEqual({ points: 42, comments: 9 });
+  });
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd ai-signal && npx vitest run tests/lib/normalize.test.ts`
+Expected: FAIL (import error).
+
+- [ ] **Step 3: Implement `src/lib/normalize.ts`**
+
+```ts
+import { contentHash } from "./hash.js";
+import { canonicalizeUrl } from "./url.js";
+import type { NormalizedItem, RawPayload } from "../types.js";
+
+export function normalizeRawItem(raw: RawPayload): NormalizedItem {
+  const title = raw.title.trim();
+  const text = (raw.text ?? "").trim();
+  return {
+    source: raw.source,
+    url: raw.url,
+    canonicalUrl: canonicalizeUrl(raw.url),
+    author: raw.author,
+    title,
+    text,
+    createdAt: new Date(raw.createdAt),
+    metrics: raw.metrics ?? {},
+    contentHash: contentHash({ title, text }),
+  };
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/lib/normalize.test.ts`
+Expected: PASS (1 test).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/lib/normalize.ts tests/lib/normalize.test.ts
+git commit -m "feat: normalize raw payload to item fields"
+```
+
+### Task 8: Shared `ingest()` — upsert raw_items + enqueue normalize jobs (integration, TDD)
+
+**Files:**
+- Create: `ai-signal/src/ingest/ingest.ts`
+- Test: `ai-signal/tests/integration/ingest.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+import { afterAll, afterEach, beforeEach, expect, it } from "vitest";
+import { sources, rawItems, jobs } from "../../src/db/schema.js";
+import { db, pool, truncateAll } from "../setup/db.js";
+import { ingest } from "../../src/ingest/ingest.js";
+import type { RawPayload } from "../../src/types.js";
+
+let sourceId: number;
+beforeEach(async () => {
+  await truncateAll();
+  const [s] = await db.insert(sources).values({ kind: "hn" }).returning();
+  sourceId = s!.id;
+});
+afterEach(async () => { await truncateAll(); });
+afterAll(async () => { await pool.end(); });
+
+const payload = (id: string): RawPayload => ({
+  source: "hn", externalId: id, url: `https://x.com/${id}`, author: "a",
+  title: `T${id}`, text: "", createdAt: "2026-05-30T10:00:00Z",
+  metrics: { points: 1, comments: 0 }, raw: {},
+});
+
+it("upserts raw_items and enqueues one normalize job per new item", async () => {
+  const inserted = await ingest({ db, sourceId, payloads: [payload("1"), payload("2")] });
+  expect(inserted).toBe(2);
+  expect(await db.select().from(rawItems)).toHaveLength(2);
+  const j = await db.select().from(jobs);
+  expect(j).toHaveLength(2);
+  expect(j.every((x) => x.stage === "normalize")).toBe(true);
+});
+
+it("is idempotent on re-ingest of the same external_id", async () => {
+  await ingest({ db, sourceId, payloads: [payload("1")] });
+  await ingest({ db, sourceId, payloads: [payload("1")] });
+  expect(await db.select().from(rawItems)).toHaveLength(1);
+  expect(await db.select().from(jobs)).toHaveLength(1);
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd ai-signal && npx vitest run tests/integration/ingest.test.ts`
+Expected: FAIL (import error).
+
+- [ ] **Step 3: Implement `src/ingest/ingest.ts`**
+
+```ts
+import { sql } from "drizzle-orm";
+import { jobs, rawItems } from "../db/schema.js";
+import type { RawPayload } from "../types.js";
+
+interface IngestArgs {
+  db: any; // drizzle instance (typed via schema in callers)
+  sourceId: number;
+  payloads: RawPayload[];
+}
+
+export async function ingest({ db, sourceId, payloads }: IngestArgs): Promise<number> {
+  if (payloads.length === 0) return 0;
+  const inserted = await db
+    .insert(rawItems)
+    .values(payloads.map((p) => ({ sourceId, externalId: p.externalId, payload: p })))
+    .onConflictDoNothing({ target: [rawItems.sourceId, rawItems.externalId] })
+    .returning({ id: rawItems.id });
+
+  if (inserted.length > 0) {
+    await db
+      .insert(jobs)
+      .values(inserted.map((r: { id: number }) => ({
+        stage: "normalize", ref: String(r.id),
+      })))
+      .onConflictDoNothing({ target: [jobs.stage, jobs.ref] });
+  }
+  return inserted.length;
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/integration/ingest.test.ts`
+Expected: PASS (2 tests).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/ingest/ingest.ts tests/integration/ingest.test.ts
+git commit -m "feat: idempotent ingest with normalize job enqueue"
+```
+
+### Task 9: HackerNews collector via Algolia (TDD with mocked fetch)
+
+**Files:**
+- Create: `ai-signal/src/collectors/hn.ts`
+- Test: `ai-signal/tests/lib/hn.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { fetchHackerNews } from "../../src/collectors/hn.js";
+
+const algoliaResponse = {
+  hits: [{
+    objectID: "999", title: "GPT-5 released", url: "https://openai.com/gpt5",
+    author: "sama", points: 500, num_comments: 200, created_at_i: 1748599200,
+    story_text: null,
+  }],
+};
+
+afterEach(() => vi.restoreAllMocks());
+
+describe("fetchHackerNews", () => {
+  it("maps Algolia hits to RawPayload[]", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(algoliaResponse))));
+    const out = await fetchHackerNews({ query: "AI", sinceHours: 24 });
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({
+      source: "hn", externalId: "999", title: "GPT-5 released",
+      url: "https://openai.com/gpt5", author: "sama",
+      metrics: { points: 500, comments: 200 },
+    });
+    expect(out[0]!.createdAt).toBe("2025-05-30T10:00:00.000Z"); // 1748599200s = 2025-05-30
+  });
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd ai-signal && npx vitest run tests/lib/hn.test.ts`
+Expected: FAIL (import error).
+
+- [ ] **Step 3: Implement `src/collectors/hn.ts`**
+
+```ts
+import type { RawPayload } from "../types.js";
+
+interface HnHit {
+  objectID: string; title: string | null; url: string | null;
+  author: string | null; points: number | null; num_comments: number | null;
+  created_at_i: number; story_text: string | null;
+}
+
+interface FetchArgs { query: string; sinceHours: number; hitsPerPage?: number; }
+
+export async function fetchHackerNews(args: FetchArgs): Promise<RawPayload[]> {
+  const since = Math.floor(Date.now() / 1000) - args.sinceHours * 3600;
+  const url = new URL("https://hn.algolia.com/api/v1/search");
+  url.searchParams.set("query", args.query);
+  url.searchParams.set("tags", "story");
+  url.searchParams.set("numericFilters", `created_at_i>${since}`);
+  url.searchParams.set("hitsPerPage", String(args.hitsPerPage ?? 100));
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HN Algolia ${res.status}`);
+  const data = (await res.json()) as { hits: HnHit[] };
+
+  return data.hits
+    .filter((h) => h.title)
+    .map((h) => ({
+      source: "hn" as const,
+      externalId: h.objectID,
+      url: h.url,
+      author: h.author,
+      title: h.title!,
+      text: h.story_text ?? "",
+      createdAt: new Date(h.created_at_i * 1000).toISOString(),
+      metrics: { points: h.points ?? 0, comments: h.num_comments ?? 0 },
+      raw: h,
+    }));
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/lib/hn.test.ts`
+Expected: PASS (1 test).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/collectors/hn.ts tests/lib/hn.test.ts
+git commit -m "feat: hackernews algolia collector"
+```
+
+### Task 10: Pipeline normalize stage + worker loop (integration, TDD)
+
+**Files:**
+- Create: `ai-signal/src/pipeline/stages.ts`
+- Create: `ai-signal/src/pipeline/worker.ts`
+- Test: `ai-signal/tests/integration/pipeline-normalize.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+import { afterAll, afterEach, beforeEach, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
+import { sources, rawItems, items, jobs } from "../../src/db/schema.js";
+import { db, pool, truncateAll } from "../setup/db.js";
+import { runPendingJobs } from "../../src/pipeline/stages.js";
+import { ingest } from "../../src/ingest/ingest.js";
+import type { RawPayload } from "../../src/types.js";
+
+let sourceId: number;
+beforeEach(async () => {
+  await truncateAll();
+  const [s] = await db.insert(sources).values({ kind: "hn" }).returning();
+  sourceId = s!.id;
+});
+afterEach(async () => { await truncateAll(); });
+afterAll(async () => { await pool.end(); });
+
+const payload: RawPayload = {
+  source: "hn", externalId: "1", url: "https://www.example.com/a/?utm_source=x",
+  author: "pg", title: " Hello ", text: "Body", createdAt: "2026-05-30T10:00:00Z",
+  metrics: { points: 10, comments: 2 }, raw: {},
+};
+
+it("normalize job creates one item and marks the job done", async () => {
+  await ingest({ db, sourceId, payloads: [payload] });
+  const processed = await runPendingJobs(db, { max: 10 });
+  expect(processed).toBe(1);
+
+  const rows = await db.select().from(items);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]!.title).toBe("Hello");
+  expect(rows[0]!.canonicalUrl).toBe("https://example.com/a");
+
+  const j = await db.select().from(jobs).where(eq(jobs.stage, "normalize"));
+  expect(j[0]!.status).toBe("done");
+});
+
+it("duplicate content_hash does not create a second item", async () => {
+  await ingest({ db, sourceId, payloads: [payload, { ...payload, externalId: "2" }] });
+  await runPendingJobs(db, { max: 10 });
+  expect(await db.select().from(items)).toHaveLength(1);
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd ai-signal && npx vitest run tests/integration/pipeline-normalize.test.ts`
+Expected: FAIL (import error).
+
+- [ ] **Step 3: Implement `src/pipeline/stages.ts`**
+
+```ts
+import { and, asc, eq } from "drizzle-orm";
+import { items, jobs, rawItems } from "../db/schema.js";
+import { normalizeRawItem } from "../lib/normalize.js";
+import type { RawPayload } from "../types.js";
+
+type Db = any;
+
+async function handleNormalize(db: Db, rawItemId: number): Promise<void> {
+  const [raw] = await db.select().from(rawItems).where(eq(rawItems.id, rawItemId));
+  if (!raw) return;
+  const n = normalizeRawItem(raw.payload as RawPayload);
+  await db.insert(items).values({
+    rawItemId,
+    source: n.source,
+    url: n.url,
+    canonicalUrl: n.canonicalUrl,
+    author: n.author,
+    title: n.title,
+    text: n.text,
+    createdAt: n.createdAt,
+    metrics: n.metrics,
+    contentHash: n.contentHash,
+  }).onConflictDoNothing({ target: items.contentHash });
+}
+
+const HANDLERS: Record<string, (db: Db, ref: number) => Promise<void>> = {
+  normalize: (db, ref) => handleNormalize(db, ref),
+};
+
+export async function runPendingJobs(db: Db, opts: { max: number }): Promise<number> {
+  const pending = await db.select().from(jobs)
+    .where(eq(jobs.status, "pending"))
+    .orderBy(asc(jobs.id))
+    .limit(opts.max);
+
+  let processed = 0;
+  for (const job of pending) {
+    const handler = HANDLERS[job.stage];
+    if (!handler) continue;
+    try {
+      await handler(db, Number(job.ref));
+      await db.update(jobs).set({ status: "done" }).where(eq(jobs.id, job.id));
+      processed++;
+    } catch (err) {
+      await db.update(jobs)
+        .set({ status: "error", attempts: job.attempts + 1, error: String(err) })
+        .where(eq(jobs.id, job.id));
+    }
+  }
+  return processed;
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/integration/pipeline-normalize.test.ts`
+Expected: PASS (2 tests).
+
+- [ ] **Step 5: Implement the long-running worker `src/pipeline/worker.ts`**
+
+```ts
+import { db } from "../db/client.js";
+import { runPendingJobs } from "./stages.js";
+
+const POLL_MS = 5000;
+
+async function loop() {
+  for (;;) {
+    try {
+      const n = await runPendingJobs(db, { max: 50 });
+      if (n === 0) await new Promise((r) => setTimeout(r, POLL_MS));
+    } catch (err) {
+      console.error("worker loop error", err);
+      await new Promise((r) => setTimeout(r, POLL_MS));
+    }
+  }
+}
+
+loop();
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/pipeline tests/integration/pipeline-normalize.test.ts
+git commit -m "feat: worker loop + normalize pipeline stage"
+```
+
+### Task 11: Ingest API route (bearer token) (integration, TDD)
+
+**Files:**
+- Create: `ai-signal/src/app/api/ingest/route.ts`
+- Test: `ai-signal/tests/integration/ingest-route.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+import { afterAll, afterEach, expect, it, vi } from "vitest";
+import { db, pool, truncateAll } from "../setup/db.js";
+import { rawItems } from "../../src/db/schema.js";
+
+// Override the app db client with a connection to the TEST database.
+// Use importOriginal (not an import of setup/db.js) to avoid a circular
+// mock-factory deadlock, and spread ...actual so makeDb/schema stay exported.
+vi.mock("../../src/db/client.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/db/client.js")>();
+  const { db, pool } = actual.makeDb(process.env.TEST_DATABASE_URL!);
+  return { ...actual, db, pool };
+});
+
+afterEach(async () => { await truncateAll(); });
+afterAll(async () => { await pool.end(); });
+
+async function importRoute() { return import("../../src/app/api/ingest/route.js"); }
+
+const body = JSON.stringify({
+  source: "reddit",
+  items: [{
+    source: "reddit", externalId: "abc", url: "https://reddit.com/abc", author: "u",
+    title: "Post", text: "", createdAt: "2026-05-30T10:00:00Z",
+    metrics: { score: 5, comments: 1 }, raw: {},
+  }],
+});
+
+it("rejects without bearer token", async () => {
+  const { POST } = await importRoute();
+  const res = await POST(new Request("http://x/api/ingest", { method: "POST", body }));
+  expect(res.status).toBe(401);
+});
+
+it("accepts with valid token and stores raw items", async () => {
+  process.env.INGEST_TOKEN = "dev-token";
+  const { POST } = await importRoute();
+  const res = await POST(new Request("http://x/api/ingest", {
+    method: "POST",
+    headers: { authorization: "Bearer dev-token" },
+    body,
+  }));
+  expect(res.status).toBe(200);
+  expect(await db.select().from(rawItems)).toHaveLength(1);
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd ai-signal && INGEST_TOKEN=dev-token npx vitest run tests/integration/ingest-route.test.ts`
+Expected: FAIL (import error).
+
+- [ ] **Step 3: Implement `src/app/api/ingest/route.ts`**
+
+```ts
+import { z } from "zod";
+import { eq } from "drizzle-orm";
+import { db } from "../../../db/client.js";
+import { sources } from "../../../db/schema.js";
+import { ingest } from "../../../ingest/ingest.js";
+import { config } from "../../../config.js";
+import type { RawPayload } from "../../../types.js";
+
+export const dynamic = "force-dynamic";
+
+const payloadSchema = z.object({
+  source: z.enum(["hn", "rss", "reddit", "twitter"]),
+  externalId: z.string(),
+  url: z.string().nullable(),
+  author: z.string().nullable(),
+  title: z.string(),
+  text: z.string(),
+  createdAt: z.string(),
+  metrics: z.record(z.number()),
+  raw: z.unknown(),
+});
+const bodySchema = z.object({
+  source: z.enum(["hn", "rss", "reddit", "twitter"]),
+  items: z.array(payloadSchema),
+});
+
+export async function POST(req: Request): Promise<Response> {
+  const auth = req.headers.get("authorization");
+  if (auth !== `Bearer ${config.INGEST_TOKEN}`) {
+    return new Response("unauthorized", { status: 401 });
+  }
+  const parsed = bodySchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) return new Response("bad request", { status: 400 });
+
+  const { source, items } = parsed.data;
+  let [src] = await db.select().from(sources).where(eq(sources.kind, source));
+  if (!src) [src] = await db.insert(sources).values({ kind: source }).returning();
+
+  const inserted = await ingest({ db, sourceId: src!.id, payloads: items as RawPayload[] });
+  return Response.json({ inserted });
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `cd ai-signal && INGEST_TOKEN=dev-token npx vitest run tests/integration/ingest-route.test.ts`
+Expected: PASS (2 tests).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/app/api/ingest/route.ts tests/integration/ingest-route.test.ts
+git commit -m "feat: bearer-token ingest API route"
+```
+
+### Task 12: HTTP Basic Auth middleware (TDD)
+
+**Files:**
+- Create: `ai-signal/src/middleware.ts`
+- Test: `ai-signal/tests/lib/middleware.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+import { describe, expect, it, beforeAll } from "vitest";
+import { NextRequest } from "next/server";
+
+beforeAll(() => {
+  process.env.BASIC_AUTH_USER = "admin";
+  process.env.BASIC_AUTH_PASS = "secret";
+});
+
+async function mw() { return (await import("../../src/middleware.js")).middleware; }
+const req = (path: string, auth?: string) =>
+  new NextRequest(`http://localhost${path}`, auth ? { headers: { authorization: auth } } : {});
+
+describe("basic auth middleware", () => {
+  it("lets /api/ingest through without basic auth", async () => {
+    const res = (await mw())(req("/api/ingest"));
+    expect(res.status).not.toBe(401);
+  });
+  it("challenges unauthenticated dashboard requests", async () => {
+    const res = (await mw())(req("/"));
+    expect(res.status).toBe(401);
+    expect(res.headers.get("www-authenticate")).toContain("Basic");
+  });
+  it("allows correct credentials", async () => {
+    const token = Buffer.from("admin:secret").toString("base64");
+    const res = (await mw())(req("/", `Basic ${token}`));
+    expect(res.status).not.toBe(401);
+  });
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd ai-signal && npx vitest run tests/lib/middleware.test.ts`
+Expected: FAIL (import error).
+
+- [ ] **Step 3: Implement `src/middleware.ts`**
+
+```ts
+import { NextRequest, NextResponse } from "next/server";
+import { config } from "./config.js";
+
+export const matcher = ["/((?!_next/static|_next/image|favicon.ico).*)"];
+export const config_matcher = { matcher };
+
+export function middleware(req: NextRequest): NextResponse {
+  if (req.nextUrl.pathname.startsWith("/api/ingest")) return NextResponse.next();
+
+  const header = req.headers.get("authorization") ?? "";
+  const expected = "Basic " + Buffer.from(`${config.BASIC_AUTH_USER}:${config.BASIC_AUTH_PASS}`).toString("base64");
+  if (header === expected) return NextResponse.next();
+
+  return new NextResponse("Authentication required", {
+    status: 401,
+    headers: { "WWW-Authenticate": 'Basic realm="ai-signal"' },
+  });
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/lib/middleware.test.ts`
+Expected: PASS (3 tests).
+
+> Note: Next.js reads the route matcher from an exported `config` object. Since `config` is already used for env, set the matcher in `next.config`-independent form by renaming the exported matcher to the Next convention in this file only: change the export to `export const config = { matcher };` and import env as `import { config as env } from "./config.js";`, updating the two `config.` references to `env.`. Make this rename as Step 5 below.
+
+- [ ] **Step 5: Adjust exports to Next's middleware convention + re-run test**
+
+```ts
+import { NextRequest, NextResponse } from "next/server";
+import { config as env } from "./config.js";
+
+export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"] };
+
+export function middleware(req: NextRequest): NextResponse {
+  if (req.nextUrl.pathname.startsWith("/api/ingest")) return NextResponse.next();
+  const header = req.headers.get("authorization") ?? "";
+  const expected = "Basic " + Buffer.from(`${env.BASIC_AUTH_USER}:${env.BASIC_AUTH_PASS}`).toString("base64");
+  if (header === expected) return NextResponse.next();
+  return new NextResponse("Authentication required", {
+    status: 401,
+    headers: { "WWW-Authenticate": 'Basic realm="ai-signal"' },
+  });
+}
+```
+
+Run: `cd ai-signal && npx vitest run tests/lib/middleware.test.ts`
+Expected: PASS (3 tests).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/middleware.ts tests/lib/middleware.test.ts
+git commit -m "feat: http basic auth middleware (ingest exempt)"
+```
+
+### Task 13: Feed page (newest-first) reading from DB
+
+**Files:**
+- Modify: `ai-signal/src/app/page.tsx`
+- Create: `ai-signal/src/app/feed-queries.ts`
+- Test: `ai-signal/tests/integration/feed-queries.test.ts`
+
+- [ ] **Step 1: Write the failing test for the query layer**
+
+```ts
+import { afterAll, afterEach, expect, it } from "vitest";
+import { items } from "../../src/db/schema.js";
+import { db, pool, truncateAll } from "../setup/db.js";
+import { getFeed } from "../../src/app/feed-queries.js";
+
+afterEach(async () => { await truncateAll(); });
+afterAll(async () => { await pool.end(); });
+
+it("returns items newest-first", async () => {
+  await db.insert(items).values([
+    { rawItemId: 1, source: "hn", title: "old", contentHash: "h1", createdAt: new Date("2026-05-01T00:00:00Z") },
+    { rawItemId: 2, source: "hn", title: "new", contentHash: "h2", createdAt: new Date("2026-05-30T00:00:00Z") },
+  ]);
+  const feed = await getFeed(db, { limit: 10 });
+  expect(feed.map((f) => f.title)).toEqual(["new", "old"]);
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd ai-signal && npx vitest run tests/integration/feed-queries.test.ts`
+Expected: FAIL (import error).
+
+- [ ] **Step 3: Implement `src/app/feed-queries.ts`**
+
+```ts
+import { desc } from "drizzle-orm";
+import { items } from "../db/schema.js";
+
+type Db = any;
+
+export async function getFeed(
+  db: Db,
+  opts: { limit: number },
+): Promise<(typeof items.$inferSelect)[]> {
+  return db.select().from(items).orderBy(desc(items.createdAt)).limit(opts.limit);
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/integration/feed-queries.test.ts`
+Expected: PASS (1 test).
+
+- [ ] **Step 5: Render the feed in `src/app/page.tsx`**
+
+```tsx
+import { db } from "../db/client.js";
+import { getFeed } from "./feed-queries.js";
+
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const feed = await getFeed(db, { limit: 50 });
+  return (
+    <main style={{ maxWidth: 720, margin: "2rem auto", fontFamily: "system-ui" }}>
+      <h1>AI Signal</h1>
+      <ul style={{ listStyle: "none", padding: 0 }}>
+        {feed.map((item: { id: number; title: string; url: string | null; source: string; createdAt: Date }) => (
+          <li key={item.id} style={{ padding: "0.75rem 0", borderBottom: "1px solid #eee" }}>
+            <a href={item.url ?? "#"} target="_blank" rel="noreferrer">{item.title}</a>
+            <div style={{ fontSize: 12, color: "#888" }}>
+              {item.source} · {new Date(item.createdAt).toLocaleString()}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </main>
+  );
+}
+```
+
+- [ ] **Step 6: Verify build**
+
+Run: `cd ai-signal && npm run build`
+Expected: build succeeds; `/` is a dynamic route.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/app/page.tsx src/app/feed-queries.ts tests/integration/feed-queries.test.ts
+git commit -m "feat: feed page reading items newest-first"
+```
+
+### Task 14: HN cron entrypoint + full M1 end-to-end wiring
+
+**Files:**
+- Create: `ai-signal/bin/collect-hn.ts`
+- Modify: `ai-signal/docker-compose.yml`
+
+- [ ] **Step 1: Implement `bin/collect-hn.ts`**
+
+```ts
+import { eq } from "drizzle-orm";
+import { db, pool } from "../src/db/client.js";
+import { sources } from "../src/db/schema.js";
+import { fetchHackerNews } from "../src/collectors/hn.js";
+import { ingest } from "../src/ingest/ingest.js";
+
+const QUERY = "AI OR LLM OR agent OR Anthropic OR OpenAI";
+
+async function main() {
+  let [src] = await db.select().from(sources).where(eq(sources.kind, "hn"));
+  if (!src) [src] = await db.insert(sources).values({ kind: "hn" }).returning();
+
+  const payloads = await fetchHackerNews({ query: QUERY, sinceHours: 24 });
+  const inserted = await ingest({ db, sourceId: src!.id, payloads });
+  await db.update(sources).set({ lastRunAt: new Date() }).where(eq(sources.id, src!.id));
+  console.log(`HN: fetched ${payloads.length}, new ${inserted}`);
+  await pool.end();
+}
+
+main();
+```
+
+- [ ] **Step 2: Add web + worker services to `docker-compose.yml`**
+
+```yaml
+  web:
+    build: .
+    command: npm run start
+    environment:
+      DATABASE_URL: postgres://aisignal:aisignal@db:5432/aisignal
+      INGEST_TOKEN: ${INGEST_TOKEN}
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER}
+      BASIC_AUTH_PASS: ${BASIC_AUTH_PASS}
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  worker:
+    build: .
+    command: npm run worker
+    environment:
+      DATABASE_URL: postgres://aisignal:aisignal@db:5432/aisignal
+    depends_on:
+      db:
+        condition: service_healthy
+```
+
+(A `Dockerfile` is needed for `build: .`; add a standard multi-stage Node 20 Next.js build. Create it now as Step 3.)
+
+- [ ] **Step 3: Create `ai-signal/Dockerfile`**
+
+```dockerfile
+FROM node:20-slim AS base
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+EXPOSE 3000
+CMD ["npm", "run", "start"]
+```
+
+- [ ] **Step 4: Manual end-to-end verification**
+
+Run:
+```bash
+cd ai-signal
+DATABASE_URL=postgres://aisignal:aisignal@localhost:5432/aisignal npm run collect:hn
+DATABASE_URL=postgres://aisignal:aisignal@localhost:5432/aisignal npx tsx src/pipeline/worker.ts &   # let it process, then Ctrl-C
+DATABASE_URL=postgres://aisignal:aisignal@localhost:5432/aisignal npm run dev
+```
+Expected: `collect:hn` reports fetched/new counts; worker turns raw_items into `items`; opening `http://localhost:3000` prompts for Basic Auth, and after login shows real HN stories newest-first. **This is the M1 acceptance gate.**
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add bin/collect-hn.ts docker-compose.yml Dockerfile
+git commit -m "feat: HN cron entrypoint + compose web/worker (M1 complete)"
+```
+
+---
+
+## M2 — Ranking layer (hardest; validated first)
+
+**Goal of M2:** After normalize, a `score` stage runs a cheap prefilter to cut the day's items down to candidates, sends candidates to an LLM in batches to get a 0–100 value, 1–3 topic tags, a one-line reason and a one-line summary, computes a configurable composite score, and the feed sorts by composite. 👍/👎 feedback is recorded. This is the milestone where you judge "is the ranking any good?" — iterate the rubric on real data before adding more sources.
+
+> **Architecture note:** novelty needs embeddings (M4). Until then `novelty = 0` is stored and `WEIGHT_NOVELTY` simply contributes nothing; the composite formula stays stable so M4 can activate novelty without a schema change. Topic tags in M2 are stored as a plain string array on the score row; M4 replaces them with real embedding-based clusters in the `topics`/`item_topics` tables. The feed shows `topic_tags` until M4, cluster labels after.
+
+### Task 1: Verify OpenRouter scoring model + add scores/feedback schema
+
+**Files:**
+- Modify: `ai-signal/src/db/schema.ts`
+- Create: `ai-signal/src/db/migrations/` (generated)
+
+- [ ] **Step 1: Verify the model slug + pricing (manual spike, blocks real calls)**
+
+Run:
+```bash
+curl -s https://openrouter.ai/api/v1/models -H "Authorization: Bearer $OPENROUTER_API_KEY" \
+  | grep -i "deepseek" | head
+```
+Expected: confirm the exact id for `SCORING_MODEL` (e.g. `deepseek/deepseek-v4-flash` or the current flash slug) and note input/output price. If the slug differs, update `.env.example` default and your `.env`. Record the confirmed slug in a comment at the top of `src/lib/scoring/llm.ts` (added in Task 4).
+
+- [ ] **Step 2: Add `scores` and `feedback` tables to `src/db/schema.ts`**
+
+Append to the existing schema file:
+
+```ts
+import { doublePrecision, real } from "drizzle-orm/pg-core";
+
+export const scores = pgTable("scores", {
+  itemId: bigint("item_id", { mode: "number" }).primaryKey(),
+  heat: real("heat").notNull().default(0),
+  relevance: real("relevance").notNull().default(0),
+  novelty: real("novelty").notNull().default(0),
+  llmValue: real("llm_value").notNull().default(0),
+  composite: doublePrecision("composite").notNull().default(0),
+  summary: text("summary").notNull().default(""),
+  reason: text("reason").notNull().default(""),
+  topicTags: jsonb("topic_tags").notNull().default([]),
+  rubricVersion: text("rubric_version").notNull(),
+  scoredAt: timestamp("scored_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const feedback = pgTable("feedback", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  itemId: bigint("item_id", { mode: "number" }).notNull(),
+  signal: text("signal").notNull(), // "up" | "down"
+  reason: text("reason"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+```
+
+- [ ] **Step 3: Generate + apply migration**
+
+Run:
+```bash
+cd ai-signal && DATABASE_URL=postgres://aisignal:aisignal@localhost:5432/aisignal npm run db:generate
+DATABASE_URL=postgres://aisignal:aisignal@localhost:5432/aisignal npm run db:migrate
+```
+Expected: new migration adds `scores` + `feedback`; applies cleanly.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add src/db/schema.ts src/db/migrations
+git commit -m "feat: scores + feedback schema for ranking"
+```
+
+### Task 2: Watched-keyword relevance (pure, TDD)
+
+**Files:**
+- Create: `ai-signal/src/lib/keywords.ts`
+- Test: `ai-signal/tests/lib/keywords.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+import { describe, expect, it } from "vitest";
+import { computeRelevance, WATCHED_KEYWORDS } from "../../src/lib/keywords.js";
+
+describe("computeRelevance", () => {
+  it("matches case-insensitive multiword phrases on word boundaries", () => {
+    expect(computeRelevance("Claude Code ships agentic harness", "")).toBeGreaterThan(0);
+  });
+  it("does NOT match the broad token 'AI' inside other words", () => {
+    // 'maintain', 'brain' contain 'ai' but must not count
+    expect(computeRelevance("maintain the brain", "")).toBe(0);
+  });
+  it("matches 'AI' only as a standalone, case-sensitive token", () => {
+    expect(computeRelevance("AI is here", "")).toBeGreaterThan(0);
+    expect(computeRelevance("ai is here", "")).toBe(0); // lowercase 'ai' too broad
+  });
+  it("caps at 1.0", () => {
+    const text = WATCHED_KEYWORDS.map((k) => k.term).join(" ");
+    expect(computeRelevance(text, "")).toBe(1);
+  });
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd ai-signal && npx vitest run tests/lib/keywords.test.ts`
+Expected: FAIL (import error).
+
+- [ ] **Step 3: Implement `src/lib/keywords.ts`**
+
+```ts
+interface Keyword { term: string; caseSensitive: boolean; }
+
+// decision #2: broad tokens (AI, Agent) are case-sensitive + word-bounded.
+export const WATCHED_KEYWORDS: Keyword[] = [
+  { term: "LLM", caseSensitive: true }, { term: "LLMs", caseSensitive: true },
+  { term: "AGI", caseSensitive: true }, { term: "RAG", caseSensitive: true },
+  { term: "AI", caseSensitive: true }, { term: "Agent", caseSensitive: true },
+  { term: "AI Agent", caseSensitive: true }, { term: "Multi-agent", caseSensitive: false },
+  { term: "Context Engineering", caseSensitive: false }, { term: "Harness", caseSensitive: false },
+  { term: "Agentic", caseSensitive: false }, { term: "multimodal", caseSensitive: false },
+  { term: "Vibe Coding", caseSensitive: false }, { term: "AI Coding", caseSensitive: false },
+  { term: "Vibe Design", caseSensitive: false }, { term: "Claude Code", caseSensitive: false },
+  { term: "Codex", caseSensitive: false }, { term: "OpenAI", caseSensitive: false },
+  { term: "Anthropic", caseSensitive: false },
+];
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function computeRelevance(title: string, text: string): number {
+  const haystack = `${title} ${text}`;
+  let hits = 0;
+  for (const k of WATCHED_KEYWORDS) {
+    const flags = k.caseSensitive ? "" : "i";
+    const re = new RegExp(`\\b${escapeRegex(k.term)}\\b`, flags);
+    if (re.test(haystack)) hits++;
+  }
+  return Math.min(1, hits / 3);
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/lib/keywords.test.ts`
+Expected: PASS (4 tests).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/lib/keywords.ts tests/lib/keywords.test.ts
+git commit -m "feat: watched-keyword relevance with word boundaries"
+```
+
+### Task 3: Heat normalization + composite (pure, TDD)
+
+**Files:**
+- Create: `ai-signal/src/lib/scoring/composite.ts`
+- Test: `ai-signal/tests/lib/composite.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+import { describe, expect, it } from "vitest";
+import { normalizeHeat, computeComposite } from "../../src/lib/scoring/composite.js";
+
+describe("normalizeHeat", () => {
+  it("is 0 for no engagement and approaches 1 for high engagement", () => {
+    expect(normalizeHeat({})).toBe(0);
+    expect(normalizeHeat({ points: 0, comments: 0 })).toBe(0);
+    const hot = normalizeHeat({ points: 1000, comments: 500 });
+    expect(hot).toBeGreaterThan(0.8);
+    expect(hot).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("computeComposite", () => {
+  it("weights each component", () => {
+    const c = computeComposite(
+      { heat: 1, relevance: 1, novelty: 1, llmValue: 1 },
+      { heat: 0.2, relevance: 0.2, novelty: 0.15, llm: 0.45 },
+    );
+    expect(c).toBeCloseTo(1, 5);
+  });
+  it("ignores novelty when its weight is 0", () => {
+    const c = computeComposite(
+      { heat: 0, relevance: 0, novelty: 0, llmValue: 0.5 },
+      { heat: 0.2, relevance: 0.2, novelty: 0, llm: 0.45 },
+    );
+    expect(c).toBeCloseTo(0.5 * 0.45, 5);
+  });
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd ai-signal && npx vitest run tests/lib/composite.test.ts`
+Expected: FAIL (import error).
+
+- [ ] **Step 3: Implement `src/lib/scoring/composite.ts`**
+
+```ts
+export function normalizeHeat(metrics: Record<string, number>): number {
+  const points = metrics.points ?? metrics.score ?? 0;
+  const comments = metrics.comments ?? 0;
+  const raw = points + 2 * comments;
+  if (raw <= 0) return 0;
+  // log10 scale: ~1000 engagement -> ~1.0
+  return Math.min(1, Math.log10(1 + raw) / 3);
+}
+
+interface Parts { heat: number; relevance: number; novelty: number; llmValue: number; }
+interface Weights { heat: number; relevance: number; novelty: number; llm: number; }
+
+export function computeComposite(p: Parts, w: Weights): number {
+  return w.heat * p.heat + w.relevance * p.relevance + w.novelty * p.novelty + w.llm * p.llmValue;
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/lib/composite.test.ts`
+Expected: PASS (3 tests).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/lib/scoring/composite.ts tests/lib/composite.test.ts
+git commit -m "feat: heat normalization + composite score"
+```
+
+### Task 4: Prefilter — select candidates / drop noise (pure, TDD)
+
+**Files:**
+- Create: `ai-signal/src/lib/scoring/prefilter.ts`
+- Test: `ai-signal/tests/lib/prefilter.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+import { describe, expect, it } from "vitest";
+import { selectCandidates } from "../../src/lib/scoring/prefilter.js";
+
+const mk = (over: Partial<any>) => ({
+  id: 1, title: "x", text: "", source: "hn", metrics: { points: 1, comments: 0 }, ...over,
+});
+
+describe("selectCandidates", () => {
+  it("keeps items hitting a watched keyword even with low heat", () => {
+    const out = selectCandidates([mk({ id: 1, title: "New Claude Code release", metrics: { points: 1 } })]);
+    expect(out.map((i) => i.id)).toContain(1);
+  });
+  it("keeps high-heat items even without keywords", () => {
+    const out = selectCandidates([mk({ id: 2, title: "unrelated", metrics: { points: 800, comments: 300 } })]);
+    expect(out.map((i) => i.id)).toContain(2);
+  });
+  it("drops low-heat, no-keyword noise", () => {
+    const out = selectCandidates([mk({ id: 3, title: "random startup blog", metrics: { points: 1, comments: 0 } })]);
+    expect(out.map((i) => i.id)).not.toContain(3);
+  });
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd ai-signal && npx vitest run tests/lib/prefilter.test.ts`
+Expected: FAIL (import error).
+
+- [ ] **Step 3: Implement `src/lib/scoring/prefilter.ts`**
+
+```ts
+import { computeRelevance } from "../keywords.js";
+import { normalizeHeat } from "./composite.js";
+
+export interface Candidate {
+  id: number; title: string; text: string; source: string;
+  metrics: Record<string, number>;
+}
+
+const HEAT_FLOOR = 0.5; // log10 scale ~ raw>=~30
+
+export function selectCandidates<T extends Candidate>(items: T[]): T[] {
+  return items.filter((i) => {
+    const rel = computeRelevance(i.title, i.text);
+    const heat = normalizeHeat(i.metrics);
+    return rel > 0 || heat >= HEAT_FLOOR;
+  });
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/lib/prefilter.test.ts`
+Expected: PASS (3 tests).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/lib/scoring/prefilter.ts tests/lib/prefilter.test.ts
+git commit -m "feat: cheap prefilter to candidate set"
+```
+
+### Task 5: Rubric + LLM batch scoring client (TDD with mocked fetch)
+
+**Files:**
+- Create: `ai-signal/src/lib/scoring/rubric.ts`
+- Create: `ai-signal/src/lib/scoring/llm.ts`
+- Test: `ai-signal/tests/lib/llm.test.ts`
+
+- [ ] **Step 1: Create the rubric `src/lib/scoring/rubric.ts`**
+
+```ts
+// Bump RUBRIC_VERSION whenever the prompt/weights change so jobs can re-score.
+export const RUBRIC_VERSION = "2026-06-03.1";
+
+export const RUBRIC = `You rank AI-news items by PERSONAL value to a hands-on AI engineer who cares about:
+LLMs, agents/agentic systems, AI coding (Claude Code, Codex, Cursor), RAG, context engineering,
+multimodal, and lab releases (OpenAI, Anthropic, Google DeepMind).
+Score 0-100 where:
+- 80-100: directly actionable or a significant capability/release the reader must know.
+- 50-79: relevant and informative but not urgent.
+- 20-49: tangentially related or shallow.
+- 0-19: marketing, rehash, low-signal noise.
+Penalize hype with no substance. Reward concrete technical detail.`;
+```
+
+- [ ] **Step 2: Write the failing test for the LLM client**
+
+```ts
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { scoreBatch } from "../../src/lib/scoring/llm.js";
+
+afterEach(() => vi.restoreAllMocks());
+
+const llmJson = {
+  choices: [{ message: { content: JSON.stringify({
+    results: [
+      { id: 1, value: 88, topics: ["agents", "claude code"], reason: "concrete release", summary: "Anthropic ships X." },
+      { id: 2, value: 12, topics: ["marketing"], reason: "hype", summary: "Startup blog." },
+    ],
+  }) } }],
+};
+
+describe("scoreBatch", () => {
+  it("sends candidates and parses validated results keyed by id", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify(llmJson)));
+    vi.stubGlobal("fetch", fetchMock);
+    process.env.OPENROUTER_API_KEY = "k";
+
+    const out = await scoreBatch([
+      { id: 1, title: "Anthropic X", text: "details", source: "hn", metrics: { points: 100 } },
+      { id: 2, title: "Blog", text: "", source: "hn", metrics: { points: 1 } },
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(out.get(1)).toMatchObject({ value: 88, summary: "Anthropic ships X." });
+    expect(out.get(2)!.value).toBe(12);
+  });
+
+  it("returns empty map for empty input without calling fetch", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const out = await scoreBatch([]);
+    expect(out.size).toBe(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+```
+
+- [ ] **Step 3: Run to verify it fails**
+
+Run: `cd ai-signal && npx vitest run tests/lib/llm.test.ts`
+Expected: FAIL (import error).
+
+- [ ] **Step 4: Implement `src/lib/scoring/llm.ts`**
+
+```ts
+// Confirmed SCORING_MODEL slug (M2 Task 1): keep in sync with .env SCORING_MODEL.
+import { z } from "zod";
+import { config } from "../../config.js";
+import { RUBRIC } from "./rubric.js";
+import type { Candidate } from "./prefilter.js";
+
+const resultSchema = z.object({
+  id: z.number(),
+  value: z.number().min(0).max(100),
+  topics: z.array(z.string()).max(3).default([]),
+  reason: z.string().default(""),
+  summary: z.string().default(""),
+});
+const responseSchema = z.object({ results: z.array(resultSchema) });
+
+export type ScoreResult = z.infer<typeof resultSchema>;
+
+const BATCH = 25;
+
+export async function scoreBatch(candidates: Candidate[]): Promise<Map<number, ScoreResult>> {
+  const out = new Map<number, ScoreResult>();
+  for (let i = 0; i < candidates.length; i += BATCH) {
+    const chunk = candidates.slice(i, i + BATCH);
+    if (chunk.length === 0) continue;
+    const results = await scoreChunk(chunk);
+    for (const r of results) out.set(r.id, r);
+  }
+  return out;
+}
+
+async function scoreChunk(chunk: Candidate[]): Promise<ScoreResult[]> {
+  const itemsBlock = chunk.map((c) =>
+    `- id=${c.id} | source=${c.source} | metrics=${JSON.stringify(c.metrics)}\n  title: ${c.title}\n  text: ${c.text.slice(0, 500)}`,
+  ).join("\n");
+
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${config.OPENROUTER_API_KEY}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: config.SCORING_MODEL,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: `${RUBRIC}\nReturn JSON: {"results":[{"id","value","topics","reason","summary"}]}` },
+        { role: "user", content: itemsBlock },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${await res.text()}`);
+  const data = (await res.json()) as { choices: { message: { content: string } }[] };
+  const parsed = responseSchema.parse(JSON.parse(data.choices[0]!.message.content));
+  return parsed.results;
+}
+```
+
+- [ ] **Step 5: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/lib/llm.test.ts`
+Expected: PASS (2 tests).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/lib/scoring/rubric.ts src/lib/scoring/llm.ts tests/lib/llm.test.ts
+git commit -m "feat: rubric + batched openrouter scoring client"
+```
+
+### Task 6: Score pipeline stage — write composite scores (integration, TDD)
+
+**Files:**
+- Modify: `ai-signal/src/pipeline/stages.ts`
+- Test: `ai-signal/tests/integration/pipeline-score.test.ts`
+
+- [ ] **Step 1: Write the failing test (mock the LLM, exercise the DB write)**
+
+```ts
+import { afterAll, afterEach, beforeEach, expect, it, vi } from "vitest";
+import { items, scores } from "../../src/db/schema.js";
+import { db, pool, truncateAll } from "../setup/db.js";
+
+vi.mock("../../src/lib/scoring/llm.js", () => ({
+  scoreBatch: vi.fn(async (cands: { id: number }[]) =>
+    new Map(cands.map((c) => [c.id, { id: c.id, value: 90, topics: ["agents"], reason: "r", summary: "s" }]))),
+}));
+
+let itemId: number;
+beforeEach(async () => {
+  await truncateAll();
+  const [it] = await db.insert(items).values({
+    rawItemId: 1, source: "hn", title: "Claude Code agentic release",
+    text: "details", createdAt: new Date(), metrics: { points: 100, comments: 50 },
+    contentHash: "h1",
+  }).returning();
+  itemId = it!.id;
+});
+afterEach(async () => { await truncateAll(); });
+afterAll(async () => { await pool.end(); });
+
+it("scores candidate items and stores composite", async () => {
+  const { runScoreStage } = await import("../../src/pipeline/stages.js");
+  await runScoreStage(db);
+  const [s] = await db.select().from(scores);
+  expect(s!.itemId).toBe(itemId);
+  expect(s!.llmValue).toBeCloseTo(0.9, 5);
+  expect(s!.composite).toBeGreaterThan(0);
+  expect(s!.summary).toBe("s");
+  expect(s!.topicTags).toEqual(["agents"]);
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd ai-signal && npx vitest run tests/integration/pipeline-score.test.ts`
+Expected: FAIL (`runScoreStage` not exported).
+
+- [ ] **Step 3: Add `runScoreStage` to `src/pipeline/stages.ts`**
+
+Add these imports and function (and keep existing exports):
+
+```ts
+import { sql as dsql } from "drizzle-orm";
+import { scores } from "../db/schema.js";
+import { computeRelevance } from "../lib/keywords.js";
+import { normalizeHeat, computeComposite } from "../lib/scoring/composite.js";
+import { selectCandidates } from "../lib/scoring/prefilter.js";
+import { scoreBatch } from "../lib/scoring/llm.js";
+import { RUBRIC_VERSION } from "../lib/scoring/rubric.js";
+import { weights } from "../config.js";
+
+export async function runScoreStage(db: Db): Promise<number> {
+  // unscored items = items with no row in scores for current rubric
+  const unscored = await db.execute(dsql`
+    SELECT i.id, i.title, i.text, i.source, i.metrics
+    FROM items i
+    LEFT JOIN scores s ON s.item_id = i.id AND s.rubric_version = ${RUBRIC_VERSION}
+    WHERE s.item_id IS NULL
+    LIMIT 500
+  `);
+  const rows = (unscored.rows ?? unscored) as Array<{
+    id: number; title: string; text: string; source: string; metrics: Record<string, number>;
+  }>;
+  if (rows.length === 0) return 0;
+
+  const candidates = selectCandidates(rows.map((r) => ({
+    id: Number(r.id), title: r.title, text: r.text ?? "", source: r.source, metrics: r.metrics ?? {},
+  })));
+  const llm = await scoreBatch(candidates);
+
+  let written = 0;
+  for (const c of candidates) {
+    const r = llm.get(c.id);
+    const heat = normalizeHeat(c.metrics);
+    const relevance = computeRelevance(c.title, c.text);
+    const llmValue = (r?.value ?? 0) / 100;
+    const novelty = 0; // activated in M4
+    const composite = computeComposite({ heat, relevance, novelty, llmValue }, weights);
+    await db.insert(scores).values({
+      itemId: c.id, heat, relevance, novelty, llmValue, composite,
+      summary: r?.summary ?? "", reason: r?.reason ?? "", topicTags: r?.topics ?? [],
+      rubricVersion: RUBRIC_VERSION,
+    }).onConflictDoUpdate({
+      target: scores.itemId,
+      set: { heat, relevance, novelty, llmValue, composite,
+        summary: r?.summary ?? "", reason: r?.reason ?? "", topicTags: r?.topics ?? [],
+        rubricVersion: RUBRIC_VERSION, scoredAt: new Date() },
+    });
+    written++;
+  }
+  return written;
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/integration/pipeline-score.test.ts`
+Expected: PASS (1 test).
+
+- [ ] **Step 5: Wire score stage into the worker loop**
+
+In `src/pipeline/worker.ts`, after `runPendingJobs`, also drain scoring each cycle:
+
+```ts
+import { runPendingJobs, runScoreStage } from "./stages.js";
+// inside loop(), replace the body of the for(;;) try block:
+      const n = await runPendingJobs(db, { max: 50 });
+      const scored = await runScoreStage(db);
+      if (n === 0 && scored === 0) await new Promise((r) => setTimeout(r, POLL_MS));
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/pipeline/stages.ts src/pipeline/worker.ts tests/integration/pipeline-score.test.ts
+git commit -m "feat: score pipeline stage with composite + worker wiring"
+```
+
+### Task 7: Feedback API route (integration, TDD)
+
+**Files:**
+- Create: `ai-signal/src/app/api/feedback/route.ts`
+- Test: `ai-signal/tests/integration/feedback-route.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+import { afterAll, afterEach, expect, it, vi } from "vitest";
+import { db, pool, truncateAll } from "../setup/db.js";
+import { feedback } from "../../src/db/schema.js";
+
+// Override the app db client with a connection to the TEST database.
+// Use importOriginal (not an import of setup/db.js) to avoid a circular
+// mock-factory deadlock, and spread ...actual so makeDb/schema stay exported.
+vi.mock("../../src/db/client.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/db/client.js")>();
+  const { db, pool } = actual.makeDb(process.env.TEST_DATABASE_URL!);
+  return { ...actual, db, pool };
+});
+afterEach(async () => { await truncateAll(); });
+afterAll(async () => { await pool.end(); });
+
+it("records an up signal", async () => {
+  const { POST } = await import("../../src/app/api/feedback/route.js");
+  const res = await POST(new Request("http://x/api/feedback", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ itemId: 7, signal: "up" }),
+  }));
+  expect(res.status).toBe(200);
+  const rows = await db.select().from(feedback);
+  expect(rows[0]).toMatchObject({ itemId: 7, signal: "up" });
+});
+
+it("rejects an invalid signal", async () => {
+  const { POST } = await import("../../src/app/api/feedback/route.js");
+  const res = await POST(new Request("http://x/api/feedback", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ itemId: 7, signal: "sideways" }),
+  }));
+  expect(res.status).toBe(400);
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd ai-signal && npx vitest run tests/integration/feedback-route.test.ts`
+Expected: FAIL (import error).
+
+- [ ] **Step 3: Implement `src/app/api/feedback/route.ts`**
+
+```ts
+import { z } from "zod";
+import { db } from "../../../db/client.js";
+import { feedback } from "../../../db/schema.js";
+
+export const dynamic = "force-dynamic";
+
+const schema = z.object({
+  itemId: z.number(),
+  signal: z.enum(["up", "down"]),
+  reason: z.string().optional(),
+});
+
+export async function POST(req: Request): Promise<Response> {
+  const parsed = schema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) return new Response("bad request", { status: 400 });
+  await db.insert(feedback).values(parsed.data);
+  return Response.json({ ok: true });
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/integration/feedback-route.test.ts`
+Expected: PASS (2 tests).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/app/api/feedback/route.ts tests/integration/feedback-route.test.ts
+git commit -m "feat: feedback api route (up/down)"
+```
+
+### Task 8: Feed sorted by composite + summary + 👍/👎 buttons
+
+**Files:**
+- Modify: `ai-signal/src/app/feed-queries.ts`
+- Modify: `ai-signal/src/app/page.tsx`
+- Create: `ai-signal/src/app/feedback-buttons.tsx`
+- Modify: `ai-signal/tests/integration/feed-queries.test.ts`
+
+- [ ] **Step 1: Update the feed-queries test to expect composite ordering + summary**
+
+Replace the test body in `tests/integration/feed-queries.test.ts`:
+
+```ts
+import { afterAll, afterEach, expect, it } from "vitest";
+import { items, scores } from "../../src/db/schema.js";
+import { db, pool, truncateAll } from "../setup/db.js";
+import { getFeed } from "../../src/app/feed-queries.js";
+
+afterEach(async () => { await truncateAll(); });
+afterAll(async () => { await pool.end(); });
+
+it("returns scored items ordered by composite desc with summary", async () => {
+  const [a] = await db.insert(items).values({ rawItemId: 1, source: "hn", title: "low", contentHash: "h1", createdAt: new Date() }).returning();
+  const [b] = await db.insert(items).values({ rawItemId: 2, source: "hn", title: "high", contentHash: "h2", createdAt: new Date() }).returning();
+  await db.insert(scores).values([
+    { itemId: a!.id, composite: 0.2, summary: "low sum", rubricVersion: "t" },
+    { itemId: b!.id, composite: 0.9, summary: "high sum", rubricVersion: "t" },
+  ]);
+  const feed = await getFeed(db, { limit: 10 });
+  expect(feed.map((f: any) => f.title)).toEqual(["high", "low"]);
+  expect(feed[0].summary).toBe("high sum");
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd ai-signal && npx vitest run tests/integration/feed-queries.test.ts`
+Expected: FAIL (still returns by createdAt; no `summary` field).
+
+- [ ] **Step 3: Update `src/app/feed-queries.ts` to join scores and sort by composite**
+
+```ts
+import { desc, eq } from "drizzle-orm";
+import { items, scores } from "../db/schema.js";
+
+type Db = any;
+
+export async function getFeed(db: Db, opts: { limit: number }) {
+  const rows = await db
+    .select({
+      id: items.id, title: items.title, url: items.url, source: items.source,
+      createdAt: items.createdAt,
+      composite: scores.composite, summary: scores.summary,
+      reason: scores.reason, topicTags: scores.topicTags,
+    })
+    .from(items)
+    .leftJoin(scores, eq(scores.itemId, items.id))
+    .orderBy(desc(scores.composite), desc(items.createdAt))
+    .limit(opts.limit);
+  return rows;
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/integration/feed-queries.test.ts`
+Expected: PASS (1 test).
+
+- [ ] **Step 5: Create client component `src/app/feedback-buttons.tsx`**
+
+```tsx
+"use client";
+import { useState } from "react";
+
+export function FeedbackButtons({ itemId }: { itemId: number }) {
+  const [sent, setSent] = useState<string | null>(null);
+  async function send(signal: "up" | "down") {
+    await fetch("/api/feedback", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ itemId, signal }),
+    });
+    setSent(signal);
+  }
+  return (
+    <span style={{ marginLeft: 8 }}>
+      <button disabled={!!sent} onClick={() => send("up")}>{sent === "up" ? "👍✓" : "👍"}</button>
+      <button disabled={!!sent} onClick={() => send("down")}>{sent === "down" ? "👎✓" : "👎"}</button>
+    </span>
+  );
+}
+```
+
+- [ ] **Step 6: Update `src/app/page.tsx` to show summary + reason + buttons**
+
+```tsx
+import { db } from "../db/client.js";
+import { getFeed } from "./feed-queries.js";
+import { FeedbackButtons } from "./feedback-buttons.js";
+
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const feed = await getFeed(db, { limit: 50 });
+  return (
+    <main style={{ maxWidth: 760, margin: "2rem auto", fontFamily: "system-ui" }}>
+      <h1>AI Signal</h1>
+      <ul style={{ listStyle: "none", padding: 0 }}>
+        {feed.map((item: any) => (
+          <li key={item.id} style={{ padding: "0.9rem 0", borderBottom: "1px solid #eee" }}>
+            <a href={item.url ?? "#"} target="_blank" rel="noreferrer"><strong>{item.title}</strong></a>
+            <FeedbackButtons itemId={item.id} />
+            {item.summary && <div style={{ margin: "4px 0" }}>{item.summary}</div>}
+            <div style={{ fontSize: 12, color: "#888" }}>
+              {item.source} · score {item.composite?.toFixed?.(2) ?? "—"}
+              {Array.isArray(item.topicTags) && item.topicTags.length > 0 && ` · ${item.topicTags.join(", ")}`}
+              {item.reason && ` · ${item.reason}`}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </main>
+  );
+}
+```
+
+- [ ] **Step 7: Verify build + manual ranking check**
+
+Run: `cd ai-signal && npm run build`
+Then run collector + worker + dev (as in M1 Task 14) with a real `OPENROUTER_API_KEY` set, and confirm the feed is ordered by composite, shows summaries, and 👍/👎 persist rows in `feedback`. **This is the M2 acceptance gate — iterate `RUBRIC` on a few days of real data until the top ordering matches your taste before moving to M3.**
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add src/app/page.tsx src/app/feed-queries.ts src/app/feedback-buttons.tsx tests/integration/feed-queries.test.ts
+git commit -m "feat: composite-ranked feed with summaries + feedback buttons (M2 complete)"
+```
+
+---
+
+## M3 — All sources (RSS on VPS + Mac collector cursor ingest)
+
+**Goal of M3:** Add the RSS collector (runs on the VPS in-process via cron, like HN) and a Mac-side collector that reads the existing `opencli-twitter-digest` / `opencli-reddit-digest` output directories, tracks a per-source cursor in a `.state` file to avoid re-posting, and POSTs new items to `/api/ingest`. After M3 all four sources flow through the same normalize → score pipeline.
+
+> **External dependency:** the Twitter/Reddit digest tools live on the Mac at `/Applications/Agent Coding/digest/{twitter,reddit}-digest/...` and depend on logged-in browser sessions. They are **not present on this dev machine** — the Mac collector (Task 3) is written against the documented output shape (`raw/<source>/items.json`) and must be validated on the actual Mac before relying on it. RSS (Task 1–2) is fully testable here.
+
+### Task 1: RSS collector (TDD with mocked fetch)
+
+**Files:**
+- Create: `ai-signal/src/collectors/rss.ts`
+- Test: `ai-signal/tests/lib/rss.test.ts`
+
+- [ ] **Step 1: Add `rss-parser` dependency**
+
+Run: `cd ai-signal && npm install rss-parser@^3.13.0`
+Expected: dependency added to `package.json`.
+
+- [ ] **Step 2: Write the failing test**
+
+```ts
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { fetchRss } from "../../src/collectors/rss.js";
+
+const FEED_XML = `<?xml version="1.0"?><rss version="2.0"><channel>
+<title>OpenAI</title>
+<item><title>GPT release</title><link>https://openai.com/p1</link>
+<guid>https://openai.com/p1</guid><pubDate>Fri, 30 May 2026 10:00:00 GMT</pubDate>
+<description>Body here</description></item>
+</channel></rss>`;
+
+afterEach(() => vi.restoreAllMocks());
+
+describe("fetchRss", () => {
+  it("maps feed items to RawPayload[]", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(FEED_XML, {
+      headers: { "content-type": "application/rss+xml" },
+    })));
+    const out = await fetchRss({ url: "https://openai.com/news/rss.xml" });
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({
+      source: "rss", externalId: "https://openai.com/p1",
+      title: "GPT release", url: "https://openai.com/p1",
+    });
+    expect(out[0]!.createdAt).toBe("2026-05-30T10:00:00.000Z");
+  });
+});
+```
+
+- [ ] **Step 3: Run to verify it fails**
+
+Run: `cd ai-signal && npx vitest run tests/lib/rss.test.ts`
+Expected: FAIL (import error).
+
+- [ ] **Step 4: Implement `src/collectors/rss.ts`**
+
+```ts
+import Parser from "rss-parser";
+import type { RawPayload } from "../types.js";
+
+const parser = new Parser();
+
+export async function fetchRss(args: { url: string }): Promise<RawPayload[]> {
+  const res = await fetch(args.url);
+  if (!res.ok) throw new Error(`RSS ${args.url} ${res.status}`);
+  const feed = await parser.parseString(await res.text());
+
+  return (feed.items ?? [])
+    .filter((i) => i.title && (i.guid || i.link))
+    .map((i) => ({
+      source: "rss" as const,
+      externalId: i.guid ?? i.link!,
+      url: i.link ?? null,
+      author: i.creator ?? feed.title ?? null,
+      title: i.title!,
+      text: (i.contentSnippet ?? i.content ?? "").toString(),
+      createdAt: new Date(i.isoDate ?? i.pubDate ?? Date.now()).toISOString(),
+      metrics: {},
+      raw: i,
+    }));
+}
+```
+
+- [ ] **Step 5: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/lib/rss.test.ts`
+Expected: PASS (1 test).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/collectors/rss.ts tests/lib/rss.test.ts package.json package-lock.json
+git commit -m "feat: rss collector"
+```
+
+### Task 2: RSS cron entrypoint over the configured feed list
+
+**Files:**
+- Create: `ai-signal/bin/collect-rss.ts`
+
+- [ ] **Step 1: Implement `bin/collect-rss.ts` with the decided feed list**
+
+```ts
+import { eq } from "drizzle-orm";
+import { db, pool } from "../src/db/client.js";
+import { sources } from "../src/db/schema.js";
+import { fetchRss } from "../src/collectors/rss.js";
+import { ingest } from "../src/ingest/ingest.js";
+
+const FEEDS = [
+  "https://openai.com/news/rss.xml",
+  "https://raw.githubusercontent.com/Olshansk/rss-feeds/main/feeds/feed_anthropic_news.xml",
+  "https://research.google/blog/rss/",
+  "https://deepmind.google/blog/rss.xml",
+  "https://raw.githubusercontent.com/Olshansk/rss-feeds/main/feeds/feed_cursor.xml",
+  "https://raw.githubusercontent.com/Olshansk/rss-feeds/main/feeds/feed_claude.xml",
+];
+
+async function main() {
+  let [src] = await db.select().from(sources).where(eq(sources.kind, "rss"));
+  if (!src) [src] = await db.insert(sources).values({ kind: "rss" }).returning();
+
+  let total = 0;
+  for (const url of FEEDS) {
+    try {
+      const payloads = await fetchRss({ url });
+      total += await ingest({ db, sourceId: src!.id, payloads });
+    } catch (err) {
+      console.error(`RSS ${url} failed:`, err);
+    }
+  }
+  await db.update(sources).set({ lastRunAt: new Date() }).where(eq(sources.id, src!.id));
+  console.log(`RSS: ${total} new items across ${FEEDS.length} feeds`);
+  await pool.end();
+}
+
+main();
+```
+
+- [ ] **Step 2: Add the npm script**
+
+In `package.json` scripts, add:
+
+```json
+    "collect:rss": "tsx bin/collect-rss.ts",
+```
+
+- [ ] **Step 3: Manual verification**
+
+Run: `cd ai-signal && DATABASE_URL=postgres://aisignal:aisignal@localhost:5432/aisignal npm run collect:rss`
+Expected: prints a non-negative new-item count; with the worker running, RSS items appear scored in the feed.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add bin/collect-rss.ts package.json
+git commit -m "feat: rss cron entrypoint over configured feeds"
+```
+
+### Task 3: Mac collector — read digests since cursor, POST to ingest (TDD)
+
+**Files:**
+- Create: `ai-signal/src/collectors/mac-cursor.ts`
+- Create: `ai-signal/bin/mac-collect.ts`
+- Test: `ai-signal/tests/lib/mac-cursor.test.ts`
+
+- [ ] **Step 1: Write the failing test for the cursor reader**
+
+```ts
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { readDigestSince } from "../../src/collectors/mac-cursor.js";
+
+let root: string;
+beforeEach(() => {
+  root = mkdtempSync(join(tmpdir(), "digest-"));
+  // simulate two job dirs: <job>-<ts>/raw/<source>/items.json
+  for (const [job, items] of [
+    ["jobA-100", [{ id: "r1", title: "Post 1", subreddit: "ai", author: "u", score: 5, comments: 1, url: "https://r/1", created_utc: 1748599200, selftext: "" }]],
+    ["jobB-200", [{ id: "r2", title: "Post 2", subreddit: "ai", author: "u", score: 9, comments: 2, url: "https://r/2", created_utc: 1748602800, selftext: "x" }]],
+  ] as const) {
+    const dir = join(root, job, "raw", "reddit-ainews");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "items.json"), JSON.stringify(items));
+  }
+});
+afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+describe("readDigestSince", () => {
+  it("reads only job dirs with ts greater than the cursor and maps reddit items", () => {
+    const { payloads, cursor } = readDigestSince({ root, source: "reddit", subdir: "reddit-ainews", sinceTs: 150 });
+    expect(payloads.map((p) => p.externalId)).toEqual(["r2"]);
+    expect(payloads[0]).toMatchObject({ source: "reddit", title: "Post 2" });
+    expect(cursor).toBe(200);
+  });
+  it("returns everything when cursor is 0", () => {
+    const { payloads } = readDigestSince({ root, source: "reddit", subdir: "reddit-ainews", sinceTs: 0 });
+    expect(payloads).toHaveLength(2);
+  });
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd ai-signal && npx vitest run tests/lib/mac-cursor.test.ts`
+Expected: FAIL (import error).
+
+- [ ] **Step 3: Implement `src/collectors/mac-cursor.ts`**
+
+```ts
+import { readdirSync, readFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
+import type { RawPayload, SourceKind } from "../types.js";
+
+interface RedditRaw {
+  id: string; title: string; subreddit: string; author: string;
+  score: number; comments: number; url: string; created_utc: number; selftext: string;
+}
+interface TwitterRaw {
+  id: string; text: string; author: string; url: string;
+  created_at: string; likes?: number; retweets?: number;
+}
+
+function jobTs(dirName: string): number {
+  const m = dirName.match(/-(\d+)$/);
+  return m ? Number(m[1]) : 0;
+}
+
+function mapReddit(r: RedditRaw): RawPayload {
+  return {
+    source: "reddit", externalId: r.id, url: r.url, author: r.author,
+    title: r.title, text: r.selftext ?? "",
+    createdAt: new Date(r.created_utc * 1000).toISOString(),
+    metrics: { score: r.score, comments: r.comments }, raw: r,
+  };
+}
+function mapTwitter(t: TwitterRaw): RawPayload {
+  return {
+    source: "twitter", externalId: t.id, url: t.url, author: t.author,
+    title: t.text.slice(0, 120), text: t.text,
+    createdAt: new Date(t.created_at).toISOString(),
+    metrics: { likes: t.likes ?? 0, retweets: t.retweets ?? 0 }, raw: t,
+  };
+}
+
+interface Args { root: string; source: SourceKind; subdir: string; sinceTs: number; }
+
+export function readDigestSince(args: Args): { payloads: RawPayload[]; cursor: number } {
+  const jobs = existsSync(args.root)
+    ? readdirSync(args.root).filter((d) => jobTs(d) > args.sinceTs).sort((a, b) => jobTs(a) - jobTs(b))
+    : [];
+  const payloads: RawPayload[] = [];
+  let cursor = args.sinceTs;
+  for (const job of jobs) {
+    const file = join(args.root, job, "raw", args.subdir, "items.json");
+    if (!existsSync(file)) continue;
+    const arr = JSON.parse(readFileSync(file, "utf8")) as unknown[];
+    for (const raw of arr) {
+      payloads.push(args.source === "reddit" ? mapReddit(raw as RedditRaw) : mapTwitter(raw as TwitterRaw));
+    }
+    cursor = Math.max(cursor, jobTs(job));
+  }
+  return { payloads, cursor };
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/lib/mac-cursor.test.ts`
+Expected: PASS (2 tests).
+
+- [ ] **Step 5: Implement the Mac entrypoint `bin/mac-collect.ts` (POSTs to VPS)**
+
+```ts
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readDigestSince } from "../src/collectors/mac-cursor.js";
+import type { SourceKind } from "../src/types.js";
+
+const VPS_URL = process.env.VPS_INGEST_URL!;          // e.g. https://signal.example.com/api/ingest
+const TOKEN = process.env.INGEST_TOKEN!;
+const STATE_FILE = process.env.STATE_FILE ?? "./.state.json";
+
+const SOURCES: { source: SourceKind; root: string; subdir: string }[] = [
+  { source: "reddit", root: "/Applications/Agent Coding/digest/reddit-digest", subdir: "reddit-ainews" },
+  { source: "twitter", root: "/Applications/Agent Coding/digest/twitter-digest", subdir: "following" },
+  { source: "twitter", root: "/Applications/Agent Coding/digest/twitter-digest", subdir: "for-you" },
+];
+
+function loadState(): Record<string, number> {
+  return existsSync(STATE_FILE) ? JSON.parse(readFileSync(STATE_FILE, "utf8")) : {};
+}
+
+async function main() {
+  const state = loadState();
+  for (const s of SOURCES) {
+    const key = `${s.source}:${s.subdir}`;
+    const { payloads, cursor } = readDigestSince({ ...s, sinceTs: state[key] ?? 0 });
+    if (payloads.length === 0) { console.log(`${key}: nothing new`); continue; }
+    const res = await fetch(VPS_URL, {
+      method: "POST",
+      headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" },
+      body: JSON.stringify({ source: s.source, items: payloads }),
+    });
+    if (!res.ok) { console.error(`${key}: POST failed ${res.status}`); continue; }
+    state[key] = cursor;
+    console.log(`${key}: posted ${payloads.length}, cursor -> ${cursor}`);
+  }
+  writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+}
+
+main();
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/collectors/mac-cursor.ts bin/mac-collect.ts tests/lib/mac-cursor.test.ts
+git commit -m "feat: mac digest cursor collector posting to ingest"
+```
+
+### Task 4: Scheduling docs + launchd/cron (manual config, no test)
+
+**Files:**
+- Create: `ai-signal/deploy/launchd/com.aisignal.mac-collect.plist`
+- Create: `ai-signal/deploy/cron/vps-crontab.txt`
+
+- [ ] **Step 1: Create the Mac launchd plist (runs `mac-collect` every 30 min)**
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.aisignal.mac-collect</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string><string>-lc</string>
+    <string>cd /path/to/ai-signal &amp;&amp; VPS_INGEST_URL=https://YOUR_VPS/api/ingest INGEST_TOKEN=YOUR_TOKEN STATE_FILE=$HOME/.aisignal-state.json npx tsx bin/mac-collect.ts</string>
+  </array>
+  <key>StartInterval</key><integer>1800</integer>
+  <key>StandardOutPath</key><string>/tmp/aisignal-collect.log</string>
+  <key>StandardErrorPath</key><string>/tmp/aisignal-collect.err</string>
+</dict></plist>
+```
+
+- [ ] **Step 2: Create the VPS crontab reference `deploy/cron/vps-crontab.txt`**
+
+```
+# HN every hour, RSS every 30 min (run inside the app container / image)
+0 * * * *  cd /app && DATABASE_URL=$DATABASE_URL node_modules/.bin/tsx bin/collect-hn.ts  >> /var/log/aisignal-hn.log 2>&1
+*/30 * * * *  cd /app && DATABASE_URL=$DATABASE_URL node_modules/.bin/tsx bin/collect-rss.ts >> /var/log/aisignal-rss.log 2>&1
+```
+
+- [ ] **Step 3: Verify the Mac collector on the real machine (manual gate)**
+
+On the actual Mac (where the digests exist): set `VPS_INGEST_URL`/`INGEST_TOKEN`, run `npx tsx bin/mac-collect.ts`, confirm the `.state.json` cursor advances and the VPS feed shows Twitter/Reddit items. **This is the M3 acceptance gate.**
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add deploy/launchd deploy/cron
+git commit -m "chore: scheduling config for mac collector + vps crons (M3 complete)"
+```
+
+---
+
+## M4 — Semantic layer (embeddings → pgvector → semantic dedup/search → topic clustering → trends)
+
+**Goal of M4:** Generate an embedding per item, store it in pgvector, use it for (a) semantic near-duplicate detection, (b) novelty (max similarity vs the last K days), (c) semantic + keyword search, and (d) online topic clustering with LLM-named labels and a trends page. **Start with a feasibility spike** — OpenRouter embeddings support is uncertain; the vector dimension `N` is finalized only after the spike.
+
+> **Wiring note:** the `embed` stage runs after `normalize` and before scoring uses novelty. The worker order becomes normalize-jobs → embed unembedded items → assign topics → score (now with real novelty). Topic clusters from this milestone replace the M2 `topic_tags` strings in the UI.
+
+### Task 0: Embeddings feasibility spike (BLOCKS the rest of M4)
+
+**Files:**
+- Create: `ai-signal/bin/spike-embeddings.ts`
+
+- [ ] **Step 1: Write a throwaway probe `bin/spike-embeddings.ts`**
+
+```ts
+const MODEL = process.env.EMBEDDING_MODEL!;
+async function main() {
+  const res = await fetch("https://openrouter.ai/api/v1/embeddings", {
+    method: "POST",
+    headers: { authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`, "content-type": "application/json" },
+    body: JSON.stringify({ model: MODEL, input: ["hello world", "agentic coding"] }),
+  });
+  console.log("status", res.status);
+  const text = await res.text();
+  console.log(text.slice(0, 600));
+  if (res.ok) {
+    const data = JSON.parse(text);
+    console.log("dimension:", data.data?.[0]?.embedding?.length);
+  }
+}
+main();
+```
+
+- [ ] **Step 2: Run the probe and DECIDE**
+
+Run: `cd ai-signal && OPENROUTER_API_KEY=... EMBEDDING_MODEL=nvidia/llama-nemotron-embed-vl-1b-v2:free npx tsx bin/spike-embeddings.ts`
+
+Decide based on output:
+- **If 200 + a numeric `dimension`:** record `N = dimension`. Proceed with the OpenRouter path in Task 2.
+- **If 404 / "not supported" / non-embedding response:** fall back to a local embedding server. Document the fallback in `bin/spike-embeddings.ts` header comment and adjust Task 2's `embedTexts()` to call the local endpoint (e.g. a `text-embeddings-inference` container running `BAAI/bge-m3`, dimension `1024`). Set `N` to the fallback model's dimension.
+
+This decision sets the single constant `N` used by the schema in Task 1. **Do not start Task 1 until `N` is known.**
+
+- [ ] **Step 3: Commit the spike result note (keep the probe for re-checks)**
+
+```bash
+git add bin/spike-embeddings.ts
+git commit -m "chore: embeddings feasibility spike + chosen dimension note"
+```
+
+### Task 1: Embedding + topic schema (uses N from the spike)
+
+**Files:**
+- Modify: `ai-signal/src/db/schema.ts`
+
+- [ ] **Step 1: Add pgvector + topic tables to `src/db/schema.ts`**
+
+Replace `N` with the dimension confirmed in Task 0 (e.g. `1024`):
+
+```ts
+import { vector } from "drizzle-orm/pg-core";
+
+export const itemEmbeddings = pgTable("item_embeddings", {
+  itemId: bigint("item_id", { mode: "number" }).primaryKey(),
+  embedding: vector("embedding", { dimensions: 1024 }).notNull(), // <- N from spike
+});
+
+export const topics = pgTable("topics", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  label: text("label").notNull(),
+  centroid: vector("centroid", { dimensions: 1024 }).notNull(), // <- N from spike
+  firstSeen: timestamp("first_seen", { withTimezone: true }).notNull().defaultNow(),
+  lastSeen: timestamp("last_seen", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const itemTopics = pgTable("item_topics", {
+  itemId: bigint("item_id", { mode: "number" }).notNull(),
+  topicId: bigint("topic_id", { mode: "number" }).notNull(),
+  weight: real("weight").notNull().default(1),
+}, (t) => ({ uq: uniqueIndex("item_topics_uq").on(t.itemId, t.topicId) }));
+
+export const topicTrends = pgTable("topic_trends", {
+  topicId: bigint("topic_id", { mode: "number" }).notNull(),
+  bucketDate: text("bucket_date").notNull(), // YYYY-MM-DD
+  itemCount: integer("item_count").notNull().default(0),
+  scoreSum: doublePrecision("score_sum").notNull().default(0),
+}, (t) => ({ uq: uniqueIndex("topic_trends_uq").on(t.topicId, t.bucketDate) }));
+```
+
+- [ ] **Step 2: Generate + apply the migration**
+
+Run:
+```bash
+cd ai-signal && DATABASE_URL=postgres://aisignal:aisignal@localhost:5432/aisignal npm run db:generate
+DATABASE_URL=postgres://aisignal:aisignal@localhost:5432/aisignal npm run db:migrate
+```
+Expected: tables `item_embeddings`, `topics`, `item_topics`, `topic_trends` created with `vector` columns.
+
+- [ ] **Step 3: Add an IVFFlat index migration for similarity search**
+
+Create a hand-written SQL migration alongside the generated one (drizzle-kit `--custom` or add a file in `src/db/migrations` and register it). The SQL:
+
+```sql
+CREATE INDEX IF NOT EXISTS item_embeddings_cos_idx
+  ON item_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+CREATE INDEX IF NOT EXISTS topics_centroid_cos_idx
+  ON topics USING ivfflat (centroid vector_cosine_ops) WITH (lists = 50);
+```
+
+Run the migrate command again; expected: indexes created.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add src/db/schema.ts src/db/migrations
+git commit -m "feat: pgvector embedding + topic schema (dim N from spike)"
+```
+
+### Task 2: `embedTexts()` client (TDD with mocked fetch)
+
+**Files:**
+- Create: `ai-signal/src/lib/embeddings.ts`
+- Test: `ai-signal/tests/lib/embeddings.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { embedTexts } from "../../src/lib/embeddings.js";
+
+afterEach(() => vi.restoreAllMocks());
+
+describe("embedTexts", () => {
+  it("returns one vector per input", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      data: [{ embedding: [0.1, 0.2] }, { embedding: [0.3, 0.4] }],
+    }))));
+    process.env.OPENROUTER_API_KEY = "k";
+    const out = await embedTexts(["a", "b"]);
+    expect(out).toHaveLength(2);
+    expect(out[0]).toEqual([0.1, 0.2]);
+  });
+  it("returns [] for empty input without calling fetch", async () => {
+    const f = vi.fn();
+    vi.stubGlobal("fetch", f);
+    expect(await embedTexts([])).toEqual([]);
+    expect(f).not.toHaveBeenCalled();
+  });
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd ai-signal && npx vitest run tests/lib/embeddings.test.ts`
+Expected: FAIL (import error).
+
+- [ ] **Step 3: Implement `src/lib/embeddings.ts`**
+
+```ts
+import { config } from "../config.js";
+
+// Endpoint chosen per M4 Task 0 spike: OpenRouter embeddings, or a local fallback.
+const ENDPOINT = process.env.EMBEDDINGS_ENDPOINT ?? "https://openrouter.ai/api/v1/embeddings";
+
+export async function embedTexts(texts: string[]): Promise<number[][]> {
+  if (texts.length === 0) return [];
+  const res = await fetch(ENDPOINT, {
+    method: "POST",
+    headers: { authorization: `Bearer ${config.OPENROUTER_API_KEY}`, "content-type": "application/json" },
+    body: JSON.stringify({ model: config.EMBEDDING_MODEL, input: texts }),
+  });
+  if (!res.ok) throw new Error(`embeddings ${res.status}: ${await res.text()}`);
+  const data = (await res.json()) as { data: { embedding: number[] }[] };
+  return data.data.map((d) => d.embedding);
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/lib/embeddings.test.ts`
+Expected: PASS (2 tests).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/lib/embeddings.ts tests/lib/embeddings.test.ts
+git commit -m "feat: embedTexts client (openrouter/local)"
+```
+
+### Task 3: Embed pipeline stage + semantic near-dup flag (integration, TDD)
+
+**Files:**
+- Modify: `ai-signal/src/pipeline/stages.ts`
+- Test: `ai-signal/tests/integration/pipeline-embed.test.ts`
+
+- [ ] **Step 1: Write the failing test (mock embeddings)**
+
+```ts
+import { afterAll, afterEach, beforeEach, expect, it, vi } from "vitest";
+import { items, itemEmbeddings } from "../../src/db/schema.js";
+import { db, pool, truncateAll } from "../setup/db.js";
+
+vi.mock("../../src/lib/embeddings.js", () => ({
+  embedTexts: vi.fn(async (texts: string[]) => texts.map((_, i) => Array(1024).fill(i === 0 ? 0.01 : 0.02))),
+}));
+
+beforeEach(async () => {
+  await truncateAll();
+  await db.insert(items).values([
+    { rawItemId: 1, source: "hn", title: "A", text: "x", createdAt: new Date(), contentHash: "h1" },
+    { rawItemId: 2, source: "hn", title: "B", text: "y", createdAt: new Date(), contentHash: "h2" },
+  ]);
+});
+afterEach(async () => { await truncateAll(); });
+afterAll(async () => { await pool.end(); });
+
+it("embeds items lacking embeddings", async () => {
+  const { runEmbedStage } = await import("../../src/pipeline/stages.js");
+  const n = await runEmbedStage(db);
+  expect(n).toBe(2);
+  expect(await db.select().from(itemEmbeddings)).toHaveLength(2);
+  // idempotent: second run embeds nothing
+  expect(await runEmbedStage(db)).toBe(0);
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd ai-signal && npx vitest run tests/integration/pipeline-embed.test.ts`
+Expected: FAIL (`runEmbedStage` not exported).
+
+- [ ] **Step 3: Add `runEmbedStage` to `src/pipeline/stages.ts`**
+
+```ts
+import { itemEmbeddings } from "../db/schema.js";
+import { embedTexts } from "../lib/embeddings.js";
+
+export async function runEmbedStage(db: Db): Promise<number> {
+  const rows = await db.execute(dsql`
+    SELECT i.id, i.title, i.text FROM items i
+    LEFT JOIN item_embeddings e ON e.item_id = i.id
+    WHERE e.item_id IS NULL
+    LIMIT 100
+  `);
+  const items_ = (rows.rows ?? rows) as Array<{ id: number; title: string; text: string }>;
+  if (items_.length === 0) return 0;
+
+  const vectors = await embedTexts(items_.map((r) => `${r.title}\n${r.text ?? ""}`.slice(0, 2000)));
+  for (let i = 0; i < items_.length; i++) {
+    await db.insert(itemEmbeddings)
+      .values({ itemId: Number(items_[i]!.id), embedding: vectors[i]! })
+      .onConflictDoNothing({ target: itemEmbeddings.itemId });
+  }
+  return items_.length;
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/integration/pipeline-embed.test.ts`
+Expected: PASS (1 test).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/pipeline/stages.ts tests/integration/pipeline-embed.test.ts
+git commit -m "feat: embed pipeline stage"
+```
+
+### Task 4: Novelty from recent embeddings (integration, TDD)
+
+**Files:**
+- Create: `ai-signal/src/lib/novelty.ts`
+- Test: `ai-signal/tests/integration/novelty.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+import { afterAll, afterEach, beforeEach, expect, it } from "vitest";
+import { items, itemEmbeddings } from "../../src/db/schema.js";
+import { db, pool, truncateAll } from "../setup/db.js";
+import { computeNovelty } from "../../src/lib/novelty.js";
+
+function vec(seed: number) { return Array(1024).fill(0).map((_, i) => (i === seed ? 1 : 0)); }
+
+let idOld: number, idNew: number, idDup: number;
+beforeEach(async () => {
+  await truncateAll();
+  const inserted = await db.insert(items).values([
+    { rawItemId: 1, source: "hn", title: "old", createdAt: new Date(Date.now() - 2 * 864e5), contentHash: "h1" },
+    { rawItemId: 2, source: "hn", title: "new", createdAt: new Date(), contentHash: "h2" },
+    { rawItemId: 3, source: "hn", title: "dup", createdAt: new Date(), contentHash: "h3" },
+  ]).returning();
+  [idOld, idNew, idDup] = [inserted[0]!.id, inserted[1]!.id, inserted[2]!.id];
+  await db.insert(itemEmbeddings).values([
+    { itemId: idOld, embedding: vec(0) },
+    { itemId: idNew, embedding: vec(5) },   // orthogonal to old -> novel
+    { itemId: idDup, embedding: vec(0) },   // identical to old -> not novel
+  ]);
+});
+afterEach(async () => { await truncateAll(); });
+afterAll(async () => { await pool.end(); });
+
+it("scores orthogonal item as novel and duplicate as not novel", async () => {
+  const novelNew = await computeNovelty(db, idNew, { days: 7 });
+  const novelDup = await computeNovelty(db, idDup, { days: 7 });
+  expect(novelNew).toBeGreaterThan(0.9);
+  expect(novelDup).toBeLessThan(0.1);
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd ai-signal && npx vitest run tests/integration/novelty.test.ts`
+Expected: FAIL (import error).
+
+- [ ] **Step 3: Implement `src/lib/novelty.ts`**
+
+```ts
+import { sql } from "drizzle-orm";
+
+type Db = any;
+
+// novelty = 1 - max cosine similarity to other items embedded in the last `days`.
+export async function computeNovelty(db: Db, itemId: number, opts: { days: number }): Promise<number> {
+  const res = await db.execute(sql`
+    SELECT 1 - MIN(e.embedding <=> target.embedding) AS max_sim
+    FROM item_embeddings e
+    JOIN items i ON i.id = e.item_id
+    CROSS JOIN (SELECT embedding FROM item_embeddings WHERE item_id = ${itemId}) target
+    WHERE e.item_id <> ${itemId}
+      AND i.created_at > now() - (${opts.days} || ' days')::interval
+  `);
+  const row = (res.rows ?? res)[0] as { max_sim: number | null } | undefined;
+  const maxSim = row?.max_sim ?? 0; // (1 - cosine_distance) when neighbors exist
+  if (maxSim === null) return 1;
+  return Math.max(0, Math.min(1, 1 - maxSim));
+}
+```
+
+> Note: pgvector's `<=>` is cosine distance (0 = identical). `MIN(distance)` = nearest neighbor; `1 - MIN(distance)` = highest similarity. Novelty = `1 - similarity`. The SQL computes `1 - MIN(distance)` as `max_sim`, so the function returns `1 - max_sim`. Verify the sign with the test (orthogonal → ~1, identical → ~0).
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/integration/novelty.test.ts`
+Expected: PASS (1 test). If the sign is inverted, fix the final expression to match the test (test is the source of truth).
+
+- [ ] **Step 5: Activate novelty in the score stage**
+
+In `src/pipeline/stages.ts` `runScoreStage`, replace `const novelty = 0;` with a per-item call:
+
+```ts
+import { computeNovelty } from "../lib/novelty.js";
+// inside the candidate loop, before computeComposite:
+    const novelty = await computeNovelty(db, c.id, { days: 7 });
+```
+
+- [ ] **Step 6: Re-run the score stage test (novelty now non-zero is acceptable)**
+
+Run: `cd ai-signal && npx vitest run tests/integration/pipeline-score.test.ts`
+Expected: PASS. The existing test inserts no embeddings, so `computeNovelty` returns 1 (no neighbors) — composite stays > 0; assertion `composite > 0` still holds. If the test asserted an exact composite, relax it to `> 0`.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/lib/novelty.ts src/pipeline/stages.ts tests/integration/novelty.test.ts
+git commit -m "feat: embedding-based novelty wired into composite"
+```
+
+### Task 5: Online topic clustering + LLM labels (integration, TDD)
+
+**Files:**
+- Create: `ai-signal/src/lib/cluster.ts`
+- Test: `ai-signal/tests/integration/cluster.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+import { afterAll, afterEach, beforeEach, expect, it, vi } from "vitest";
+import { items, itemEmbeddings, topics, itemTopics } from "../../src/db/schema.js";
+import { db, pool, truncateAll } from "../setup/db.js";
+
+vi.mock("../../src/lib/scoring/llm.js", async (orig) => ({
+  ...(await orig() as object),
+  labelTopic: vi.fn(async () => "Agentic coding"),
+}));
+
+function vec(seed: number) { return Array(1024).fill(0).map((_, i) => (i === seed ? 1 : 0)); }
+
+beforeEach(async () => {
+  await truncateAll();
+  const ins = await db.insert(items).values([
+    { rawItemId: 1, source: "hn", title: "agent post 1", createdAt: new Date(), contentHash: "h1" },
+    { rawItemId: 2, source: "hn", title: "agent post 2", createdAt: new Date(), contentHash: "h2" },
+    { rawItemId: 3, source: "hn", title: "unrelated", createdAt: new Date(), contentHash: "h3" },
+  ]).returning();
+  await db.insert(itemEmbeddings).values([
+    { itemId: ins[0]!.id, embedding: vec(0) },
+    { itemId: ins[1]!.id, embedding: vec(0) },     // same cluster as #1
+    { itemId: ins[2]!.id, embedding: vec(7) },     // new cluster
+  ]);
+});
+afterEach(async () => { await truncateAll(); });
+afterAll(async () => { await pool.end(); });
+
+it("groups similar items into one topic and a dissimilar item into another", async () => {
+  const { runClusterStage } = await import("../../src/lib/cluster.js");
+  await runClusterStage(db, { threshold: 0.2 });
+  const t = await db.select().from(topics);
+  expect(t.length).toBe(2);
+  const links = await db.select().from(itemTopics);
+  expect(links.length).toBe(3);
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd ai-signal && npx vitest run tests/integration/cluster.test.ts`
+Expected: FAIL (`runClusterStage` / `labelTopic` missing).
+
+- [ ] **Step 3: Add `labelTopic` to `src/lib/scoring/llm.ts`**
+
+```ts
+export async function labelTopic(titles: string[]): Promise<string> {
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: { authorization: `Bearer ${config.OPENROUTER_API_KEY}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      model: config.SCORING_MODEL,
+      messages: [
+        { role: "system", content: "Give a 2-4 word human topic label for these AI-news headlines. Reply with the label only." },
+        { role: "user", content: titles.slice(0, 8).join("\n") },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`label ${res.status}`);
+  const data = (await res.json()) as { choices: { message: { content: string } }[] };
+  return data.choices[0]!.message.content.trim().slice(0, 60);
+}
+```
+
+- [ ] **Step 4: Implement `src/lib/cluster.ts`**
+
+```ts
+import { sql } from "drizzle-orm";
+import { topics, itemTopics } from "../db/schema.js";
+import { labelTopic } from "./scoring/llm.js";
+
+type Db = any;
+
+// Online clustering: for each unassigned item, find nearest topic centroid;
+// if cosine distance < threshold join it, else create a new topic.
+export async function runClusterStage(db: Db, opts: { threshold: number }): Promise<number> {
+  const rows = await db.execute(sql`
+    SELECT e.item_id, e.embedding, i.title
+    FROM item_embeddings e
+    JOIN items i ON i.id = e.item_id
+    LEFT JOIN item_topics it ON it.item_id = e.item_id
+    WHERE it.item_id IS NULL
+    ORDER BY i.created_at ASC
+    LIMIT 200
+  `);
+  const list = (rows.rows ?? rows) as Array<{ item_id: number; embedding: string; title: string }>;
+  let assigned = 0;
+
+  for (const row of list) {
+    const nearest = await db.execute(sql`
+      SELECT id, centroid <=> ${row.embedding}::vector AS dist
+      FROM topics ORDER BY dist ASC LIMIT 1
+    `);
+    const near = (nearest.rows ?? nearest)[0] as { id: number; dist: number } | undefined;
+
+    let topicId: number;
+    if (near && near.dist < opts.threshold) {
+      topicId = Number(near.id);
+      await db.execute(sql`UPDATE topics SET last_seen = now() WHERE id = ${topicId}`);
+    } else {
+      const label = await labelTopic([row.title]);
+      const created = await db.execute(sql`
+        INSERT INTO topics (label, centroid) VALUES (${label}, ${row.embedding}::vector) RETURNING id
+      `);
+      topicId = Number(((created.rows ?? created)[0] as { id: number }).id);
+    }
+    await db.insert(itemTopics)
+      .values({ itemId: Number(row.item_id), topicId, weight: 1 })
+      .onConflictDoNothing({ target: [itemTopics.itemId, itemTopics.topicId] });
+    assigned++;
+  }
+  return assigned;
+}
+```
+
+- [ ] **Step 5: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/integration/cluster.test.ts`
+Expected: PASS (1 test).
+
+- [ ] **Step 6: Wire embed + cluster into the worker loop**
+
+In `src/pipeline/worker.ts`, drain stages in order each cycle:
+
+```ts
+import { runPendingJobs, runScoreStage, runEmbedStage } from "./stages.js";
+import { runClusterStage } from "../lib/cluster.js";
+// inside loop():
+      const n = await runPendingJobs(db, { max: 50 });
+      const embedded = await runEmbedStage(db);
+      const clustered = await runClusterStage(db, { threshold: 0.25 });
+      const scored = await runScoreStage(db);
+      if (n + embedded + clustered + scored === 0) await new Promise((r) => setTimeout(r, POLL_MS));
+```
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/lib/cluster.ts src/lib/scoring/llm.ts src/pipeline/worker.ts tests/integration/cluster.test.ts
+git commit -m "feat: online topic clustering with llm labels"
+```
+
+### Task 6: Semantic + keyword search page (integration, TDD)
+
+**Files:**
+- Create: `ai-signal/src/app/search/search-queries.ts`
+- Create: `ai-signal/src/app/search/page.tsx`
+- Test: `ai-signal/tests/integration/search.test.ts`
+
+- [ ] **Step 1: Add a tsvector index migration for keyword search**
+
+Hand-written SQL migration:
+
+```sql
+CREATE INDEX IF NOT EXISTS items_fts_idx
+  ON items USING gin (to_tsvector('english', coalesce(title,'') || ' ' || coalesce(text,'')));
+```
+
+Apply via the migrate command.
+
+- [ ] **Step 2: Write the failing test (keyword path; semantic path mocked)**
+
+```ts
+import { afterAll, afterEach, beforeEach, expect, it, vi } from "vitest";
+import { items } from "../../src/db/schema.js";
+import { db, pool, truncateAll } from "../setup/db.js";
+
+vi.mock("../../src/lib/embeddings.js", () => ({
+  embedTexts: vi.fn(async () => [Array(1024).fill(0.01)]),
+}));
+
+beforeEach(async () => {
+  await truncateAll();
+  await db.insert(items).values([
+    { rawItemId: 1, source: "hn", title: "Agent frameworks compared", text: "langgraph", createdAt: new Date(), contentHash: "h1" },
+    { rawItemId: 2, source: "hn", title: "Cooking recipes", text: "pasta", createdAt: new Date(), contentHash: "h2" },
+  ]);
+});
+afterEach(async () => { await truncateAll(); });
+afterAll(async () => { await pool.end(); });
+
+it("keyword search matches title text", async () => {
+  const { keywordSearch } = await import("../../src/app/search/search-queries.js");
+  const out = await keywordSearch(db, "agent");
+  expect(out.map((r: any) => r.title)).toContain("Agent frameworks compared");
+  expect(out.map((r: any) => r.title)).not.toContain("Cooking recipes");
+});
+```
+
+- [ ] **Step 3: Run to verify it fails**
+
+Run: `cd ai-signal && npx vitest run tests/integration/search.test.ts`
+Expected: FAIL (import error).
+
+- [ ] **Step 4: Implement `src/app/search/search-queries.ts`**
+
+```ts
+import { sql } from "drizzle-orm";
+import { embedTexts } from "../../lib/embeddings.js";
+
+type Db = any;
+
+export async function keywordSearch(db: Db, q: string) {
+  const res = await db.execute(sql`
+    SELECT id, title, url, source, created_at AS "createdAt"
+    FROM items
+    WHERE to_tsvector('english', coalesce(title,'') || ' ' || coalesce(text,''))
+          @@ plainto_tsquery('english', ${q})
+    ORDER BY created_at DESC LIMIT 50
+  `);
+  return (res.rows ?? res) as any[];
+}
+
+export async function semanticSearch(db: Db, q: string) {
+  const [vec] = await embedTexts([q]);
+  if (!vec) return [];
+  const res = await db.execute(sql`
+    SELECT i.id, i.title, i.url, i.source, i.created_at AS "createdAt",
+           e.embedding <=> ${JSON.stringify(vec)}::vector AS dist
+    FROM item_embeddings e JOIN items i ON i.id = e.item_id
+    ORDER BY dist ASC LIMIT 50
+  `);
+  return (res.rows ?? res) as any[];
+}
+```
+
+- [ ] **Step 5: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/integration/search.test.ts`
+Expected: PASS (1 test).
+
+- [ ] **Step 6: Implement `src/app/search/page.tsx` (keyword + semantic tabs)**
+
+```tsx
+import { db } from "../../db/client.js";
+import { keywordSearch, semanticSearch } from "./search-queries.js";
+
+export const dynamic = "force-dynamic";
+
+export default async function Search({ searchParams }: { searchParams: Promise<{ q?: string; mode?: string }> }) {
+  const { q = "", mode = "keyword" } = await searchParams;
+  const results = q ? (mode === "semantic" ? await semanticSearch(db, q) : await keywordSearch(db, q)) : [];
+  return (
+    <main style={{ maxWidth: 760, margin: "2rem auto", fontFamily: "system-ui" }}>
+      <h1>Search</h1>
+      <form>
+        <input name="q" defaultValue={q} placeholder="search..." />
+        <select name="mode" defaultValue={mode}>
+          <option value="keyword">keyword</option>
+          <option value="semantic">semantic</option>
+        </select>
+        <button type="submit">Go</button>
+      </form>
+      <ul>
+        {results.map((r: any) => (
+          <li key={r.id}><a href={r.url ?? "#"} target="_blank" rel="noreferrer">{r.title}</a> <small>{r.source}</small></li>
+        ))}
+      </ul>
+    </main>
+  );
+}
+```
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/app/search tests/integration/search.test.ts src/db/migrations
+git commit -m "feat: keyword + semantic search page"
+```
+
+### Task 7: Trends page — top topics over time (integration, TDD)
+
+**Files:**
+- Create: `ai-signal/src/app/topics/trend-queries.ts`
+- Create: `ai-signal/src/app/topics/page.tsx`
+- Modify: `ai-signal/src/lib/cluster.ts` (write `topic_trends` on assignment)
+- Test: `ai-signal/tests/integration/trends.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+import { afterAll, afterEach, beforeEach, expect, it } from "vitest";
+import { topics, topicTrends } from "../../src/db/schema.js";
+import { db, pool, truncateAll } from "../setup/db.js";
+import { getTopTopics } from "../../src/app/topics/trend-queries.js";
+
+beforeEach(async () => {
+  await truncateAll();
+  const [t1] = await db.insert(topics).values({ label: "Agents", centroid: Array(1024).fill(0) }).returning();
+  const [t2] = await db.insert(topics).values({ label: "Hardware", centroid: Array(1024).fill(0) }).returning();
+  await db.insert(topicTrends).values([
+    { topicId: t1!.id, bucketDate: "2026-06-03", itemCount: 10, scoreSum: 7.5 },
+    { topicId: t2!.id, bucketDate: "2026-06-03", itemCount: 3, scoreSum: 1.2 },
+  ]);
+});
+afterEach(async () => { await truncateAll(); });
+afterAll(async () => { await pool.end(); });
+
+it("returns topics for a day ordered by score sum desc", async () => {
+  const top = await getTopTopics(db, { date: "2026-06-03" });
+  expect(top.map((t: any) => t.label)).toEqual(["Agents", "Hardware"]);
+  expect(top[0].itemCount).toBe(10);
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd ai-signal && npx vitest run tests/integration/trends.test.ts`
+Expected: FAIL (import error).
+
+- [ ] **Step 3: Implement `src/app/topics/trend-queries.ts`**
+
+```ts
+import { sql } from "drizzle-orm";
+
+type Db = any;
+
+export async function getTopTopics(db: Db, opts: { date: string }) {
+  const res = await db.execute(sql`
+    SELECT t.id, t.label, tt.item_count AS "itemCount", tt.score_sum AS "scoreSum"
+    FROM topic_trends tt JOIN topics t ON t.id = tt.topic_id
+    WHERE tt.bucket_date = ${opts.date}
+    ORDER BY tt.score_sum DESC LIMIT 20
+  `);
+  return (res.rows ?? res) as any[];
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/integration/trends.test.ts`
+Expected: PASS (1 test).
+
+- [ ] **Step 5: Make clustering update `topic_trends`**
+
+In `src/lib/cluster.ts`, after inserting an `itemTopics` link, upsert the daily bucket:
+
+```ts
+    const day = new Date().toISOString().slice(0, 10);
+    await db.execute(sql`
+      INSERT INTO topic_trends (topic_id, bucket_date, item_count, score_sum)
+      VALUES (${topicId}, ${day}, 1, COALESCE((SELECT composite FROM scores WHERE item_id = ${Number(row.item_id)}), 0))
+      ON CONFLICT (topic_id, bucket_date)
+      DO UPDATE SET item_count = topic_trends.item_count + 1,
+                    score_sum = topic_trends.score_sum + EXCLUDED.score_sum
+    `);
+```
+
+- [ ] **Step 6: Implement `src/app/topics/page.tsx`**
+
+```tsx
+import { db } from "../../db/client.js";
+import { getTopTopics } from "./trend-queries.js";
+
+export const dynamic = "force-dynamic";
+
+export default async function Topics() {
+  const today = new Date().toISOString().slice(0, 10);
+  const top = await getTopTopics(db, { date: today });
+  return (
+    <main style={{ maxWidth: 760, margin: "2rem auto", fontFamily: "system-ui" }}>
+      <h1>Today's Topics — {today}</h1>
+      <ol>
+        {top.map((t: any) => (
+          <li key={t.id}>{t.label} <small>({t.itemCount} items · score {Number(t.scoreSum).toFixed(1)})</small></li>
+        ))}
+      </ol>
+    </main>
+  );
+}
+```
+
+- [ ] **Step 7: Re-run cluster test (now also writes trends) + verify**
+
+Run: `cd ai-signal && npx vitest run tests/integration/cluster.test.ts tests/integration/trends.test.ts`
+Expected: PASS. **M4 acceptance gate:** with real data + worker running, `/topics` shows plausible "今天 AI 圈在聊什么" and `/search` returns sensible semantic results.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add src/app/topics src/lib/cluster.ts tests/integration/trends.test.ts
+git commit -m "feat: topic trends page + trend accumulation (M4 complete)"
+```
+
+---
+
+## M5 — Polish (retention, favorites/archive/read, rubric re-score, degradation banner)
+
+**Goal of M5:** Add per-item state (favorite/archive/read), a 30-day rolling cleanup that never deletes favorites, full-DB rubric re-scoring via the jobs queue, and a Mac-degradation banner showing how stale each source is. (Telegram is explicitly out of scope.)
+
+### Task 1: Item state columns (favorite/archive/read)
+
+**Files:**
+- Modify: `ai-signal/src/db/schema.ts`
+
+- [ ] **Step 1: Add state columns to the `items` table in `src/db/schema.ts`**
+
+Add to the `items` table definition:
+
+```ts
+  isFavorited: boolean("is_favorited").notNull().default(false),
+  isArchived: boolean("is_archived").notNull().default(false),
+  readAt: timestamp("read_at", { withTimezone: true }),
+```
+
+- [ ] **Step 2: Generate + apply migration**
+
+Run:
+```bash
+cd ai-signal && DATABASE_URL=postgres://aisignal:aisignal@localhost:5432/aisignal npm run db:generate
+DATABASE_URL=postgres://aisignal:aisignal@localhost:5432/aisignal npm run db:migrate
+```
+Expected: `items` gains `is_favorited`, `is_archived`, `read_at`.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add src/db/schema.ts src/db/migrations
+git commit -m "feat: item favorite/archive/read state columns"
+```
+
+### Task 2: Item-state PATCH route (integration, TDD)
+
+**Files:**
+- Create: `ai-signal/src/app/api/items/[id]/route.ts`
+- Test: `ai-signal/tests/integration/item-state-route.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+import { afterAll, afterEach, beforeEach, expect, it, vi } from "vitest";
+import { eq } from "drizzle-orm";
+import { items } from "../../src/db/schema.js";
+import { db, pool, truncateAll } from "../setup/db.js";
+
+// Override the app db client with a connection to the TEST database.
+// Use importOriginal (not an import of setup/db.js) to avoid a circular
+// mock-factory deadlock, and spread ...actual so makeDb/schema stay exported.
+vi.mock("../../src/db/client.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/db/client.js")>();
+  const { db, pool } = actual.makeDb(process.env.TEST_DATABASE_URL!);
+  return { ...actual, db, pool };
+});
+
+let id: number;
+beforeEach(async () => {
+  await truncateAll();
+  const [it] = await db.insert(items).values({ rawItemId: 1, source: "hn", title: "x", contentHash: "h1", createdAt: new Date() }).returning();
+  id = it!.id;
+});
+afterEach(async () => { await truncateAll(); });
+afterAll(async () => { await pool.end(); });
+
+it("toggles favorite", async () => {
+  const { PATCH } = await import("../../src/app/api/items/[id]/route.js");
+  const res = await PATCH(
+    new Request(`http://x/api/items/${id}`, { method: "PATCH", body: JSON.stringify({ isFavorited: true }) }),
+    { params: Promise.resolve({ id: String(id) }) },
+  );
+  expect(res.status).toBe(200);
+  const [row] = await db.select().from(items).where(eq(items.id, id));
+  expect(row!.isFavorited).toBe(true);
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd ai-signal && npx vitest run tests/integration/item-state-route.test.ts`
+Expected: FAIL (import error).
+
+- [ ] **Step 3: Implement `src/app/api/items/[id]/route.ts`**
+
+```ts
+import { z } from "zod";
+import { eq } from "drizzle-orm";
+import { db } from "../../../../db/client.js";
+import { items } from "../../../../db/schema.js";
+
+export const dynamic = "force-dynamic";
+
+const schema = z.object({
+  isFavorited: z.boolean().optional(),
+  isArchived: z.boolean().optional(),
+  read: z.boolean().optional(),
+});
+
+export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }): Promise<Response> {
+  const { id } = await ctx.params;
+  const parsed = schema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) return new Response("bad request", { status: 400 });
+
+  const patch: Record<string, unknown> = {};
+  if (parsed.data.isFavorited !== undefined) patch.isFavorited = parsed.data.isFavorited;
+  if (parsed.data.isArchived !== undefined) patch.isArchived = parsed.data.isArchived;
+  if (parsed.data.read !== undefined) patch.readAt = parsed.data.read ? new Date() : null;
+  if (Object.keys(patch).length === 0) return new Response("no-op", { status: 400 });
+
+  await db.update(items).set(patch).where(eq(items.id, Number(id)));
+  return Response.json({ ok: true });
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/integration/item-state-route.test.ts`
+Expected: PASS (1 test).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/app/api/items tests/integration/item-state-route.test.ts
+git commit -m "feat: item state patch route (favorite/archive/read)"
+```
+
+### Task 3: 30-day retention cleanup (integration, TDD)
+
+**Files:**
+- Create: `ai-signal/src/lib/cleanup.ts`
+- Create: `ai-signal/bin/cleanup.ts`
+- Test: `ai-signal/tests/integration/cleanup.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+import { afterAll, afterEach, beforeEach, expect, it } from "vitest";
+import { items } from "../../src/db/schema.js";
+import { db, pool, truncateAll } from "../setup/db.js";
+import { cleanupOldItems } from "../../src/lib/cleanup.js";
+
+beforeEach(async () => {
+  await truncateAll();
+  await db.insert(items).values([
+    { rawItemId: 1, source: "hn", title: "old normal", contentHash: "h1", createdAt: new Date(Date.now() - 40 * 864e5) },
+    { rawItemId: 2, source: "hn", title: "old favorite", contentHash: "h2", isFavorited: true, createdAt: new Date(Date.now() - 40 * 864e5) },
+    { rawItemId: 3, source: "hn", title: "recent", contentHash: "h3", createdAt: new Date() },
+  ]);
+});
+afterEach(async () => { await truncateAll(); });
+afterAll(async () => { await pool.end(); });
+
+it("deletes items older than 30 days except favorites", async () => {
+  const deleted = await cleanupOldItems(db, { days: 30 });
+  expect(deleted).toBe(1);
+  const titles = (await db.select().from(items)).map((r) => r.title).sort();
+  expect(titles).toEqual(["old favorite", "recent"]);
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd ai-signal && npx vitest run tests/integration/cleanup.test.ts`
+Expected: FAIL (import error).
+
+- [ ] **Step 3: Implement `src/lib/cleanup.ts`**
+
+```ts
+import { sql } from "drizzle-orm";
+
+type Db = any;
+
+// decision #5/#8: rolling retention, but is_favorited rows are kept forever.
+export async function cleanupOldItems(db: Db, opts: { days: number }): Promise<number> {
+  const res = await db.execute(sql`
+    DELETE FROM items
+    WHERE is_favorited = false
+      AND created_at < now() - (${opts.days} || ' days')::interval
+  `);
+  return res.rowCount ?? (res as { rowCount?: number }).rowCount ?? 0;
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/integration/cleanup.test.ts`
+Expected: PASS (1 test).
+
+> Note: `item_embeddings`, `scores`, `item_topics` reference `item_id`. Since this plan keeps those as plain columns (no FK cascade), add matching cleanup statements in `cleanupOldItems` to delete orphaned rows in those tables for the deleted item ids, OR add `ON DELETE CASCADE` foreign keys in a migration. Pick one and keep the test green: simplest is to delete from child tables first by the same age+favorite predicate joined to `items`. Implement that as Step 5.
+
+- [ ] **Step 5: Extend cleanup to remove child rows for deleted items**
+
+```ts
+export async function cleanupOldItems(db: Db, opts: { days: number }): Promise<number> {
+  const cond = sql`i.is_favorited = false AND i.created_at < now() - (${opts.days} || ' days')::interval`;
+  await db.execute(sql`DELETE FROM item_embeddings e USING items i WHERE e.item_id = i.id AND ${cond}`);
+  await db.execute(sql`DELETE FROM scores s USING items i WHERE s.item_id = i.id AND ${cond}`);
+  await db.execute(sql`DELETE FROM item_topics it USING items i WHERE it.item_id = i.id AND ${cond}`);
+  const res = await db.execute(sql`
+    DELETE FROM items i
+    WHERE i.is_favorited = false AND i.created_at < now() - (${opts.days} || ' days')::interval
+  `);
+  return res.rowCount ?? 0;
+}
+```
+
+Run: `cd ai-signal && npx vitest run tests/integration/cleanup.test.ts`
+Expected: PASS (still deletes 1, favorites kept).
+
+- [ ] **Step 6: Create `bin/cleanup.ts` entrypoint**
+
+```ts
+import { db, pool } from "../src/db/client.js";
+import { cleanupOldItems } from "../src/lib/cleanup.js";
+
+async function main() {
+  const deleted = await cleanupOldItems(db, { days: 30 });
+  console.log(`cleanup: deleted ${deleted} items (favorites preserved)`);
+  await pool.end();
+}
+main();
+```
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/lib/cleanup.ts bin/cleanup.ts tests/integration/cleanup.test.ts
+git commit -m "feat: 30-day retention cleanup preserving favorites"
+```
+
+### Task 4: Rubric re-score of the whole DB (integration, TDD)
+
+**Files:**
+- Create: `ai-signal/src/lib/rescore.ts`
+- Create: `ai-signal/bin/rescore.ts`
+- Test: `ai-signal/tests/integration/rescore.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+import { afterAll, afterEach, beforeEach, expect, it } from "vitest";
+import { items, scores } from "../../src/db/schema.js";
+import { db, pool, truncateAll } from "../setup/db.js";
+import { enqueueRescore } from "../../src/lib/rescore.js";
+
+beforeEach(async () => {
+  await truncateAll();
+  const ins = await db.insert(items).values([
+    { rawItemId: 1, source: "hn", title: "a", contentHash: "h1", createdAt: new Date() },
+    { rawItemId: 2, source: "hn", title: "b", contentHash: "h2", createdAt: new Date() },
+  ]).returning();
+  // pre-existing scores at an OLD rubric version
+  await db.insert(scores).values(ins.map((i) => ({ itemId: i.id, composite: 0.5, rubricVersion: "old" })));
+});
+afterEach(async () => { await truncateAll(); });
+afterAll(async () => { await pool.end(); });
+
+it("deletes scores not matching the current rubric so they re-score", async () => {
+  const cleared = await enqueueRescore(db, { currentRubric: "new" });
+  expect(cleared).toBe(2);
+  expect(await db.select().from(scores)).toHaveLength(0);
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd ai-signal && npx vitest run tests/integration/rescore.test.ts`
+Expected: FAIL (import error).
+
+- [ ] **Step 3: Implement `src/lib/rescore.ts`**
+
+```ts
+import { sql } from "drizzle-orm";
+
+type Db = any;
+
+// Clearing stale-rubric score rows makes runScoreStage pick the items up again
+// (it selects items lacking a score row for the current rubric_version).
+export async function enqueueRescore(db: Db, opts: { currentRubric: string }): Promise<number> {
+  const res = await db.execute(sql`DELETE FROM scores WHERE rubric_version <> ${opts.currentRubric}`);
+  return res.rowCount ?? 0;
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/integration/rescore.test.ts`
+Expected: PASS (1 test).
+
+- [ ] **Step 5: Create `bin/rescore.ts` using the live RUBRIC_VERSION**
+
+```ts
+import { db, pool } from "../src/db/client.js";
+import { enqueueRescore } from "../src/lib/rescore.js";
+import { RUBRIC_VERSION } from "../src/lib/scoring/rubric.js";
+
+async function main() {
+  const cleared = await enqueueRescore(db, { currentRubric: RUBRIC_VERSION });
+  console.log(`rescore: cleared ${cleared} stale scores; worker will re-score to ${RUBRIC_VERSION}`);
+  await pool.end();
+}
+main();
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/lib/rescore.ts bin/rescore.ts tests/integration/rescore.test.ts
+git commit -m "feat: full-db rubric re-score via score stage"
+```
+
+### Task 5: Source freshness / Mac-degradation banner (integration, TDD)
+
+**Files:**
+- Create: `ai-signal/src/app/source-status.ts`
+- Modify: `ai-signal/src/app/page.tsx`
+- Test: `ai-signal/tests/integration/source-status.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+import { afterAll, afterEach, beforeEach, expect, it } from "vitest";
+import { sources } from "../../src/db/schema.js";
+import { db, pool, truncateAll } from "../setup/db.js";
+import { getSourceStatus } from "../../src/app/source-status.js";
+
+beforeEach(async () => {
+  await truncateAll();
+  await db.insert(sources).values([
+    { kind: "twitter", lastRunAt: new Date(Date.now() - 10 * 3600e3) }, // 10h stale
+    { kind: "hn", lastRunAt: new Date(Date.now() - 1 * 3600e3) },       // fresh
+  ]);
+});
+afterEach(async () => { await truncateAll(); });
+afterAll(async () => { await pool.end(); });
+
+it("flags sources stale beyond their threshold", async () => {
+  const status = await getSourceStatus(db);
+  const tw = status.find((s: any) => s.kind === "twitter");
+  const hn = status.find((s: any) => s.kind === "hn");
+  expect(tw.stale).toBe(true);
+  expect(hn.stale).toBe(false);
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd ai-signal && npx vitest run tests/integration/source-status.test.ts`
+Expected: FAIL (import error).
+
+- [ ] **Step 3: Implement `src/app/source-status.ts`**
+
+```ts
+import { sources } from "../db/schema.js";
+
+type Db = any;
+
+// per-source staleness threshold in hours
+const STALE_HOURS: Record<string, number> = { twitter: 6, reddit: 12, hn: 3, rss: 2 };
+
+export async function getSourceStatus(db: Db) {
+  const rows = await db.select().from(sources);
+  const now = Date.now();
+  return rows.map((s: { kind: string; lastRunAt: Date | null }) => {
+    const threshold = (STALE_HOURS[s.kind] ?? 24) * 3600e3;
+    const ageMs = s.lastRunAt ? now - new Date(s.lastRunAt).getTime() : Infinity;
+    return { kind: s.kind, lastRunAt: s.lastRunAt, stale: ageMs > threshold };
+  });
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `cd ai-signal && npx vitest run tests/integration/source-status.test.ts`
+Expected: PASS (1 test).
+
+- [ ] **Step 5: Render the banner in `src/app/page.tsx`**
+
+Add above the feed `<ul>` (keep the existing feed code):
+
+```tsx
+import { getSourceStatus } from "./source-status.js";
+// inside Home(), after fetching feed:
+  const status = await getSourceStatus(db);
+  const stale = status.filter((s: any) => s.stale);
+// in the returned JSX, above the <ul>:
+  {stale.length > 0 && (
+    <div style={{ background: "#fff4e5", border: "1px solid #ffce99", padding: 8, borderRadius: 6, marginBottom: 12 }}>
+      ⚠️ Stale sources: {stale.map((s: any) => `${s.kind} (since ${s.lastRunAt ? new Date(s.lastRunAt).toLocaleString() : "never"})`).join(", ")}
+    </div>
+  )}
+```
+
+- [ ] **Step 6: Verify build + commit**
+
+Run: `cd ai-signal && npm run build`
+Expected: build succeeds; the feed shows a banner when a source is stale.
+
+```bash
+git add src/app/source-status.ts src/app/page.tsx tests/integration/source-status.test.ts
+git commit -m "feat: source-freshness degradation banner"
+```
+
+### Task 6: Wire cleanup + rescore into deployment crons + final full-suite gate
+
+**Files:**
+- Modify: `ai-signal/deploy/cron/vps-crontab.txt`
+- Modify: `ai-signal/package.json`
+
+- [ ] **Step 1: Add npm scripts**
+
+In `package.json` scripts:
+
+```json
+    "cleanup": "tsx bin/cleanup.ts",
+    "rescore": "tsx bin/rescore.ts",
+```
+
+- [ ] **Step 2: Add the daily cleanup cron**
+
+Append to `deploy/cron/vps-crontab.txt`:
+
+```
+# Daily retention cleanup at 04:00 (favorites preserved)
+0 4 * * *  cd /app && DATABASE_URL=$DATABASE_URL node_modules/.bin/tsx bin/cleanup.ts >> /var/log/aisignal-cleanup.log 2>&1
+```
+
+- [ ] **Step 3: Run the FULL test suite (final acceptance gate)**
+
+Run: `cd ai-signal && TEST_DATABASE_URL=postgres://aisignal:aisignal@localhost:5432/aisignal_test npm test && npm run typecheck && npm run build`
+Expected: all Vitest unit + integration tests pass, typecheck clean, Next build succeeds. **This is the M5 / overall acceptance gate.**
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add package.json deploy/cron/vps-crontab.txt
+git commit -m "chore: cron wiring for cleanup + rescore (M5 complete)"
+```
+
+---
+
+## Spec Coverage Map (self-review)
+
+| Spec requirement | Covered by |
+| --- | --- |
+| Aggregate HN / RSS / Reddit / Twitter | M1 Task 9 (HN), M3 Task 1–2 (RSS), M3 Task 3 (Reddit+Twitter via Mac collector) |
+| Ingest API, bearer token, raw_items, enqueue | M1 Task 8 (`ingest()`), M1 Task 11 (route) |
+| Normalize (unified schema) | M1 Task 6–7, M1 Task 10 (stage) |
+| Dedup: URL canonicalize + content hash | M1 Task 5–6; semantic near-dup via embeddings M4 Task 3 |
+| Cheap prefilter → LLM batch → composite | M2 Task 4 (prefilter), Task 5 (LLM batch), Task 3+6 (composite) |
+| One-line summary + topic tags + reason | M2 Task 5 (LLM output), Task 6 (stored), Task 8 (shown) |
+| Feedback 👍/👎 | M2 Task 7 (route), Task 8 (buttons) |
+| Embeddings + pgvector | M4 Task 0 (spike), Task 1 (schema), Task 2–3 (embed) |
+| Novelty (max sim vs last K days) | M4 Task 4 |
+| Topic clustering + LLM labels | M4 Task 5 |
+| Topic trends ("今天在聊什么") | M4 Task 7 |
+| Keyword (tsvector) + semantic (pgvector) search | M4 Task 6 |
+| Personal memory: permanent items, read/favorite/archive | M5 Task 1–2 |
+| 30-day retention, favorites kept forever | M5 Task 3 |
+| Rubric versioning + full-DB re-score | M2 Task 5 (`RUBRIC_VERSION`), M5 Task 4 |
+| Mac-down degradation banner | M5 Task 5 |
+| Dashboard Basic Auth (M1) | M1 Task 12 |
+| Docker Compose: db + worker + web | M1 Task 2 + Task 14 |
+| VPS crons + Mac launchd | M3 Task 4, M5 Task 6 |
+| Secrets via env, not in repo | M1 Task 1 (`.env.example`), `.gitignore` |
+| Telegram | Intentionally out of scope (decision #6) |
+
+## Known Risks Carried Into Execution
+
+- **OpenRouter embeddings** may not work — M4 Task 0 is a hard gate; fallback is a local embedding container (bge-m3, dim 1024). The schema dimension `N` and the IVFFlat index are set only after the spike.
+- **`SCORING_MODEL` slug** — verify on OpenRouter before first real scoring call (M2 Task 1).
+- **VPS credentials** leaked in chat — rotate; use SSH key + VPS-local secrets only. Never commit `.env`.
+- **Reddit 100-item listing cap** and dependence on the logged-in `Able-Hovercraft-5567` session — Mac collector inherits whatever the digest produced; paging >100 is not implemented.
+- **Mac digest tools absent on this dev machine** — M3 Task 3's Mac collector must be validated on the real Mac (M3 acceptance gate).
