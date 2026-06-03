@@ -1,0 +1,3 @@
+# HN every hour, RSS every 30 min (run inside the app container / image)
+0 * * * *  cd /app && DATABASE_URL=$DATABASE_URL node_modules/.bin/tsx bin/collect-hn.ts  >> /var/log/aisignal-hn.log 2>&1
+*/30 * * * *  cd /app && DATABASE_URL=$DATABASE_URL node_modules/.bin/tsx bin/collect-rss.ts >> /var/log/aisignal-rss.log 2>&1
