@@ -9,6 +9,7 @@
     "start": "next start",
     "worker": "tsx src/pipeline/worker.ts",
     "collect:hn": "tsx bin/collect-hn.ts",
+    "collect:rss": "tsx bin/collect-rss.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "test": "vitest run",
