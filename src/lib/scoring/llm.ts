@@ -4,12 +4,14 @@ import { config } from "../../config.js";
 import { RUBRIC } from "./rubric.js";
 import type { Candidate } from "./prefilter.js";
 
+// Lenient: real LLMs occasionally over-produce topics or push value out of
+// range. Clamp/truncate instead of rejecting the whole batch.
 const resultSchema = z.object({
   id: z.number(),
-  value: z.number().min(0).max(100),
-  topics: z.array(z.string()).max(3).default([]),
-  reason: z.string().default(""),
-  summary: z.string().default(""),
+  value: z.number().catch(0).transform((v) => Math.max(0, Math.min(100, v))),
+  topics: z.array(z.string()).catch([]).transform((a) => a.slice(0, 3)),
+  reason: z.string().catch(""),
+  summary: z.string().catch(""),
 });
 const responseSchema = z.object({ results: z.array(resultSchema) });
 
