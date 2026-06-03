@@ -16,7 +16,7 @@ jobs:
     env:
       VPS_HOST: ${{ secrets.VPS_HOST }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Build the amd64 image on the runner (the 1 GB VPS can't build it).
       # We ship it to the VPS via docker save + load (no registry), so the
