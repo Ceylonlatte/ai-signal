@@ -12,56 +12,46 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    # Bridge the secret into env: the `secrets` context is NOT allowed in step
-    # `if:` conditions, but `env` is. This gates the VPS-deploy steps cleanly.
+    # Bridge the secret into env (secrets context is not allowed in `if:`).
     env:
       VPS_HOST: ${{ secrets.VPS_HOST }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      # Build the amd64 image on the runner (the 1 GB VPS can't build it).
+      # We ship it to the VPS via docker save + load (no registry), so the
+      # private image needs no GHCR pull credentials on the VPS.
+      - name: Build image
+        run: docker build --platform linux/amd64 -t ghcr.io/ceylonlatte/ai-signal:latest .
 
-      # Build on the runner (ample RAM) and push to GHCR. The 1 GB VPS cannot
-      # build Next.js itself (npm ci / next build OOM), so it only PULLS.
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/amd64
-          push: true
-          tags: |
-            ghcr.io/ceylonlatte/ai-signal:latest
-            ghcr.io/ceylonlatte/ai-signal:${{ github.sha }}
+      - name: Save image to tarball
+        run: docker save ghcr.io/ceylonlatte/ai-signal:latest | gzip > image.tar.gz
 
-      # Keep the VPS's compose file in sync (app code lives in the image).
-      - name: Copy compose to VPS
+      - name: Copy image + compose to VPS
         if: ${{ env.VPS_HOST != '' }}
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "docker-compose.yml"
+          source: "image.tar.gz,docker-compose.yml"
           target: "/opt/ai-signal"
           overwrite: true
 
-      - name: Deploy on VPS (pull image, migrate, restart)
+      - name: Load image + migrate + restart on VPS
         if: ${{ env.VPS_HOST != '' }}
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 20m
           script: |
             set -e
             cd /opt/ai-signal
-            docker compose pull web worker
+            gunzip -f image.tar.gz
+            docker load -i image.tar
+            rm -f image.tar
             docker compose up -d db
             until docker compose exec -T db pg_isready -U aisignal; do sleep 2; done
             docker compose exec -T db psql -U aisignal -d aisignal -c "CREATE EXTENSION IF NOT EXISTS vector;"
