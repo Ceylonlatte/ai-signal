@@ -1,5 +1,5 @@
 import {
-  bigint, bigserial, boolean, doublePrecision, integer, jsonb, pgTable, real, text, timestamp, uniqueIndex,
+  bigint, bigserial, boolean, doublePrecision, integer, jsonb, pgTable, real, text, timestamp, uniqueIndex, vector,
 } from "drizzle-orm/pg-core";
 
 export const sources = pgTable("sources", {
@@ -69,3 +69,29 @@ export const feedback = pgTable("feedback", {
   reason: text("reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const itemEmbeddings = pgTable("item_embeddings", {
+  itemId: bigint("item_id", { mode: "number" }).primaryKey(),
+  embedding: vector("embedding", { dimensions: 2048 }).notNull(),
+});
+
+export const topics = pgTable("topics", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  label: text("label").notNull(),
+  centroid: vector("centroid", { dimensions: 2048 }).notNull(),
+  firstSeen: timestamp("first_seen", { withTimezone: true }).notNull().defaultNow(),
+  lastSeen: timestamp("last_seen", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const itemTopics = pgTable("item_topics", {
+  itemId: bigint("item_id", { mode: "number" }).notNull(),
+  topicId: bigint("topic_id", { mode: "number" }).notNull(),
+  weight: real("weight").notNull().default(1),
+}, (t) => ({ uq: uniqueIndex("item_topics_uq").on(t.itemId, t.topicId) }));
+
+export const topicTrends = pgTable("topic_trends", {
+  topicId: bigint("topic_id", { mode: "number" }).notNull(),
+  bucketDate: text("bucket_date").notNull(), // YYYY-MM-DD
+  itemCount: integer("item_count").notNull().default(0),
+  scoreSum: doublePrecision("score_sum").notNull().default(0),
+}, (t) => ({ uq: uniqueIndex("topic_trends_uq").on(t.topicId, t.bucketDate) }));
