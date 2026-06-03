@@ -1,6 +1,5 @@
-import { sql } from "drizzle-orm";
 import {
-  bigserial, boolean, integer, jsonb, pgTable, text, timestamp, uniqueIndex,
+  bigint, bigserial, boolean, integer, jsonb, pgTable, text, timestamp, uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 export const sources = pgTable("sources", {
@@ -13,7 +12,7 @@ export const sources = pgTable("sources", {
 
 export const rawItems = pgTable("raw_items", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
-  sourceId: bigserial("source_id", { mode: "number" }).notNull(),
+  sourceId: bigint("source_id", { mode: "number" }).notNull(),
   externalId: text("external_id").notNull(),
   payload: jsonb("payload").notNull(),
   fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
@@ -23,7 +22,7 @@ export const rawItems = pgTable("raw_items", {
 
 export const items = pgTable("items", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
-  rawItemId: bigserial("raw_item_id", { mode: "number" }).notNull(),
+  rawItemId: bigint("raw_item_id", { mode: "number" }).notNull(),
   source: text("source").notNull(),
   url: text("url"),
   canonicalUrl: text("canonical_url"),

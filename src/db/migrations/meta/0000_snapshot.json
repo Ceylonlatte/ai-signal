@@ -1,5 +1,5 @@
 {
-  "id": "e95782f7-6d2d-42dd-9ae0-7cab9cba066f",
+  "id": "794628ce-2eb8-41e5-947c-bd5c0c4f246b",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -16,7 +16,7 @@
         },
         "raw_item_id": {
           "name": "raw_item_id",
-          "type": "bigserial",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
@@ -193,7 +193,7 @@
         },
         "source_id": {
           "name": "source_id",
-          "type": "bigserial",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },

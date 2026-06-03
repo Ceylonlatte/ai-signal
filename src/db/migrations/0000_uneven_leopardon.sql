@@ -1,6 +1,6 @@
 CREATE TABLE "items" (
 	"id" bigserial PRIMARY KEY NOT NULL,
-	"raw_item_id" bigserial NOT NULL,
+	"raw_item_id" bigint NOT NULL,
 	"source" text NOT NULL,
 	"url" text,
 	"canonical_url" text,
@@ -24,7 +24,7 @@ CREATE TABLE "jobs" (
 --> statement-breakpoint
 CREATE TABLE "raw_items" (
 	"id" bigserial PRIMARY KEY NOT NULL,
-	"source_id" bigserial NOT NULL,
+	"source_id" bigint NOT NULL,
 	"external_id" text NOT NULL,
 	"payload" jsonb NOT NULL,
 	"fetched_at" timestamp with time zone DEFAULT now() NOT NULL
