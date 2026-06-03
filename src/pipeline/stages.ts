@@ -1,4 +1,4 @@
-import { and, asc, eq, sql as dsql } from "drizzle-orm";
+import { asc, eq, sql as dsql } from "drizzle-orm";
 import { items, itemEmbeddings, jobs, rawItems, scores } from "../db/schema.js";
 import { embedTexts } from "../lib/embeddings.js";
 import { normalizeRawItem } from "../lib/normalize.js";

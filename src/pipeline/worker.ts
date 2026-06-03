@@ -9,8 +9,10 @@ async function loop() {
     try {
       const n = await runPendingJobs(db, { max: 50 });
       const embedded = await runEmbedStage(db);
-      const clustered = await runClusterStage(db, { threshold: 0.25 });
+      // Score BEFORE cluster: cluster writes topic_trends.score_sum from
+      // scores.composite, which must already exist for the item.
       const scored = await runScoreStage(db);
+      const clustered = await runClusterStage(db, { threshold: 0.25 });
       if (n + embedded + clustered + scored === 0) await new Promise((r) => setTimeout(r, POLL_MS));
     } catch (err) {
       console.error("worker loop error", err);

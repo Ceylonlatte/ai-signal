@@ -37,5 +37,8 @@ export async function POST(req: Request): Promise<Response> {
   if (!src) [src] = await db.insert(sources).values({ kind: source }).returning();
 
   const inserted = await ingest({ db, sourceId: src!.id, payloads: items as RawPayload[] });
+  // Record freshness so the dashboard's stale-source banner is accurate for
+  // Mac-pushed sources (twitter/reddit), which only arrive via this route.
+  await db.update(sources).set({ lastRunAt: new Date() }).where(eq(sources.id, src!.id));
   return Response.json({ inserted });
 }

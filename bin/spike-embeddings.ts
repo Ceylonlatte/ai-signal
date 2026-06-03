@@ -2,8 +2,9 @@
 //
 // RESULT (2026-06-03): SUCCESS. OpenRouter's /embeddings endpoint works with
 // `nvidia/llama-nemotron-embed-vl-1b-v2:free` and returns vectors of
-// dimension N = 2048. No local fallback needed. The pgvector schema and the
-// IVFFlat indexes (M4 Task 1) therefore use vector(2048).
+// dimension N = 2048. No local fallback needed. The pgvector columns use
+// vector(2048); 2048 > pgvector's 2000-dim ANN-index limit, so there is NO
+// ivfflat/hnsw index — semantic search/novelty/clustering use exact `<=>` scan.
 //
 // Run: set OPENROUTER_API_KEY + EMBEDDING_MODEL (from .env), then `tsx bin/spike-embeddings.ts`.
 const MODEL = process.env.EMBEDDING_MODEL!;

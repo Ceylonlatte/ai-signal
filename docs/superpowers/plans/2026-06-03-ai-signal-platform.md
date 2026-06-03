@@ -1241,6 +1241,8 @@ export async function POST(req: Request): Promise<Response> {
   if (!src) [src] = await db.insert(sources).values({ kind: source }).returning();
 
   const inserted = await ingest({ db, sourceId: src!.id, payloads: items as RawPayload[] });
+  // Record freshness so the stale-source banner is accurate for Mac-pushed sources.
+  await db.update(sources).set({ lastRunAt: new Date() }).where(eq(sources.id, src!.id));
   return Response.json({ inserted });
 }
 ```
@@ -3209,11 +3211,12 @@ In `src/pipeline/worker.ts`, drain stages in order each cycle:
 ```ts
 import { runPendingJobs, runScoreStage, runEmbedStage } from "./stages.js";
 import { runClusterStage } from "../lib/cluster.js";
-// inside loop():
+// inside loop(): SCORE before CLUSTER so topic_trends.score_sum (read from
+// scores.composite in runClusterStage) is populated for the item being clustered.
       const n = await runPendingJobs(db, { max: 50 });
       const embedded = await runEmbedStage(db);
-      const clustered = await runClusterStage(db, { threshold: 0.25 });
       const scored = await runScoreStage(db);
+      const clustered = await runClusterStage(db, { threshold: 0.25 });
       if (n + embedded + clustered + scored === 0) await new Promise((r) => setTimeout(r, POLL_MS));
 ```
 
