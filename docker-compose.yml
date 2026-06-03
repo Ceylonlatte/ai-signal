@@ -15,5 +15,28 @@ services:
       timeout: 3s
       retries: 10
 
+  web:
+    build: .
+    command: npm run start
+    environment:
+      DATABASE_URL: postgres://aisignal:aisignal@db:5432/aisignal
+      INGEST_TOKEN: ${INGEST_TOKEN}
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER}
+      BASIC_AUTH_PASS: ${BASIC_AUTH_PASS}
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  worker:
+    build: .
+    command: npm run worker
+    environment:
+      DATABASE_URL: postgres://aisignal:aisignal@db:5432/aisignal
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   pgdata:
