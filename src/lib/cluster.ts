@@ -40,6 +40,14 @@ export async function runClusterStage(db: Db, opts: { threshold: number }): Prom
     await db.insert(itemTopics)
       .values({ itemId: Number(row.item_id), topicId, weight: 1 })
       .onConflictDoNothing({ target: [itemTopics.itemId, itemTopics.topicId] });
+    const day = new Date().toISOString().slice(0, 10);
+    await db.execute(sql`
+      INSERT INTO topic_trends (topic_id, bucket_date, item_count, score_sum)
+      VALUES (${topicId}, ${day}, 1, COALESCE((SELECT composite FROM scores WHERE item_id = ${Number(row.item_id)}), 0))
+      ON CONFLICT (topic_id, bucket_date)
+      DO UPDATE SET item_count = topic_trends.item_count + 1,
+                    score_sum = topic_trends.score_sum + EXCLUDED.score_sum
+    `);
     assigned++;
   }
   return assigned;
