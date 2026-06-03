@@ -1,6 +1,12 @@
-import { and, asc, eq } from "drizzle-orm";
-import { items, jobs, rawItems } from "../db/schema.js";
+import { and, asc, eq, sql as dsql } from "drizzle-orm";
+import { items, jobs, rawItems, scores } from "../db/schema.js";
 import { normalizeRawItem } from "../lib/normalize.js";
+import { computeRelevance } from "../lib/keywords.js";
+import { normalizeHeat, computeComposite } from "../lib/scoring/composite.js";
+import { selectCandidates } from "../lib/scoring/prefilter.js";
+import { scoreBatch } from "../lib/scoring/llm.js";
+import { RUBRIC_VERSION } from "../lib/scoring/rubric.js";
+import { weights } from "../config.js";
 import type { RawPayload } from "../types.js";
 
 type Db = any;
@@ -48,4 +54,45 @@ export async function runPendingJobs(db: Db, opts: { max: number }): Promise<num
     }
   }
   return processed;
+}
+
+export async function runScoreStage(db: Db): Promise<number> {
+  const unscored = await db.execute(dsql`
+    SELECT i.id, i.title, i.text, i.source, i.metrics
+    FROM items i
+    LEFT JOIN scores s ON s.item_id = i.id AND s.rubric_version = ${RUBRIC_VERSION}
+    WHERE s.item_id IS NULL
+    LIMIT 500
+  `);
+  const rows = (unscored.rows ?? unscored) as Array<{
+    id: number; title: string; text: string; source: string; metrics: Record<string, number>;
+  }>;
+  if (rows.length === 0) return 0;
+
+  const candidates = selectCandidates(rows.map((r) => ({
+    id: Number(r.id), title: r.title, text: r.text ?? "", source: r.source, metrics: r.metrics ?? {},
+  })));
+  const llm = await scoreBatch(candidates);
+
+  let written = 0;
+  for (const c of candidates) {
+    const r = llm.get(c.id);
+    const heat = normalizeHeat(c.metrics);
+    const relevance = computeRelevance(c.title, c.text);
+    const llmValue = (r?.value ?? 0) / 100;
+    const novelty = 0; // activated in M4
+    const composite = computeComposite({ heat, relevance, novelty, llmValue }, weights);
+    await db.insert(scores).values({
+      itemId: c.id, heat, relevance, novelty, llmValue, composite,
+      summary: r?.summary ?? "", reason: r?.reason ?? "", topicTags: r?.topics ?? [],
+      rubricVersion: RUBRIC_VERSION,
+    }).onConflictDoUpdate({
+      target: scores.itemId,
+      set: { heat, relevance, novelty, llmValue, composite,
+        summary: r?.summary ?? "", reason: r?.reason ?? "", topicTags: r?.topics ?? [],
+        rubricVersion: RUBRIC_VERSION, scoredAt: new Date() },
+    });
+    written++;
+  }
+  return written;
 }
