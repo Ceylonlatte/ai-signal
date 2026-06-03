@@ -1,15 +1,14 @@
 FROM node:20-slim AS base
 WORKDIR /app
-# Prefer IPv4: in many containers IPv6 egress is broken, so npm hangs on a
-# package fetch until the ~300s fetch-timeout, then dies with
-# "Exit handler never called!" (leaving `next` unlinked -> not found).
+# `npm ci` consistently hangs ~300s then dies "Exit handler never called!" in
+# this image (npm-internal install bug, not network — `npm i -g` is instant).
+# Install with pnpm (different engine) instead. Installing pnpm via `npm i -g`
+# is the fast/reliable path. IPv4-first as cheap network insurance.
 ENV NODE_OPTIONS=--dns-result-order=ipv4first
-# node:20-slim ships npm 10.8.2 (also has the exit-handler bug); pin to the
-# npm that generated package-lock.json.
-RUN npm install -g npm@10.9.3
-COPY package.json package-lock.json ./
-RUN npm ci --no-audit --no-fund
+RUN npm install -g pnpm@9
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 COPY . .
-RUN npm run build
+RUN pnpm run build
 EXPOSE 3000
-CMD ["npm", "run", "start"]
+CMD ["pnpm", "run", "start"]
