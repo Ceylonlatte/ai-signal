@@ -1522,8 +1522,11 @@ main();
 ```dockerfile
 FROM node:20-slim AS base
 WORKDIR /app
-# node:20-slim ships npm 10.8.2 which hits "Exit handler never called!" (aborts
-# bin-linking -> `next: not found`). Pin to the npm that built package-lock.json.
+# Prefer IPv4 (broken IPv6 egress in containers makes npm hang ~300s on a fetch
+# then die "Exit handler never called!", leaving `next` unlinked).
+ENV NODE_OPTIONS=--dns-result-order=ipv4first
+# node:20-slim ships npm 10.8.2 which also hits that bug; pin to the npm that
+# built package-lock.json.
 RUN npm install -g npm@10.9.3
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
