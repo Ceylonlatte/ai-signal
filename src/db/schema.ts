@@ -1,5 +1,5 @@
 import {
-  bigint, bigserial, boolean, integer, jsonb, pgTable, text, timestamp, uniqueIndex,
+  bigint, bigserial, boolean, doublePrecision, integer, jsonb, pgTable, real, text, timestamp, uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 export const sources = pgTable("sources", {
@@ -47,3 +47,25 @@ export const jobs = pgTable("jobs", {
 }, (t) => ({
   uq: uniqueIndex("jobs_stage_ref_uq").on(t.stage, t.ref),
 }));
+
+export const scores = pgTable("scores", {
+  itemId: bigint("item_id", { mode: "number" }).primaryKey(),
+  heat: real("heat").notNull().default(0),
+  relevance: real("relevance").notNull().default(0),
+  novelty: real("novelty").notNull().default(0),
+  llmValue: real("llm_value").notNull().default(0),
+  composite: doublePrecision("composite").notNull().default(0),
+  summary: text("summary").notNull().default(""),
+  reason: text("reason").notNull().default(""),
+  topicTags: jsonb("topic_tags").notNull().default([]),
+  rubricVersion: text("rubric_version").notNull(),
+  scoredAt: timestamp("scored_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const feedback = pgTable("feedback", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  itemId: bigint("item_id", { mode: "number" }).notNull(),
+  signal: text("signal").notNull(), // "up" | "down"
+  reason: text("reason"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
