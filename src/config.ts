@@ -1,7 +1,9 @@
 import { z } from "zod";
 
 const schema = z.object({
-  DATABASE_URL: z.string().url(),
+  // Default lets `config` import without throwing in tests; the real connection
+  // string is read directly from process.env.DATABASE_URL in src/db/client.ts.
+  DATABASE_URL: z.string().url().default("postgres://aisignal:aisignal@localhost:5432/aisignal"),
   TEST_DATABASE_URL: z.string().url().optional(),
   INGEST_TOKEN: z.string().min(1).default("dev-token"),
   BASIC_AUTH_USER: z.string().default("admin"),
