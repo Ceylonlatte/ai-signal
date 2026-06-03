@@ -2248,7 +2248,7 @@ Expected: FAIL (still returns by createdAt; no `summary` field).
 - [ ] **Step 3: Update `src/app/feed-queries.ts` to join scores and sort by composite**
 
 ```ts
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { items, scores } from "../db/schema.js";
 
 type Db = any;
@@ -2263,7 +2263,8 @@ export async function getFeed(db: Db, opts: { limit: number }) {
     })
     .from(items)
     .leftJoin(scores, eq(scores.itemId, items.id))
-    .orderBy(desc(scores.composite), desc(items.createdAt))
+    // NULLS LAST so not-yet-scored items don't float to the top of the feed.
+    .orderBy(sql`${scores.composite} desc nulls last`, desc(items.createdAt))
     .limit(opts.limit);
   return rows;
 }
