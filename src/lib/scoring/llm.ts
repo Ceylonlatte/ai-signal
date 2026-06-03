@@ -55,3 +55,20 @@ async function scoreChunk(chunk: Candidate[]): Promise<ScoreResult[]> {
   const parsed = responseSchema.parse(JSON.parse(data.choices[0]!.message.content));
   return parsed.results;
 }
+
+export async function labelTopic(titles: string[]): Promise<string> {
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: { authorization: `Bearer ${config.OPENROUTER_API_KEY}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      model: config.SCORING_MODEL,
+      messages: [
+        { role: "system", content: "Give a 2-4 word human topic label for these AI-news headlines. Reply with the label only." },
+        { role: "user", content: titles.slice(0, 8).join("\n") },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`label ${res.status}`);
+  const data = (await res.json()) as { choices: { message: { content: string } }[] };
+  return data.choices[0]!.message.content.trim().slice(0, 60);
+}
