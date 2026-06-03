@@ -2771,20 +2771,20 @@ git commit -m "chore: embeddings feasibility spike + chosen dimension note"
 
 - [ ] **Step 1: Add pgvector + topic tables to `src/db/schema.ts`**
 
-Replace `N` with the dimension confirmed in Task 0 (e.g. `1024`):
+Dimension `N` confirmed in Task 0 spike = **2048** (OpenRouter `nvidia/llama-nemotron-embed-vl-1b-v2:free` works; no fallback needed):
 
 ```ts
 import { vector } from "drizzle-orm/pg-core";
 
 export const itemEmbeddings = pgTable("item_embeddings", {
   itemId: bigint("item_id", { mode: "number" }).primaryKey(),
-  embedding: vector("embedding", { dimensions: 1024 }).notNull(), // <- N from spike
+  embedding: vector("embedding", { dimensions: 2048 }).notNull(), // <- N from spike
 });
 
 export const topics = pgTable("topics", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   label: text("label").notNull(),
-  centroid: vector("centroid", { dimensions: 1024 }).notNull(), // <- N from spike
+  centroid: vector("centroid", { dimensions: 2048 }).notNull(), // <- N from spike
   firstSeen: timestamp("first_seen", { withTimezone: true }).notNull().defaultNow(),
   lastSeen: timestamp("last_seen", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -2917,7 +2917,7 @@ import { items, itemEmbeddings } from "../../src/db/schema.js";
 import { db, pool, truncateAll } from "../setup/db.js";
 
 vi.mock("../../src/lib/embeddings.js", () => ({
-  embedTexts: vi.fn(async (texts: string[]) => texts.map((_, i) => Array(1024).fill(i === 0 ? 0.01 : 0.02))),
+  embedTexts: vi.fn(async (texts: string[]) => texts.map((_, i) => Array(2048).fill(i === 0 ? 0.01 : 0.02))),
 }));
 
 beforeEach(async () => {
@@ -2997,7 +2997,7 @@ import { items, itemEmbeddings } from "../../src/db/schema.js";
 import { db, pool, truncateAll } from "../setup/db.js";
 import { computeNovelty } from "../../src/lib/novelty.js";
 
-function vec(seed: number) { return Array(1024).fill(0).map((_, i) => (i === seed ? 1 : 0)); }
+function vec(seed: number) { return Array(2048).fill(0).map((_, i) => (i === seed ? 1 : 0)); }
 
 let idOld: number, idNew: number, idDup: number;
 beforeEach(async () => {
@@ -3101,7 +3101,7 @@ vi.mock("../../src/lib/scoring/llm.js", async (orig) => ({
   labelTopic: vi.fn(async () => "Agentic coding"),
 }));
 
-function vec(seed: number) { return Array(1024).fill(0).map((_, i) => (i === seed ? 1 : 0)); }
+function vec(seed: number) { return Array(2048).fill(0).map((_, i) => (i === seed ? 1 : 0)); }
 
 beforeEach(async () => {
   await truncateAll();
@@ -3259,7 +3259,7 @@ import { items } from "../../src/db/schema.js";
 import { db, pool, truncateAll } from "../setup/db.js";
 
 vi.mock("../../src/lib/embeddings.js", () => ({
-  embedTexts: vi.fn(async () => [Array(1024).fill(0.01)]),
+  embedTexts: vi.fn(async () => [Array(2048).fill(0.01)]),
 }));
 
 beforeEach(async () => {
@@ -3379,8 +3379,8 @@ import { getTopTopics } from "../../src/app/topics/trend-queries.js";
 
 beforeEach(async () => {
   await truncateAll();
-  const [t1] = await db.insert(topics).values({ label: "Agents", centroid: Array(1024).fill(0) }).returning();
-  const [t2] = await db.insert(topics).values({ label: "Hardware", centroid: Array(1024).fill(0) }).returning();
+  const [t1] = await db.insert(topics).values({ label: "Agents", centroid: Array(2048).fill(0) }).returning();
+  const [t2] = await db.insert(topics).values({ label: "Hardware", centroid: Array(2048).fill(0) }).returning();
   await db.insert(topicTrends).values([
     { topicId: t1!.id, bucketDate: "2026-06-03", itemCount: 10, scoreSum: 7.5 },
     { topicId: t2!.id, bucketDate: "2026-06-03", itemCount: 3, scoreSum: 1.2 },
@@ -3948,7 +3948,7 @@ git commit -m "chore: cron wiring for cleanup + rescore (M5 complete)"
 
 ## Known Risks Carried Into Execution
 
-- **OpenRouter embeddings** may not work — M4 Task 0 is a hard gate; fallback is a local embedding container (bge-m3, dim 1024). The schema dimension `N` and the IVFFlat index are set only after the spike.
+- **OpenRouter embeddings** — RESOLVED 2026-06-03: the spike succeeded. OpenRouter's `/embeddings` endpoint works with `nvidia/llama-nemotron-embed-vl-1b-v2:free`, returning **dimension 2048**. No local fallback needed; schema + IVFFlat index use N=2048.
 - **`SCORING_MODEL` slug** — verify on OpenRouter before first real scoring call (M2 Task 1).
 - **VPS credentials** leaked in chat — rotate; use SSH key + VPS-local secrets only. Never commit `.env`.
 - **Reddit 100-item listing cap** and dependence on the logged-in `Able-Hovercraft-5567` session — Mac collector inherits whatever the digest produced; paging >100 is not implemented.
