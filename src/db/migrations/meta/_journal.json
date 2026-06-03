@@ -29,6 +29,13 @@
       "when": 1780472830899,
       "tag": "0003_items_fts",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1780473498772,
+      "tag": "0004_wet_talon",
+      "breakpoints": true
     }
   ]
 }
