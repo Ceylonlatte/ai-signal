@@ -18,11 +18,12 @@ services:
   web:
     build: .
     command: npm run start
+    # .env supplies INGEST_TOKEN / BASIC_AUTH_* / OPENROUTER_API_KEY / models / weights.
+    # `environment` overrides DATABASE_URL to the compose-internal host (`db`).
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgres://aisignal:aisignal@db:5432/aisignal
-      INGEST_TOKEN: ${INGEST_TOKEN}
-      BASIC_AUTH_USER: ${BASIC_AUTH_USER}
-      BASIC_AUTH_PASS: ${BASIC_AUTH_PASS}
     ports:
       - "3000:3000"
     depends_on:
@@ -32,6 +33,9 @@ services:
   worker:
     build: .
     command: npm run worker
+    # The worker scores + embeds, so it MUST get OPENROUTER_API_KEY from .env.
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgres://aisignal:aisignal@db:5432/aisignal
     depends_on:
