@@ -6,6 +6,7 @@ import { computeRelevance } from "../lib/keywords.js";
 import { normalizeHeat, computeComposite } from "../lib/scoring/composite.js";
 import { selectCandidates } from "../lib/scoring/prefilter.js";
 import { scoreBatch } from "../lib/scoring/llm.js";
+import { computeNovelty } from "../lib/novelty.js";
 import { RUBRIC_VERSION } from "../lib/scoring/rubric.js";
 import { weights } from "../config.js";
 import type { RawPayload } from "../types.js";
@@ -81,7 +82,7 @@ export async function runScoreStage(db: Db): Promise<number> {
     const heat = normalizeHeat(c.metrics);
     const relevance = computeRelevance(c.title, c.text);
     const llmValue = (r?.value ?? 0) / 100;
-    const novelty = 0; // activated in M4
+    const novelty = await computeNovelty(db, c.id, { days: 7 });
     const composite = computeComposite({ heat, relevance, novelty, llmValue }, weights);
     await db.insert(scores).values({
       itemId: c.id, heat, relevance, novelty, llmValue, composite,
