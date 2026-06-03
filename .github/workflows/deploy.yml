@@ -15,6 +15,10 @@ jobs:
     permissions:
       contents: read
       packages: write
+    # Bridge the secret into env: the `secrets` context is NOT allowed in step
+    # `if:` conditions, but `env` is. This gates the VPS-deploy steps cleanly.
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
     steps:
       - uses: actions/checkout@v4
 
@@ -37,7 +41,7 @@ jobs:
 
       # Keep the VPS's compose file in sync (app code lives in the image).
       - name: Copy compose to VPS
-        if: ${{ secrets.VPS_HOST != '' }}
+        if: ${{ env.VPS_HOST != '' }}
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -48,7 +52,7 @@ jobs:
           overwrite: true
 
       - name: Deploy on VPS (pull image, migrate, restart)
-        if: ${{ secrets.VPS_HOST != '' }}
+        if: ${{ env.VPS_HOST != '' }}
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.VPS_HOST }}
