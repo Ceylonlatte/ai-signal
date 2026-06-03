@@ -142,9 +142,16 @@ jobs:
             docker compose up -d
 ```
 
-To use a registry image instead of building on the VPS, change `build: .` to `image: ghcr.io/ceylonlatte/ai-signal:latest` for `web`+`worker` in `docker-compose.yml`. Simpler alternative: run [watchtower](https://containrrr.dev/watchtower/) on the VPS to auto-pull new images.
+`docker-compose.yml` already declares both `build: .` and `image: ghcr.io/ceylonlatte/ai-signal:latest` on `web`+`worker`, so the same compose file works two ways: local `docker compose build` tags the built image, and the VPS `docker compose pull` fetches the CI-built one. The VPS must be able to read the image:
 
-Store `VPS_HOST` / `VPS_USER` / `VPS_SSH_KEY` as GitHub Actions secrets. **Never** put VPS credentials in the repo. Use an SSH key, not a password.
+```bash
+# On the VPS, log in to GHCR once (PAT with read:packages), OR make the package public:
+echo "$GHCR_PAT" | docker login ghcr.io -u <github-user> --password-stdin
+```
+
+The workflow's deploy step is gated on `secrets.VPS_HOST` — until you add the VPS secrets, pushes still build + publish the image to GHCR but skip the SSH deploy. Store `VPS_HOST` / `VPS_USER` / `VPS_SSH_KEY` as GitHub Actions secrets. **Never** put VPS credentials in the repo; use an SSH key, not a password. Simpler alternative to SSH-deploy: run [watchtower](https://containrrr.dev/watchtower/) on the VPS to auto-pull new images.
+
+The `.github/workflows/deploy.yml` file is committed in this repo.
 
 ## 8. Operations
 

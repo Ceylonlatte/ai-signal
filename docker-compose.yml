@@ -17,6 +17,9 @@ services:
 
   web:
     build: .
+    # `image` lets CI push this tag and the VPS `docker compose pull` fetch it
+    # (local `docker compose build` also tags the built image with this name).
+    image: ghcr.io/ceylonlatte/ai-signal:latest
     command: npm run start
     # .env supplies INGEST_TOKEN / BASIC_AUTH_* / OPENROUTER_API_KEY / models / weights.
     # `environment` overrides DATABASE_URL to the compose-internal host (`db`).
@@ -32,6 +35,7 @@ services:
 
   worker:
     build: .
+    image: ghcr.io/ceylonlatte/ai-signal:latest
     command: npm run worker
     # The worker scores + embeds, so it MUST get OPENROUTER_API_KEY from .env.
     env_file:
