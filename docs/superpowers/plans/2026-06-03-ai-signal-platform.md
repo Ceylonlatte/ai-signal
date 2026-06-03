@@ -2812,18 +2812,9 @@ DATABASE_URL=postgres://aisignal:aisignal@localhost:5432/aisignal npm run db:mig
 ```
 Expected: tables `item_embeddings`, `topics`, `item_topics`, `topic_trends` created with `vector` columns.
 
-- [ ] **Step 3: Add an IVFFlat index migration for similarity search**
+- [ ] **Step 3: No ANN vector index (dimension exceeds pgvector's index limit)**
 
-Create a hand-written SQL migration alongside the generated one (drizzle-kit `--custom` or add a file in `src/db/migrations` and register it). The SQL:
-
-```sql
-CREATE INDEX IF NOT EXISTS item_embeddings_cos_idx
-  ON item_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
-CREATE INDEX IF NOT EXISTS topics_centroid_cos_idx
-  ON topics USING ivfflat (centroid vector_cosine_ops) WITH (lists = 50);
-```
-
-Run the migrate command again; expected: indexes created.
+The spike confirmed N=2048, but **pgvector's `ivfflat`/`hnsw` indexes cap at 2000 dimensions** — a `vector(2048)` column can be *stored* but **cannot be ANN-indexed**. At this project's scale (30-day rolling retention, low thousands of rows) **exact cosine scan is fine** (`ORDER BY embedding <=> query` does a sequential scan in well under 100ms). So we deliberately create **no vector index**; semantic search / novelty / clustering all use exact `<=>` distance. (If volume ever grows enough to need ANN, truncate embeddings to ≤2000 dims or switch to a smaller-dim model, then add an index.)
 
 - [ ] **Step 4: Commit**
 
@@ -3948,7 +3939,7 @@ git commit -m "chore: cron wiring for cleanup + rescore (M5 complete)"
 
 ## Known Risks Carried Into Execution
 
-- **OpenRouter embeddings** — RESOLVED 2026-06-03: the spike succeeded. OpenRouter's `/embeddings` endpoint works with `nvidia/llama-nemotron-embed-vl-1b-v2:free`, returning **dimension 2048**. No local fallback needed; schema + IVFFlat index use N=2048.
+- **OpenRouter embeddings** — RESOLVED 2026-06-03: the spike succeeded. OpenRouter's `/embeddings` endpoint works with `nvidia/llama-nemotron-embed-vl-1b-v2:free`, returning **dimension 2048**. No local fallback needed. Caveat: 2048 > pgvector's 2000-dim ANN-index limit, so the `vector(2048)` columns are stored without an ivfflat/hnsw index and use exact `<=>` cosine scan (fine at 30-day personal scale).
 - **`SCORING_MODEL` slug** — verify on OpenRouter before first real scoring call (M2 Task 1).
 - **VPS credentials** leaked in chat — rotate; use SSH key + VPS-local secrets only. Never commit `.env`.
 - **Reddit 100-item listing cap** and dependence on the logged-in `Able-Hovercraft-5567` session — Mac collector inherits whatever the digest produced; paging >100 is not implemented.
