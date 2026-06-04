@@ -11,7 +11,7 @@ describe("fetchFullText", () => {
     (extract as any).mockResolvedValue({ content: "<p>Hello world body</p>" });
     const out = await fetchFullText("https://x.com/a", "fallback");
     expect(out.fetched).toBe(true);
-    expect(out.text).toContain("Hello world body");
+    expect(out.text).toBe("Hello world body");
   });
 
   it("falls back when extraction fails", async () => {
