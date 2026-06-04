@@ -16,6 +16,7 @@ export const rawItems = pgTable("raw_items", {
   externalId: text("external_id").notNull(),
   payload: jsonb("payload").notNull(),
   fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  processedAt: timestamp("processed_at", { withTimezone: true }),
 }, (t) => ({
   uq: uniqueIndex("raw_items_source_external_uq").on(t.sourceId, t.externalId),
 }));
@@ -61,6 +62,10 @@ export const scores = pgTable("scores", {
   summary: text("summary").notNull().default(""),
   reason: text("reason").notNull().default(""),
   topicTags: jsonb("topic_tags").notNull().default([]),
+  titleZh: text("title_zh").notNull().default(""),
+  summaryEn: text("summary_en").notNull().default(""),
+  summaryZh: text("summary_zh").notNull().default(""),
+  fullTextFetched: boolean("full_text_fetched").notNull().default(false),
   rubricVersion: text("rubric_version").notNull(),
   scoredAt: timestamp("scored_at", { withTimezone: true }).notNull().defaultNow(),
 });
