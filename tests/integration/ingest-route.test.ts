@@ -15,10 +15,11 @@ async function importRoute() { return import("../../src/app/api/ingest/route.js"
 
 const body = JSON.stringify({
   source: "reddit",
+  feed: "hot",
   items: [{
-    source: "reddit", externalId: "abc", url: "https://reddit.com/abc", author: "u",
-    title: "Post", text: "", createdAt: "2026-05-30T10:00:00Z",
-    metrics: { score: 5, comments: 1 }, raw: {},
+    id: "abc", title: "Post", author: "u",
+    url: "https://reddit.com/abc", created_utc: 1780000000,
+    score: 5, comments: 1, selftext: "",
   }],
 });
 
@@ -28,7 +29,7 @@ it("rejects without bearer token", async () => {
   expect(res.status).toBe(401);
 });
 
-it("accepts with valid token and stores raw items", async () => {
+it("maps raw reddit items and stores them", async () => {
   process.env.INGEST_TOKEN = "dev-token";
   const { POST } = await importRoute();
   const res = await POST(new Request("http://x/api/ingest", {
@@ -37,5 +38,10 @@ it("accepts with valid token and stores raw items", async () => {
     body,
   }));
   expect(res.status).toBe(200);
-  expect(await db.select().from(rawItems)).toHaveLength(1);
+  const rows = await db.select().from(rawItems);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]!.payload).toMatchObject({
+    source: "reddit", externalId: "abc", feed: "hot",
+    metrics: { score: 5, comments: 1 },
+  });
 });

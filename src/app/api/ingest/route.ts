@@ -3,25 +3,17 @@ import { eq } from "drizzle-orm";
 import { db } from "../../../db/client.js";
 import { sources } from "../../../db/schema.js";
 import { ingest } from "../../../ingest/ingest.js";
+import { mapDigestItems } from "../../../lib/sources/digest-map.js";
 import { config } from "../../../config.js";
-import type { RawPayload } from "../../../types.js";
 
 export const dynamic = "force-dynamic";
 
-const payloadSchema = z.object({
-  source: z.enum(["hn", "rss", "reddit", "twitter"]),
-  externalId: z.string(),
-  url: z.string().nullable(),
-  author: z.string().nullable(),
-  title: z.string(),
-  text: z.string(),
-  createdAt: z.string(),
-  metrics: z.record(z.number()),
-  raw: z.unknown(),
-});
+// The digest skills POST RAW source items here; we map them server-side so the
+// skills stay collect-only. (hn/rss ingest directly via bin/, not this route.)
 const bodySchema = z.object({
-  source: z.enum(["hn", "rss", "reddit", "twitter"]),
-  items: z.array(payloadSchema),
+  source: z.enum(["reddit", "twitter"]),
+  feed: z.string().optional(),
+  items: z.array(z.record(z.unknown())),
 });
 
 export async function POST(req: Request): Promise<Response> {
@@ -32,13 +24,15 @@ export async function POST(req: Request): Promise<Response> {
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return new Response("bad request", { status: 400 });
 
-  const { source, items } = parsed.data;
+  const { source, feed, items } = parsed.data;
+  const payloads = mapDigestItems(source, feed, items);
+
   let [src] = await db.select().from(sources).where(eq(sources.kind, source));
   if (!src) [src] = await db.insert(sources).values({ kind: source }).returning();
 
-  const inserted = await ingest({ db, sourceId: src!.id, payloads: items as RawPayload[] });
+  const inserted = await ingest({ db, sourceId: src!.id, payloads });
   // Record freshness so the dashboard's stale-source banner is accurate for
-  // Mac-pushed sources (twitter/reddit), which only arrive via this route.
+  // these Mac-pushed sources, which only arrive via this route.
   await db.update(sources).set({ lastRunAt: new Date() }).where(eq(sources.id, src!.id));
-  return Response.json({ inserted });
+  return Response.json({ inserted, mapped: payloads.length });
 }
