@@ -23,4 +23,11 @@ describe("normalizeRawItem", () => {
     expect(n.contentHash).toMatch(/^[a-f0-9]{64}$/);
     expect(n.metrics).toEqual({ points: 42, comments: 9 });
   });
+  it("passes through the optional feed provenance", () => {
+    const n = normalizeRawItem({ ...raw, feed: "following" });
+    expect(n.feed).toBe("following");
+  });
+  it("leaves feed undefined when absent", () => {
+    expect(normalizeRawItem(raw).feed).toBeUndefined();
+  });
 });

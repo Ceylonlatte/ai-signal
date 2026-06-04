@@ -14,6 +14,7 @@ export function normalizeRawItem(raw: RawPayload): NormalizedItem {
     text,
     createdAt: new Date(raw.createdAt),
     metrics: raw.metrics ?? {},
+    ...(raw.feed ? { feed: raw.feed } : {}),
     contentHash: contentHash({ title, text }),
   };
 }

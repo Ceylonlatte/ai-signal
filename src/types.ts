@@ -9,6 +9,7 @@ export interface RawPayload {
   text: string;
   createdAt: string; // ISO 8601
   metrics: Record<string, number>;
+  feed?: string; // provenance: reddit hot/new, twitter following/for-you
   raw: unknown;
 }
 
@@ -21,5 +22,6 @@ export interface NormalizedItem {
   text: string;
   createdAt: Date;
   metrics: Record<string, number>;
+  feed?: string;
   contentHash: string;
 }
