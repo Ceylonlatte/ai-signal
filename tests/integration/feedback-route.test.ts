@@ -34,3 +34,18 @@ it("rejects an invalid signal", async () => {
   }));
   expect(res.status).toBe(400);
 });
+
+it("DELETE removes a feedback signal (undo)", async () => {
+  const route = await import("../../src/app/api/feedback/route.js");
+  await route.POST(new Request("http://x/api/feedback", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ itemId: 1, signal: "down" }),
+  }));
+  const res = await route.DELETE(new Request("http://x/api/feedback", {
+    method: "DELETE", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ itemId: 1, signal: "down" }),
+  }));
+  expect(res.status).toBe(200);
+  const rows = await db.select().from(feedback);
+  expect(rows).toHaveLength(0);
+});
