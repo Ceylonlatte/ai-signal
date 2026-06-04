@@ -6,25 +6,28 @@ import { getFeed } from "../../src/app/feed-queries.js";
 beforeEach(async () => {
   await truncateAll();
   const now = new Date();
-  const [a] = await db.insert(items).values({
-    rawItemId: 1, source: "hn", title: "fresh hot", text: "", createdAt: now,
-    metrics: { points: 500 }, contentHash: "a",
+  // "热门": older (5h) but very high engagement -> high platformHeat.
+  const [hot] = await db.insert(items).values({
+    rawItemId: 1, source: "hn", title: "hot", text: "",
+    createdAt: new Date(now.getTime() - 5 * 3600_000),
+    metrics: { points: 5000 }, contentHash: "hot",
   }).returning();
-  const [b] = await db.insert(items).values({
-    rawItemId: 2, source: "hn", title: "old cold", text: "",
-    createdAt: new Date(now.getTime() - 72 * 3600_000),
-    metrics: { points: 5 }, contentHash: "b",
+  // "新但冷": freshest but tiny engagement -> low platformHeat.
+  const [cold] = await db.insert(items).values({
+    rawItemId: 2, source: "hn", title: "cold", text: "", createdAt: now,
+    metrics: { points: 2 }, contentHash: "cold",
   }).returning();
   await db.insert(scores).values([
-    { itemId: a!.id, composite: 0.7, novelty: 0.2, summaryZh: "中文A", titleZh: "标题A", rubricVersion: "t" },
-    { itemId: b!.id, composite: 0.7, novelty: 0.2, summaryZh: "中文B", titleZh: "标题B", rubricVersion: "t" },
+    { itemId: hot!.id, composite: 0.7, novelty: 0.2, summaryZh: "中文热", titleZh: "热门", rubricVersion: "t" },
+    { itemId: cold!.id, composite: 0.7, novelty: 0.2, summaryZh: "中文冷", titleZh: "新但冷", rubricVersion: "t" },
   ]);
 });
 afterEach(async () => { await truncateAll(); });
 afterAll(async () => { await pool.end(); });
 
-it("orders by live ranking R (fresh+hot first)", async () => {
+it("ranks by live R: heat beats recency (older+hot first, fresher+cold second)", async () => {
+  // composites are tied (0.7) and the cold item is the freshest, so only a
+  // heat-aware ranker puts the older "热门" first. Rules out recency-only / composite-only.
   const feed = await getFeed(db, { limit: 50 });
-  expect(feed[0]!.titleZh).toBe("标题A");
-  expect(feed.map((r: any) => r.titleZh)).toEqual(["标题A", "标题B"]);
+  expect(feed.map((r: any) => r.titleZh)).toEqual(["热门", "新但冷"]);
 });
