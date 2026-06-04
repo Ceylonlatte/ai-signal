@@ -37,8 +37,8 @@ afterEach(async () => { await truncateAll(); });
 afterAll(async () => { await pool.end(); });
 
 it("hides items similar to a downvoted one from the feed", async () => {
-  const feed = await getFeed(db, { limit: 50 });
-  expect(feed.map((r: any) => r.title)).not.toContain("simdown");
+  const feed = await getFeed(db, { page: 1, pageSize: 50 });
+  expect(feed.items.map((r: any) => r.title)).not.toContain("simdown");
 });
 
 it("surfaces suppressed items in the suppressed view", async () => {
@@ -47,7 +47,7 @@ it("surfaces suppressed items in the suppressed view", async () => {
 });
 
 it("ranks liked-similar item above neutral", async () => {
-  const feed = await getFeed(db, { limit: 50 });
-  const titles = feed.map((r: any) => r.title).filter((t: string) => ["liked", "neutral"].includes(t));
+  const feed = await getFeed(db, { page: 1, pageSize: 50 });
+  const titles = feed.items.map((r: any) => r.title).filter((t: string) => ["liked", "neutral"].includes(t));
   expect(titles[0]).toBe("liked");
 });

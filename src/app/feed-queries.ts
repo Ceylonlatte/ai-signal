@@ -15,7 +15,10 @@ interface Row {
   maxLikeSim: number | null; maxDislikeSim: number | null; nUp: number;
 }
 
-async function candidates(db: Db, limit: number): Promise<Row[]> {
+// Personal-scale safety cap: rank at most this many rows in-app before paging.
+const MAX_CANDIDATES = 2000;
+
+async function candidates(db: Db, cap: number): Promise<Row[]> {
   const win = `${config.PROFILE_WINDOW_DAYS} days`;
   const res = await db.execute(sql`
     WITH up AS (
@@ -38,7 +41,7 @@ async function candidates(db: Db, limit: number): Promise<Row[]> {
     LEFT JOIN item_embeddings e ON e.item_id = i.id
     WHERE i.is_archived = false
     ORDER BY i.created_at DESC
-    LIMIT ${Math.max(limit * 6, 300)}
+    LIMIT ${cap}
   `);
   return (res.rows ?? res) as Row[];
 }
@@ -56,14 +59,30 @@ function ranked(rows: Row[]): Array<Row & { r: number }> {
   }).sort((a, b) => b.r - a.r);
 }
 
-export async function getFeed(db: Db, opts: { limit: number }) {
-  const rows = await candidates(db, opts.limit);
+export interface FeedPage {
+  items: Array<Row & { r: number }>;
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+// Ranks the whole (non-suppressed) candidate set, then returns one page of it.
+// No hard item cap on the feed — navigation is via pages instead.
+export async function getFeed(db: Db, opts: { page?: number; pageSize?: number }): Promise<FeedPage> {
+  const pageSize = Math.max(1, opts.pageSize ?? 30);
+  const rows = await candidates(db, MAX_CANDIDATES);
   const visible = rows.filter((row) => !isSuppressed(row.maxDislikeSim));
-  return ranked(visible).slice(0, opts.limit);
+  const all = ranked(visible);
+  const total = all.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(Math.max(1, opts.page ?? 1), totalPages);
+  const start = (page - 1) * pageSize;
+  return { items: all.slice(start, start + pageSize), total, page, pageSize, totalPages };
 }
 
 export async function getSuppressed(db: Db, opts: { limit: number }) {
-  const rows = await candidates(db, opts.limit);
+  const rows = await candidates(db, Math.max(opts.limit * 6, 300));
   const hidden = rows.filter((row) => isSuppressed(row.maxDislikeSim));
   return ranked(hidden).slice(0, opts.limit);
 }

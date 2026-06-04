@@ -28,6 +28,23 @@ afterAll(async () => { await pool.end(); });
 it("ranks by live R: heat beats recency (older+hot first, fresher+cold second)", async () => {
   // composites are tied (0.7) and the cold item is the freshest, so only a
   // heat-aware ranker puts the older "热门" first. Rules out recency-only / composite-only.
-  const feed = await getFeed(db, { limit: 50 });
-  expect(feed.map((r: any) => r.titleZh)).toEqual(["热门", "新但冷"]);
+  const feed = await getFeed(db, { page: 1, pageSize: 50 });
+  expect(feed.items.map((r: any) => r.titleZh)).toEqual(["热门", "新但冷"]);
+  expect(feed.total).toBe(2);
+});
+
+it("paginates the ranked list without a hard cap (pageSize splits across pages)", async () => {
+  const p1 = await getFeed(db, { page: 1, pageSize: 1 });
+  const p2 = await getFeed(db, { page: 2, pageSize: 1 });
+  expect(p1.total).toBe(2);
+  expect(p1.totalPages).toBe(2);
+  // ranking order is preserved across pages: hot on p1, cold on p2.
+  expect(p1.items.map((r: any) => r.titleZh)).toEqual(["热门"]);
+  expect(p2.items.map((r: any) => r.titleZh)).toEqual(["新但冷"]);
+});
+
+it("clamps an out-of-range page to the last page", async () => {
+  const p = await getFeed(db, { page: 99, pageSize: 1 });
+  expect(p.page).toBe(2);
+  expect(p.items.map((r: any) => r.titleZh)).toEqual(["新但冷"]);
 });
