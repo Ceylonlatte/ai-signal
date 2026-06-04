@@ -38,24 +38,26 @@ export async function runTriageStage(db: Db): Promise<number> {
     const trust = sourceTrust(n.source, n.url);
     const q = computeQuality({ llmValue, relevance, trust });
 
-    if (passesGate(q)) {
-      const [inserted] = await db.insert(items).values({
-        rawItemId: rawId, source: n.source, url: n.url, canonicalUrl: n.canonicalUrl,
-        author: n.author, title: n.title, text: n.text, createdAt: n.createdAt,
-        metrics: n.metrics, contentHash: n.contentHash,
-      }).onConflictDoNothing({ target: items.contentHash }).returning({ id: items.id });
+    await db.transaction(async (tx: any) => {
+      if (passesGate(q)) {
+        const [inserted] = await tx.insert(items).values({
+          rawItemId: rawId, source: n.source, url: n.url, canonicalUrl: n.canonicalUrl,
+          author: n.author, title: n.title, text: n.text, createdAt: n.createdAt,
+          metrics: n.metrics, contentHash: n.contentHash,
+        }).onConflictDoNothing({ target: items.contentHash }).returning({ id: items.id });
 
-      if (inserted) {
-        await db.insert(scores).values({
-          itemId: inserted.id,
-          heat: normalizeHeat(n.metrics),
-          relevance, novelty: 0, llmValue, composite: q,
-          summary: "", reason: r?.reason ?? "", topicTags: r?.topics ?? [],
-          rubricVersion: RUBRIC_VERSION,
-        }).onConflictDoNothing({ target: scores.itemId });
+        if (inserted) {
+          await tx.insert(scores).values({
+            itemId: inserted.id,
+            heat: normalizeHeat(n.metrics),
+            relevance, novelty: 0, llmValue, composite: q,
+            summary: "", reason: r?.reason ?? "", topicTags: r?.topics ?? [],
+            rubricVersion: RUBRIC_VERSION,
+          }).onConflictDoNothing({ target: scores.itemId });
+        }
       }
-    }
-    await db.update(rawItems).set({ processedAt: new Date() }).where(eq(rawItems.id, rawId));
+      await tx.update(rawItems).set({ processedAt: new Date() }).where(eq(rawItems.id, rawId));
+    });
     processed++;
   }
   return processed;
