@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { eq } from "drizzle-orm";
 import { db, pool } from "../src/db/client.js";
 import { sources } from "../src/db/schema.js";

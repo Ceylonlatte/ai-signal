@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { db, pool } from "../src/db/client.js";
 import { cleanupOldItems } from "../src/lib/cleanup.js";
 

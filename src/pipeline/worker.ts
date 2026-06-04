@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { db } from "../db/client.js";
 import { runTriageStage } from "./triage.js";
 import { runEmbedStage } from "./stages.js";

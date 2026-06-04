@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { readDigestSince } from "../src/collectors/mac-cursor.js";
 import type { SourceKind } from "../src/types.js";
