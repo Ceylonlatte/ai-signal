@@ -1,17 +1,32 @@
-import { eq, isNull } from "drizzle-orm";
-import { items, rawItems, scores } from "../db/schema.js";
+import { eq, isNull, sql as dsql } from "drizzle-orm";
+import { items, rawItems, scores, itemEmbeddings, feedback } from "../db/schema.js";
 import { normalizeRawItem } from "../lib/normalize.js";
 import { computeRelevance } from "../lib/keywords.js";
 import { selectCandidates } from "../lib/scoring/prefilter.js";
 import { scoreBatch } from "../lib/scoring/llm.js";
-import { computeQuality, passesGate } from "../lib/scoring/quality.js";
+import { computeQuality, passesGate, inRescueBand } from "../lib/scoring/quality.js";
 import { sourceTrust } from "../lib/sources/trust.js";
 import { normalizeHeat } from "../lib/scoring/composite.js";
 import { RUBRIC_VERSION } from "../lib/scoring/rubric.js";
+import { likeRescues } from "../lib/feedback/profile.js";
+import { embedTexts } from "../lib/embeddings.js";
+import { config } from "../config.js";
 import type { RawPayload } from "../types.js";
 
 type Db = any;
 const BATCH = 500;
+
+// Highest cosine similarity between `vec` and any recently up-voted item's
+// embedding (null when there are no liked embeddings in the window).
+async function maxLikeSimForVector(db: Db, vec: number[]): Promise<number | null> {
+  const res = await db.execute(dsql`
+    SELECT 1 - MIN(le.embedding <=> ${JSON.stringify(vec)}::vector) AS sim
+    FROM item_embeddings le JOIN feedback f ON f.item_id = le.item_id
+    WHERE f.signal = 'up' AND f.created_at > now() - (${config.PROFILE_WINDOW_DAYS} || ' days')::interval
+  `);
+  const row = (res.rows ?? res)[0] as { sim: number | null } | undefined;
+  return row?.sim ?? null;
+}
 
 export async function runTriageStage(db: Db): Promise<number> {
   const pending = await db.select().from(rawItems)
@@ -38,8 +53,20 @@ export async function runTriageStage(db: Db): Promise<number> {
     const trust = sourceTrust(n.source, n.url);
     const q = computeQuality({ llmValue, relevance, trust });
 
+    // Decide keep/rescue BEFORE opening the transaction: embedTexts (network) and
+    // the like-similarity read must not hold the transaction open across IO.
+    let keep = passesGate(q);
+    let rescueVec: number[] | null = null;
+    if (!keep && inRescueBand(q)) {
+      const [vec] = await embedTexts([`${n.title}\n${n.text}`.slice(0, 2000)]);
+      if (vec) {
+        const sim = await maxLikeSimForVector(db, vec);
+        if (likeRescues(sim)) { keep = true; rescueVec = vec; }
+      }
+    }
+
     await db.transaction(async (tx: any) => {
-      if (passesGate(q)) {
+      if (keep) {
         const [inserted] = await tx.insert(items).values({
           rawItemId: rawId, source: n.source, url: n.url, canonicalUrl: n.canonicalUrl,
           author: n.author, title: n.title, text: n.text, createdAt: n.createdAt,
@@ -54,6 +81,11 @@ export async function runTriageStage(db: Db): Promise<number> {
             summary: "", reason: r?.reason ?? "", topicTags: r?.topics ?? [],
             rubricVersion: RUBRIC_VERSION,
           }).onConflictDoNothing({ target: scores.itemId });
+          if (rescueVec) {
+            await tx.insert(itemEmbeddings)
+              .values({ itemId: inserted.id, embedding: rescueVec })
+              .onConflictDoNothing({ target: itemEmbeddings.itemId });
+          }
         }
       }
       await tx.update(rawItems).set({ processedAt: new Date() }).where(eq(rawItems.id, rawId));
