@@ -51,7 +51,7 @@ export async function runTriageStage(db: Db): Promise<number> {
     const r = llm.get(rawId);
     const llmValue = (r?.value ?? 0) / 100;
     const relevance = computeRelevance(n.title, n.text);
-    const trust = sourceTrust(n.source, n.url);
+    const trust = sourceTrust(n.source, n.url, n.feed);
     const q = computeQuality({ llmValue, relevance, trust });
 
     // Decide keep/rescue BEFORE opening the transaction: embedTexts (network) and
