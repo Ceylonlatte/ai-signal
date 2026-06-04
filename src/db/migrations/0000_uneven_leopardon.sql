@@ -1,3 +1,4 @@
+CREATE EXTENSION IF NOT EXISTS vector;--> statement-breakpoint
 CREATE TABLE "items" (
 	"id" bigserial PRIMARY KEY NOT NULL,
 	"raw_item_id" bigint NOT NULL,
