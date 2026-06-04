@@ -48,3 +48,12 @@ it("rescues a borderline candidate similar to a liked item", async () => {
   const emb = await db.execute(sql`SELECT count(*)::int n FROM item_embeddings em JOIN items i ON i.id=em.item_id WHERE i.title='Agent borderline'`);
   expect(Number((emb.rows ?? emb)[0]!.n)).toBe(1);
 });
+
+it("does NOT rescue a borderline candidate dissimilar to liked items", async () => {
+  const emb = await import("../../src/lib/embeddings.js");
+  (emb.embedTexts as any).mockResolvedValueOnce([e(7)]); // orthogonal to liked e(0) -> sim 0
+  const { runTriageStage } = await import("../../src/pipeline/triage.js");
+  await runTriageStage(db);
+  const kept = await db.select().from(items).where(sql`title = 'Agent borderline'`);
+  expect(kept).toHaveLength(0); // not similar enough -> not rescued -> dropped
+});

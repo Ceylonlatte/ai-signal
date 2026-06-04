@@ -1,5 +1,5 @@
 import { eq, isNull, sql as dsql } from "drizzle-orm";
-import { items, rawItems, scores, itemEmbeddings, feedback } from "../db/schema.js";
+import { items, rawItems, scores, itemEmbeddings } from "../db/schema.js";
 import { normalizeRawItem } from "../lib/normalize.js";
 import { computeRelevance } from "../lib/keywords.js";
 import { selectCandidates } from "../lib/scoring/prefilter.js";
@@ -10,6 +10,7 @@ import { normalizeHeat } from "../lib/scoring/composite.js";
 import { RUBRIC_VERSION } from "../lib/scoring/rubric.js";
 import { likeRescues } from "../lib/feedback/profile.js";
 import { embedTexts } from "../lib/embeddings.js";
+import { computeNoveltyForVector } from "../lib/novelty.js";
 import { config } from "../config.js";
 import type { RawPayload } from "../types.js";
 
@@ -57,11 +58,16 @@ export async function runTriageStage(db: Db): Promise<number> {
     // the like-similarity read must not hold the transaction open across IO.
     let keep = passesGate(q);
     let rescueVec: number[] | null = null;
+    let rescueNovelty = 0;
     if (!keep && inRescueBand(q)) {
       const [vec] = await embedTexts([`${n.title}\n${n.text}`.slice(0, 2000)]);
       if (vec) {
         const sim = await maxLikeSimForVector(db, vec);
-        if (likeRescues(sim)) { keep = true; rescueVec = vec; }
+        if (likeRescues(sim)) {
+          keep = true;
+          rescueVec = vec;
+          rescueNovelty = await computeNoveltyForVector(db, vec, { days: 7 });
+        }
       }
     }
 
@@ -77,7 +83,7 @@ export async function runTriageStage(db: Db): Promise<number> {
           await tx.insert(scores).values({
             itemId: inserted.id,
             heat: normalizeHeat(n.metrics),
-            relevance, novelty: 0, llmValue, composite: q,
+            relevance, novelty: rescueVec ? rescueNovelty : 0, llmValue, composite: q,
             summary: "", reason: r?.reason ?? "", topicTags: r?.topics ?? [],
             rubricVersion: RUBRIC_VERSION,
           }).onConflictDoNothing({ target: scores.itemId });
