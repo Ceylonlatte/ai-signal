@@ -1,11 +1,38 @@
 import { db } from "../db/client.js";
 import { getFeed } from "./feed-queries.js";
 import { getSourceStatus } from "./source-status.js";
-import { FeedbackButtons } from "./feedback-buttons.js";
+import { FeedList, type FeedItemData } from "./feed-list.js";
+import { relativeStrength, relativeTime, sourceLabel } from "./format.js";
 
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 30;
+
+function hostOf(url: string | null): string {
+  if (!url) return "";
+  try {
+    return new URL(url).host.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
+function toFeedData(item: any, now: Date, rMin: number, rMax: number): FeedItemData {
+  return {
+    id: item.id,
+    url: item.url ?? null,
+    host: hostOf(item.url ?? null),
+    title: item.titleZh || item.title || "(无标题)",
+    reason: item.reason ?? "",
+    summaryZh: item.summaryZh ?? "",
+    summaryEn: item.summaryEn ?? "",
+    sourceLabel: sourceLabel(item.source),
+    tags: Array.isArray(item.topicTags) ? item.topicTags.map(String) : [],
+    strength: relativeStrength(item.r, rMin, rMax),
+    rText: typeof item.r === "number" ? item.r.toFixed(2) : "—",
+    timeText: item.createdAt ? relativeTime(item.createdAt, now) : "",
+  };
+}
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const sp = await searchParams;
@@ -13,45 +40,58 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ p
   const { items: feed, total, page, totalPages } = await getFeed(db, { page: requestedPage, pageSize: PAGE_SIZE });
   const status = await getSourceStatus(db);
   const stale = status.filter((s: any) => s.stale);
+  const now = new Date();
+  const rs = feed.map((item: any) => (typeof item.r === "number" ? item.r : 0));
+  const rMin = rs.length ? Math.min(...rs) : 0;
+  const rMax = rs.length ? Math.max(...rs) : 0;
+  const data = feed.map((item: any) => toFeedData(item, now, rMin, rMax));
+
   return (
-    <main style={{ maxWidth: 760, margin: "2rem auto", fontFamily: "system-ui" }}>
-      <h1>AI Signal</h1>
-      <p>
-        <a href="/suppressed">查看已压制（被点踩相似）的内容 →</a>
-        {"　"}
-        <a href="/status">流水线进度 →</a>
-      </p>
+    <main className="page">
+      <div className="page__head">
+        <h1 className="page__title">今日信号</h1>
+        {total > 0 && (
+          <span className="page__count">
+            第 {page}/{totalPages} 页 · 共 {total} 条
+          </span>
+        )}
+      </div>
+
       {stale.length > 0 && (
-        <div style={{ background: "#fff4e5", border: "1px solid #ffce99", padding: 8, borderRadius: 6, marginBottom: 12 }}>
-          ⚠️ Stale sources: {stale.map((s: any) => `${s.kind} (since ${s.lastRunAt ? new Date(s.lastRunAt).toLocaleString() : "never"})`).join(", ")}
+        <div className="notice" role="status">
+          <span className="notice__dot" aria-hidden="true" />
+          <span>
+            部分源数据已过期：
+            {stale
+              .map((s: any) => `${sourceLabel(s.kind)}（${s.lastRunAt ? new Date(s.lastRunAt).toLocaleString("zh-CN") : "从未"}）`)
+              .join("、")}
+            。其余源照常更新。
+          </span>
         </div>
       )}
-      <ul style={{ listStyle: "none", padding: 0 }}>
-        {feed.map((item: any) => (
-          <li key={item.id} style={{ padding: "0.9rem 0", borderBottom: "1px solid #eee" }}>
-            <a href={item.url ?? "#"} target="_blank" rel="noreferrer"><strong>{item.titleZh || item.title}</strong></a>
-            <FeedbackButtons itemId={item.id} />
-            {item.summaryZh && <div style={{ margin: "4px 0" }}>{item.summaryZh}</div>}
-            {item.summaryEn && <div style={{ margin: "4px 0", color: "#555", fontSize: 13 }}>{item.summaryEn}</div>}
-            <div style={{ fontSize: 12, color: "#888" }}>
-              {item.source} · R {item.r?.toFixed?.(2) ?? "—"}
-              {Array.isArray(item.topicTags) && item.topicTags.length > 0 && ` · ${item.topicTags.join(", ")}`}
-              {item.reason && ` · ${item.reason}`}
-            </div>
-          </li>
-        ))}
-      </ul>
-      <Pagination page={page} totalPages={totalPages} total={total} />
+
+      {data.length === 0 ? (
+        <div className="placeholder">
+          <p className="placeholder__title">还没有信号</p>
+          <p className="placeholder__body">
+            采集与打分管道可能还在运行。<a href="/status">查看流水线状态 →</a>
+          </p>
+        </div>
+      ) : (
+        <FeedList items={data} />
+      )}
+
+      {data.length > 0 && <Pagination page={page} totalPages={totalPages} />}
     </main>
   );
 }
 
-function Pagination({ page, totalPages, total }: { page: number; totalPages: number; total: number }) {
+function Pagination({ page, totalPages }: { page: number; totalPages: number }) {
   return (
-    <nav style={{ display: "flex", alignItems: "center", gap: 12, padding: "1rem 0", color: "#555" }}>
-      {page > 1 ? <a href={`/?page=${page - 1}`}>← 上一页</a> : <span style={{ color: "#bbb" }}>← 上一页</span>}
-      <span>第 {page} / {totalPages} 页 · 共 {total} 条</span>
-      {page < totalPages ? <a href={`/?page=${page + 1}`}>下一页 →</a> : <span style={{ color: "#bbb" }}>下一页 →</span>}
+    <nav className="pager" aria-label="分页">
+      {page > 1 ? <a href={`/?page=${page - 1}`}>← 上一页</a> : <span className="pager__disabled">← 上一页</span>}
+      <span>第 {page} / {totalPages} 页</span>
+      {page < totalPages ? <a href={`/?page=${page + 1}`}>下一页 →</a> : <span className="pager__disabled">下一页 →</span>}
     </nav>
   );
 }
