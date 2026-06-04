@@ -40,3 +40,13 @@ it("is idempotent (already-summarized items are skipped)", async () => {
   const n2 = await runSummarizeStage(db);
   expect(n2).toBe(0);
 });
+
+it("does not infinitely re-pick an item whose summary came back empty", async () => {
+  const { summarizeBilingual } = await import("../../src/lib/scoring/summarize.js");
+  (summarizeBilingual as any).mockResolvedValueOnce({ titleZh: "", summaryEn: "", summaryZh: "" });
+  const { runSummarizeStage } = await import("../../src/pipeline/summarize-stage.js");
+  const n1 = await runSummarizeStage(db);
+  expect(n1).toBe(1);
+  const n2 = await runSummarizeStage(db);
+  expect(n2).toBe(0); // guard stored " " so the row is no longer selected by summary_en = ''
+});
