@@ -100,7 +100,22 @@ Edit the host crontab (`crontab -e`) to call the scripts inside the running `wor
 0 4 * * *   cd /opt/ai-signal && docker compose exec -T worker npm run cleanup      >> /var/log/aisignal-cleanup.log 2>&1
 ```
 
-(To re-process everything after a rubric change, run `docker compose exec -T worker npm run reset-corpus` — it wipes the corpus + raw ledger so collectors re-pull and re-triage under the new rules.)
+### Re-processing after a rubric change
+
+Run migrations **before** the reset, and start the worker **after** it:
+
+```bash
+# 1. migrate (idempotent; also backfills raw_items.processed_at on existing rows
+#    so history is NOT silently re-triaged through the LLM if you skip step 2)
+docker compose run --rm web npm run db:migrate
+# 2. wipe corpus + raw ledger (DESTRUCTIVE — also clears all 👍/👎 feedback).
+#    Guarded: refuses to run without explicit confirmation.
+docker compose exec -T -e RESET_CONFIRM=yes worker npm run reset-corpus
+# 3. (re)start the worker so collectors re-pull and re-triage under the new rules
+docker compose up -d worker
+```
+
+`reset-corpus` aborts unless `RESET_CONFIRM=yes` is set, and prints the target database name before truncating.
 
 ## 6. Mac collector (Twitter + Reddit) — runs on your Mac, not the VPS
 
