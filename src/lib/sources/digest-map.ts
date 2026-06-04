@@ -27,6 +27,9 @@ function mapRedditItem(r: RedditRaw, feed?: string): RawPayload | null {
   const externalId = r.id ?? r.postId;
   const title = (r.title ?? "").trim();
   if (!externalId || !title) return null;
+  const created = typeof r.created_utc === "number" && isFinite(r.created_utc)
+    ? new Date(r.created_utc * 1000)
+    : new Date(NaN);
   return {
     source: "reddit",
     externalId,
@@ -34,7 +37,7 @@ function mapRedditItem(r: RedditRaw, feed?: string): RawPayload | null {
     author: r.author ?? null,
     title,
     text: r.selftext ?? "",
-    createdAt: new Date((r.created_utc ?? 0) * 1000).toISOString(),
+    createdAt: isNaN(created.getTime()) ? new Date().toISOString() : created.toISOString(),
     metrics: { score: r.score ?? r.ups ?? 0, comments: r.comments ?? r.num_comments ?? 0 },
     ...(feed ? { feed } : {}),
     raw: r,

@@ -17,6 +17,10 @@ describe("mapDigestItems reddit", () => {
   it("skips items missing id or title", () => {
     expect(mapDigestItems("reddit", "new", [{ title: "no id" }, { id: "x" }])).toHaveLength(0);
   });
+  it("falls back to ~now (not 1970) when created_utc is missing", () => {
+    const [p] = mapDigestItems("reddit", "hot", [{ id: "z", title: "T", selftext: "" }]);
+    expect(new Date(p!.createdAt).getUTCFullYear()).toBeGreaterThanOrEqual(2026);
+  });
 });
 
 describe("mapDigestItems twitter", () => {
