@@ -29,6 +29,7 @@ Brainstormed via: superpowers:brainstorming
 | 抓全文 | 总是抓原文正文（readability 抽取）；失败/付费墙回退到现有文本。 |
 | 摘要模型 | 复用现有 `SCORING_MODEL`，单独一次调用，不新增模型配置。 |
 | 存量数据 | 清空旧 `items` 及衍生表，只对新数据按新规则处理。 |
+| 反馈画像 | 用 👍/👎 的 embedding 做非对称画像：点赞→排序加权；点踩→**软压制**相似文章（隐藏出 Feed、仍可搜索、可撤销）。只活在 Feed/排序层，不影响门禁 Q。 |
 
 ## Architecture: 新数据流
 
@@ -82,12 +83,13 @@ Q = clamp01( llm_value
 决定 Feed 排序：
 
 ```
-R = w_q·Q + w_heat·platformHeat(now) + w_nov·novelty
+R = w_q·Q + w_heat·platformHeat(now) + w_nov·novelty + w_aff·likeAffinity
 ```
 
 - `platformHeat` 用"当前小时数"**实时计算** → Feed 是"活的"排名（像 HN 首页）。这是 R 中唯一随时间变的项。
 - `Q` 与 `novelty` 都是**存库的、计算一次的**值（`novelty` 在保留文章 embed 后算一次写入 `scores.novelty`），避免每次刷 Feed 都做昂贵的向量查询。
-- 因此 R 的实时开销仅为：读出候选的 `Q/novelty/metrics/createdAt`，在应用层套热度公式后排序。
+- `likeAffinity` 来自反馈画像（见下节），冷启动时影响趋近 0。
+- 因此 R 的实时开销仅为：读出候选的 `Q/novelty/metrics/createdAt`，在应用层套热度公式后排序，并按点踩画像过滤被软压制的项。
 
 ### 各平台热度规则
 
@@ -108,6 +110,37 @@ heat = min(1, log10(1 + max(0, raw)) / k_平台)
 
 - `k_平台` 各平台独立常数，使不同平台热度可比、可在统一 Feed 中混排。
 - 所有权重（`w_rel/w_trust/w_q/w_heat/w_nov`）、`Q_THRESHOLD`、`k_平台`、源信任表都进 `config.ts`，均 env 可调。
+
+## Feedback-Driven Personalization (反馈画像)
+
+把已有但未使用的 `feedback`（👍/👎 + reason）回流到排序，做**非对称**个性化。整套逻辑只活在 **Feed/排序层**，门禁 Q 保持口味无关、triage 不需要提前算 embedding（保留文章本就有向量）。
+
+### 画像构建
+
+- 取 `feedback` join `item_embeddings`，滚动窗口（如近 90 天，可配）：
+  - 👍 → `likedCentroid = mean(embedding of up items)`
+  - 👎 → 保留各点踩文章的 embedding 集合（用于"与某篇很像"的精确判断），并备 `dislikedCentroid`。
+- 画像可定时物化（job 刷新）或个人量级下查询时实时算；实现阶段定。
+
+### 点赞 → 排序加权
+
+```
+likeAffinity(item) = clamp01( (cos(item, likedCentroid) + 1) / 2 ) · coldStartScale
+coldStartScale     = min(1, n_up / N0)          // 反馈少时影响趋近 0
+```
+进入 R：`R += w_aff · likeAffinity`，让"像你喜欢过的"排得更前。
+
+### 点踩 → 软压制相似文章
+
+- `dislikeSim(item) = max cosine similarity 到点踩集合中的各文章`（用 max 而非质心，忠实于"别再给我看像**这篇**的"）。
+- `dislikeSim ≥ SUPPRESS_THRESHOLD` → **软压制**：默认从 Feed 隐藏，**仍入库可搜索**。
+- `SUPPRESS_THRESHOLD` 取高值（近重复 / 同一事件级别，env 可调），只压"很像的"，避免误杀整个宽泛话题。
+- 可逆：提供"已压制"视图查看被隐藏项；撤销点踩即恢复。
+
+### 与门禁 Q 的关系
+
+- 点踩**不**改变留/丢（Q 不变），只影响是否在 Feed 出现 → 安全、可回溯。
+- 因此本节不改动 triage / 数据流，仅改 Feed 查询与新增"已压制"视图。
 
 ## Summary (独立阶段)
 
@@ -149,20 +182,23 @@ heat = min(1, log10(1 + max(0, raw)) / k_平台)
   - R 排序组合与跨平台可比性。
   - 双语摘要 prompt 构造与 JSON 解析（mock LLM）。
   - 全文抽取成功 / 失败回退。
+  - 反馈画像：`likeAffinity` 计算 + 冷启动缩放；`dislikeSim` 阈值压制；空反馈时影响为 0。
 - **集成（带 DB）**
   - triage：Q < 阈值不产生 item 行；Q ≥ 阈值产生 item + score(+ 入队 summarize)。
   - triage 幂等：重跑不重复。
   - summarize：保留文章写入 `title_zh/summary_en/summary_zh`。
+  - 反馈：👍 提升相似文章 R 排名；👎 使相似文章从 Feed 隐藏但仍可搜索；撤销点踩后恢复。
   - `reset-corpus` 清空相关表。
 
 ## Out of Scope
 
 - Reddit / Twitter 采集器接入（本次仅预留热度规则，等采集器落地）。
-- 反馈回路（👍/👎）调权重的自动化（沿用现有）。
+- 反馈驱动**自动调 rubric 权重**（本次只做 embedding 画像影响排序/压制，不自动改 rubric 文本或全局权重）。
 - 付费墙绕过 / 高级反爬。
 
 ## Open Items (实现阶段确认)
 
 - readability 库最终选型（抽取质量 vs 依赖体积）。
-- 各 `k_平台` 与权重 / 阈值的初始默认值（上线后按实际数据调）。
+- 各 `k_平台` 与权重 / 阈值的初始默认值，含 `w_aff`、`SUPPRESS_THRESHOLD`、冷启动 `N0`、画像窗口天数（上线后按实际数据调）。
+- 反馈画像物化（定时 job 刷新质心）还是查询时实时算（个人量级倾向实时，实现时定）。
 - `R` 在 SQL 内计算还是取候选后在应用层计算（个人工具量小，倾向应用层，实现时定）。
