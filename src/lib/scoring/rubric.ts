@@ -1,5 +1,5 @@
 // Bump RUBRIC_VERSION whenever the prompt/weights change so jobs can re-score.
-export const RUBRIC_VERSION = "2026-06-03.1";
+export const RUBRIC_VERSION = "2026-06-04.1";
 
 export const RUBRIC = `You rank AI-news items by PERSONAL value to a hands-on AI engineer who cares about:
 LLMs, agents/agentic systems, AI coding (Claude Code, Codex, Cursor), RAG, context engineering,

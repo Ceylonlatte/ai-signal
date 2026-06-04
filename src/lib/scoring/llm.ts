@@ -11,7 +11,6 @@ const resultSchema = z.object({
   value: z.number().catch(0).transform((v) => Math.max(0, Math.min(100, v))),
   topics: z.array(z.string()).catch([]).transform((a) => a.slice(0, 3)),
   reason: z.string().catch(""),
-  summary: z.string().catch(""),
 });
 const responseSchema = z.object({ results: z.array(resultSchema) });
 
@@ -45,7 +44,7 @@ async function scoreChunk(chunk: Candidate[]): Promise<ScoreResult[]> {
       model: config.SCORING_MODEL,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: `${RUBRIC}\nReturn JSON: {"results":[{"id","value","topics","reason","summary"}]}` },
+        { role: "system", content: `${RUBRIC}\nReturn JSON: {"results":[{"id","value","topics","reason"}]}` },
         { role: "user", content: itemsBlock },
       ],
     }),

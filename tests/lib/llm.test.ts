@@ -24,8 +24,11 @@ describe("scoreBatch", () => {
     ]);
 
     expect(fetchMock).toHaveBeenCalledOnce();
-    expect(out.get(1)).toMatchObject({ value: 88, summary: "Anthropic ships X." });
+    expect(out.get(1)).toMatchObject({ value: 88 });
     expect(out.get(2)!.value).toBe(12);
+
+    const r = out.get(1)!;
+    expect("summary" in r).toBe(false);
   });
 
   it("returns empty map for empty input without calling fetch", async () => {
