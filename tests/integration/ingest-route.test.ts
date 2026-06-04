@@ -44,4 +44,5 @@ it("maps raw reddit items and stores them", async () => {
     source: "reddit", externalId: "abc", feed: "hot",
     metrics: { score: 5, comments: 1 },
   });
+  expect(await res.json()).toEqual({ inserted: 1, mapped: 1 });
 });

@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 const bodySchema = z.object({
   source: z.enum(["reddit", "twitter"]),
   feed: z.string().optional(),
-  items: z.array(z.record(z.unknown())),
+  items: z.array(z.record(z.unknown())).max(2000),
 });
 
 export async function POST(req: Request): Promise<Response> {
