@@ -35,7 +35,7 @@ Brainstormed via: superpowers:brainstorming
 | 映射位置 | **方案 A：服务端映射**。skill 只转发原始条目，ai-signal 独占 raw→`RawPayload` 规范化（契合 skill「只采集」定位）。 |
 | 推送性质 | **opt-in + best-effort**：未配置 ingest env → skill 行为与现状完全一致；POST 失败/超时绝不改 exit code、不影响落盘与 Telegram 简报。 |
 | twitter feed 区分 | **方案 1**：单一 kind `"twitter"` + 每条带 `feed` 溯源标记；打分用信任先验 `following > for-you`（压 for-you 噪声）。heat 除数先共用 `HEAT_K_TWITTER`。 |
-| reddit feed 区分 | 不区分。`reddit-ainews`（hot）与 `reddit-ainews-new`（new）同为一个 multireddit，统一 kind `"reddit"`。 |
+| reddit feed 区分 | 统一 kind `"reddit"`（同一 multireddit），但**每条带 `feed` 溯源标记** `hot`/`new`（取自 source 的 `sort`）。**仅溯源、不改打分**（hot/new 同源同信任度，trust 不分流）。 |
 | 旧脚手架 | 删除 `bin/mac-collect.ts`、`src/collectors/mac-cursor.ts` 及其测试（映射逻辑迁入服务端）。 |
 
 ## Architecture：数据流
@@ -70,7 +70,7 @@ Brainstormed via: superpowers:brainstorming
 2. 用全局 `fetch`（运行时 node v25，无三方依赖）+ `AbortController`（15s）POST JSON `{ source, feed?, items }`，带 `Authorization: Bearer <token>`。
 3. 整体 try/catch；任何异常/超时/非 2xx 都**只**返回 `{ ok:false, status, error }`，**绝不抛出、绝不 process.exit**。
 4. 在 `main()` 源循环里，对每个 `status==="success"` 的 source 调一次（**按 source 推送**，便于隔离失败与携带 feed）：
-   - reddit：`source="reddit"`，不带 `feed`，items = 该 source 刚采集的条目。
+   - reddit：`source="reddit"`，`feed = src.sort`（config 里 `reddit-ainews`→`"hot"`、`reddit-ainews-new`→`"new"`），items = 该 source 刚采集的条目。
    - twitter：`source="twitter"`，`feed = src.mode`（config 里 `twitter-following`→`"following"`、`twitter-for-you`→`"for-you"`），items = 该 source 条目。
 5. 在 stdout 简报末尾追加一行（不配置时不打印）：`入库: ✅ 24 条` / `入库: ⚠️ 失败(502)` / `入库: ⚠️ 跳过(URL未配)`。
 
@@ -90,18 +90,19 @@ Brainstormed via: superpowers:brainstorming
 
 把映射逻辑从将删除的 `mac-cursor.ts` 迁移过来并对齐真实字段：
 
-- `mapRedditItem(raw)`：
+- `mapRedditItem(raw, feed?)`：
   - `externalId = raw.id`，`url = raw.url`，`author = raw.author`，`title = raw.title`，`text = raw.selftext ?? ""`
   - `createdAt = new Date(raw.created_utc * 1000).toISOString()`
   - `metrics = { score: raw.score ?? 0, comments: raw.comments ?? 0 }`
+  - `feed`（若传入，`hot`/`new`）写入 `RawPayload.feed`
   - `raw = raw`
 - `mapTwitterItem(raw, feed?)`：
   - `externalId = raw.id`，`url = raw.url`，`author = raw.author`，`text = raw.text`，`title = raw.text.slice(0, 120)`
   - `createdAt = new Date(raw.created_at).toISOString()`（V8 可解析 `"Thu Jun 04 12:54:33 +0000 2026"`，已验证）
   - `metrics = { likes: raw.likes ?? 0, retweets: raw.retweets ?? 0, replies: raw.replies ?? 0 }`
-  - `feed`（若传入）写入 `RawPayload.feed`
+  - `feed`（若传入，`following`/`for-you`）写入 `RawPayload.feed`
   - `raw = raw`
-- `mapDigestItems(source, feed, rawItems): RawPayload[]`：分发到对应 mapper；缺 `id` 或 `title`/`text` 的脏数据跳过（不抛错）。
+- `mapDigestItems(source, feed, rawItems): RawPayload[]`：分发到对应 mapper 并透传 `feed`；缺 `id` 或 `title`/`text` 的脏数据跳过（不抛错）。
 
 ### 2. 改造 `POST /api/ingest`
 
@@ -119,6 +120,7 @@ Brainstormed via: superpowers:brainstorming
 - `src/lib/sources/trust.ts`：`sourceTrust(source, url, feed?)` 增加 feed 参数：
   - `source === "twitter"` 且 `feed === "following"` → `0.6`
   - `source === "twitter"` 且 `feed === "for-you"` → `0.45`
+  - **reddit 的 `feed`（hot/new）不参与 trust**：同源同信任度，统一走 reddit 缺省 0.5（feed 仅作溯源）。
   - 其余维持现有 `KIND_DEFAULT`/`HOST_TRUST` 逻辑（twitter 缺省仍 0.5）。
   - 常量写在 `trust.ts`（与该模块现有硬编码风格一致，注释标注可调）。
 - `src/pipeline/triage.ts`：`sourceTrust(n.source, n.url, n.feed)`。trust 进入质量分 Q（`Q_WEIGHT_TRUST`）→ for-you 需要更强 LLM/相关性才过门禁。
@@ -155,11 +157,11 @@ Brainstormed via: superpowers:brainstorming
 | text | `selftext` | `text` |
 | createdAt | `created_utc`×1000 | `created_at`（Twitter 经典格式）|
 | metrics | `{ score, comments }` | `{ likes, retweets, replies }` |
-| feed | — | `following` / `for-you` |
+| feed | `hot` / `new`（仅溯源，不改打分） | `following` / `for-you`（带信任先验） |
 
 ## 测试与验收
 
-- 新增 `tests/lib/digest-map.test.ts`：reddit/twitter 原始样本 → `RawPayload` 正确（metrics、createdAt、twitter 标题截断、feed 透传、脏数据跳过）。
+- 新增 `tests/lib/digest-map.test.ts`：reddit/twitter 原始样本 → `RawPayload` 正确（metrics、createdAt、twitter 标题截断、feed 透传 reddit=hot/new 与 twitter=following/for-you、脏数据跳过）。
 - 改 `tests/integration/ingest-route.test.ts`：POST **原始** reddit 条目 → 200 且 `raw_items` 落库为映射后 payload；twitter 带 `feed` 的用例。
 - 改/补 `tests/lib/platform-heat.test.ts`：reddit `{ score: 50 }` → `engagementOf` = 50。
 - 补 `tests/lib/trust.test.ts`：twitter following=0.6、for-you=0.45、缺省=0.5。
@@ -172,6 +174,7 @@ Brainstormed via: superpowers:brainstorming
 
 - best-effort + opt-in：网络/鉴权失败只在简报加一行，绝不影响 digest 主职责（落盘 + Telegram）。
 - 跨流重复推文（同时在 following 与 for-you）：同 `externalId` 同 kind `"twitter"` → 只落 1 行 raw，先到的 feed 胜出（溯源轻微非确定，可接受）。
+- reddit `hot`/`new` 跨流去重同理：高频的 `new`（每 8h）常先抓到帖子（此时 `score` 还低），随后 `hot`（每日）再见到同帖会被 `onConflictDoNothing` 丢弃 → **该帖以早期低互动快照入库，heat 偏低**，且 `feed` 标记成 `new`。这是 `raw_items` 只读台账（首见即定）的固有特性，本次**不处理**（不做指标刷新/二次更新）。`feed` 标记反而让这种情况在事后可观测。如后续发现高价值帖因此被埋，再单列「指标刷新」需求。
 - 推文量小（following ~60、for-you ~120、reddit ~100/run），JSON POST 体积无压力。
 - `feed` 目前仅存于 `raw_items.payload` 并在 triage 时影响 trust；feed 在 UI 上的展示/筛选为后续需求，本次不做（YAGNI）。
 
