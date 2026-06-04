@@ -117,16 +117,27 @@ docker compose up -d worker
 
 `reset-corpus` aborts unless `RESET_CONFIRM=yes` is set, and prints the target database name before truncating.
 
-## 6. Mac collector (Twitter + Reddit) — runs on your Mac, not the VPS
+## 6. Twitter + Reddit ingestion — pushed by the digest skills (on your Mac)
 
-Edit `deploy/launchd/com.aisignal.mac-collect.plist` (set `/path/to/ai-signal`, `VPS_INGEST_URL=https://YOUR_VPS/api/ingest`, the `INGEST_TOKEN`), then:
+The `opencli-twitter-digest` / `opencli-reddit-digest` skills push freshly
+collected items to this app's `/api/ingest` on each run (opt-in, best-effort —
+absent config = digests behave exactly as before).
+
+On the Mac that produces the digests, create `~/.hermes/digest-ingest.env`
+(chmod 600, never committed — it holds the token):
 
 ```bash
-cp deploy/launchd/com.aisignal.mac-collect.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.aisignal.mac-collect.plist
+cat > ~/.hermes/digest-ingest.env <<'EOF'
+export AI_SIGNAL_INGEST_URL="https://YOUR_VPS/api/ingest"
+export AI_SIGNAL_INGEST_TOKEN="<same value as the app's INGEST_TOKEN>"
+EOF
+chmod 600 ~/.hermes/digest-ingest.env
 ```
 
-It reads the existing `opencli-twitter-digest` / `opencli-reddit-digest` output dirs, tracks a cursor in `~/.aisignal-state.json`, and POSTs new items to the VPS ingest API every 30 min. Requires the logged-in x.com / reddit.com browser sessions the digests depend on.
+The cron wrappers source this file before running, so each digest run also
+ingests into the corpus. De-dup is handled by the `raw_items (source_id,
+external_id)` constraint, so overlapping windows are safe. Requires the
+logged-in x.com / reddit.com browser sessions the digests already depend on.
 
 ## 7. CI/CD (GitHub Actions → GHCR → VPS pull & restart)
 
