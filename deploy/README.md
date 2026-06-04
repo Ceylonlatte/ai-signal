@@ -100,7 +100,7 @@ Edit the host crontab (`crontab -e`) to call the scripts inside the running `wor
 0 4 * * *   cd /opt/ai-signal && docker compose exec -T worker npm run cleanup      >> /var/log/aisignal-cleanup.log 2>&1
 ```
 
-(`bin/rescore.ts` is manual — run `docker compose exec -T worker npm run rescore` after you edit the rubric and bump `RUBRIC_VERSION`.)
+(To re-process everything after a rubric change, run `docker compose exec -T worker npm run reset-corpus` — it wipes the corpus + raw ledger so collectors re-pull and re-triage under the new rules.)
 
 ## 6. Mac collector (Twitter + Reddit) — runs on your Mac, not the VPS
 
