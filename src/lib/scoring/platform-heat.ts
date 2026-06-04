@@ -17,7 +17,7 @@ export function hoursSince(createdAt: Date, now: Date = new Date()): number {
 export function engagementOf(source: string, metrics: Record<string, number>): number {
   switch (source) {
     case "hn": return metrics.points ?? 0;
-    case "reddit": return metrics.ups ?? metrics.points ?? 0;
+    case "reddit": return metrics.ups ?? metrics.score ?? metrics.points ?? 0;
     case "twitter":
       return (metrics.likes ?? 0) + 2 * (metrics.retweets ?? 0) + (metrics.replies ?? 0);
     default: return 0; // rss / unknown: no engagement

@@ -25,6 +25,9 @@ describe("engagementOf", () => {
   it("rss has no engagement", () => {
     expect(engagementOf("rss", {})).toBe(0);
   });
+  it("reddit falls back to score when ups is absent", () => {
+    expect(engagementOf("reddit", { score: 50, comments: 3 })).toBe(50);
+  });
 });
 
 describe("platformHeat", () => {
