@@ -66,6 +66,8 @@ export const scores = pgTable("scores", {
   summaryEn: text("summary_en").notNull().default(""),
   summaryZh: text("summary_zh").notNull().default(""),
   fullTextFetched: boolean("full_text_fetched").notNull().default(false),
+  summaryAttempts: integer("summary_attempts").notNull().default(0),
+  summaryError: text("summary_error"),
   rubricVersion: text("rubric_version").notNull(),
   scoredAt: timestamp("scored_at", { withTimezone: true }).notNull().defaultNow(),
 });

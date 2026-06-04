@@ -43,6 +43,13 @@
       "when": 1780546778258,
       "tag": "0005_glossy_miss_america",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780554467330,
+      "tag": "0006_ambiguous_vengeance",
+      "breakpoints": true
     }
   ]
 }

@@ -34,6 +34,8 @@ const schema = z.object({
   RESCUE_MARGIN: z.coerce.number().default(0.10),
   COLDSTART_N0: z.coerce.number().default(5),
   PROFILE_WINDOW_DAYS: z.coerce.number().default(90),
+  // --- Summarize stage ---
+  SUMMARY_MAX_ATTEMPTS: z.coerce.number().default(3),
 });
 
 export const config = schema.parse(process.env);

@@ -50,3 +50,20 @@ it("does not infinitely re-pick an item whose summary came back empty", async ()
   const n2 = await runSummarizeStage(db);
   expect(n2).toBe(0); // guard stored " " so the row is no longer selected by summary_en = ''
 });
+
+it("dead-letters an item after SUMMARY_MAX_ATTEMPTS failures (no infinite retry)", async () => {
+  const { summarizeBilingual } = await import("../../src/lib/scoring/summarize.js");
+  (summarizeBilingual as any).mockRejectedValue(new Error("boom"));
+  const { runSummarizeStage } = await import("../../src/pipeline/summarize-stage.js");
+
+  // Default SUMMARY_MAX_ATTEMPTS = 3: three failing runs bump attempts to 3.
+  for (let i = 0; i < 3; i++) expect(await runSummarizeStage(db)).toBe(0);
+
+  // 4th run: attempts == 3 is no longer < 3, so the item is not re-picked.
+  const after = await runSummarizeStage(db);
+  expect(after).toBe(0);
+
+  const [s] = await db.select().from(scores).where(eq(scores.itemId, itemId));
+  expect(s!.summaryAttempts).toBe(3);
+  expect(s!.summaryError).toContain("boom");
+});
