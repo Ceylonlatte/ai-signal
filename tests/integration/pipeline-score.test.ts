@@ -27,6 +27,6 @@ it("scores candidate items and stores composite", async () => {
   expect(s!.itemId).toBe(itemId);
   expect(s!.llmValue).toBeCloseTo(0.9, 5);
   expect(s!.composite).toBeGreaterThan(0);
-  expect(s!.summary).toBe("s");
+  expect(s!.summary).toBe("");
   expect(s!.topicTags).toEqual(["agents"]);
 });

@@ -86,12 +86,12 @@ export async function runScoreStage(db: Db): Promise<number> {
     const composite = computeComposite({ heat, relevance, novelty, llmValue }, weights);
     await db.insert(scores).values({
       itemId: c.id, heat, relevance, novelty, llmValue, composite,
-      summary: r?.summary ?? "", reason: r?.reason ?? "", topicTags: r?.topics ?? [],
+      summary: "", reason: r?.reason ?? "", topicTags: r?.topics ?? [],
       rubricVersion: RUBRIC_VERSION,
     }).onConflictDoUpdate({
       target: scores.itemId,
       set: { heat, relevance, novelty, llmValue, composite,
-        summary: r?.summary ?? "", reason: r?.reason ?? "", topicTags: r?.topics ?? [],
+        summary: "", reason: r?.reason ?? "", topicTags: r?.topics ?? [],
         rubricVersion: RUBRIC_VERSION, scoredAt: new Date() },
     });
     written++;
