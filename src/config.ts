@@ -15,6 +15,25 @@ const schema = z.object({
   WEIGHT_RELEVANCE: z.coerce.number().default(0.2),
   WEIGHT_NOVELTY: z.coerce.number().default(0.15),
   WEIGHT_LLM: z.coerce.number().default(0.45),
+  // --- Quality gate Q (time-invariant, llm-dominant) ---
+  Q_THRESHOLD: z.coerce.number().default(0.55),
+  Q_WEIGHT_REL: z.coerce.number().default(0.15),
+  Q_WEIGHT_TRUST: z.coerce.number().default(0.15),
+  // --- Ranking R (live) ---
+  R_WEIGHT_Q: z.coerce.number().default(0.45),
+  R_WEIGHT_HEAT: z.coerce.number().default(0.30),
+  R_WEIGHT_NOVELTY: z.coerce.number().default(0.10),
+  R_WEIGHT_AFFINITY: z.coerce.number().default(0.15),
+  // --- Per-platform heat log-normalization divisors ---
+  HEAT_K_HN: z.coerce.number().default(2.5),
+  HEAT_K_REDDIT: z.coerce.number().default(2.5),
+  HEAT_K_TWITTER: z.coerce.number().default(3.5),
+  // --- Feedback profile ---
+  SUPPRESS_THRESHOLD: z.coerce.number().default(0.92),
+  RESCUE_SIM_THRESHOLD: z.coerce.number().default(0.85),
+  RESCUE_MARGIN: z.coerce.number().default(0.10),
+  COLDSTART_N0: z.coerce.number().default(5),
+  PROFILE_WINDOW_DAYS: z.coerce.number().default(90),
 });
 
 export const config = schema.parse(process.env);
@@ -24,4 +43,16 @@ export const weights = {
   relevance: config.WEIGHT_RELEVANCE,
   novelty: config.WEIGHT_NOVELTY,
   llm: config.WEIGHT_LLM,
+};
+
+export const qualityWeights = {
+  wRel: config.Q_WEIGHT_REL,
+  wTrust: config.Q_WEIGHT_TRUST,
+};
+
+export const rankingWeights = {
+  wQ: config.R_WEIGHT_Q,
+  wHeat: config.R_WEIGHT_HEAT,
+  wNov: config.R_WEIGHT_NOVELTY,
+  wAff: config.R_WEIGHT_AFFINITY,
 };
