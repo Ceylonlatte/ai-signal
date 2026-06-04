@@ -1,5 +1,6 @@
 import { db } from "../db/client.js";
-import { runPendingJobs, runScoreStage, runEmbedStage } from "./stages.js";
+import { runTriageStage } from "./triage.js";
+import { runEmbedStage } from "./stages.js";
 import { runClusterStage } from "../lib/cluster.js";
 
 const POLL_MS = 5000;
@@ -7,18 +8,16 @@ const POLL_MS = 5000;
 async function loop() {
   for (;;) {
     try {
-      const n = await runPendingJobs(db, { max: 50 });
+      const triaged = await runTriageStage(db);
       const embedded = await runEmbedStage(db);
-      // Score BEFORE cluster: cluster writes topic_trends.score_sum from
-      // scores.composite, which must already exist for the item.
-      const scored = await runScoreStage(db);
       const clustered = await runClusterStage(db, { threshold: 0.25 });
-      if (n + embedded + clustered + scored === 0) await new Promise((r) => setTimeout(r, POLL_MS));
+      if (triaged + embedded + clustered === 0) {
+        await new Promise((r) => setTimeout(r, POLL_MS));
+      }
     } catch (err) {
       console.error("worker loop error", err);
       await new Promise((r) => setTimeout(r, POLL_MS));
     }
   }
 }
-
 loop();
