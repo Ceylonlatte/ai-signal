@@ -97,7 +97,11 @@ Brainstormed via: superpowers:brainstorming
   - `feed`（若传入，`hot`/`new`）写入 `RawPayload.feed`
   - `raw = raw`
 - `mapTwitterItem(raw, feed?)`：
-  - `externalId = raw.id`，`url = raw.url`，`author = raw.author`，`text = raw.text`，`title = raw.text.slice(0, 120)`
+  - `externalId = raw.id`，`url = raw.url`，`author = raw.author`，`text = raw.text`（**完整推文，不截断**）
+  - `title = tweetTitle(raw.text)`：推文无天然标题（`items.title` 为 `NOT NULL`），合成一个短头条。逻辑：
+    1. 折叠空白：`text.replace(/\s+/g, " ").trim()`（去掉换行/多空格）。
+    2. 按 **Unicode 码点**计长（`Array.from`，避免切断 emoji/代理对）；≤120 码点直接返回。
+    3. 否则取前 120 码点，若尾部存在空格（位置 ≥80）则回退到该空格做**词边界**截断（无空格的 CJK/长 URL 则硬截），末尾加 `…`。
   - `createdAt = new Date(raw.created_at).toISOString()`（V8 可解析 `"Thu Jun 04 12:54:33 +0000 2026"`，已验证）
   - `metrics = { likes: raw.likes ?? 0, retweets: raw.retweets ?? 0, replies: raw.replies ?? 0 }`
   - `feed`（若传入，`following`/`for-you`）写入 `RawPayload.feed`
@@ -153,7 +157,7 @@ Brainstormed via: superpowers:brainstorming
 | externalId | `id` | `id` |
 | url | `url` | `url` |
 | author | `author` | `author` |
-| title | `title` | `text`（截断 120）|
+| title | `title` | `tweetTitle(text)`（折叠空白·词边界·~120 码点·加…·不切 emoji）|
 | text | `selftext` | `text` |
 | createdAt | `created_utc`×1000 | `created_at`（Twitter 经典格式）|
 | metrics | `{ score, comments }` | `{ likes, retweets, replies }` |
@@ -161,7 +165,8 @@ Brainstormed via: superpowers:brainstorming
 
 ## 测试与验收
 
-- 新增 `tests/lib/digest-map.test.ts`：reddit/twitter 原始样本 → `RawPayload` 正确（metrics、createdAt、twitter 标题截断、feed 透传 reddit=hot/new 与 twitter=following/for-you、脏数据跳过）。
+- 新增 `tests/lib/digest-map.test.ts`：reddit/twitter 原始样本 → `RawPayload` 正确（metrics、createdAt、feed 透传 reddit=hot/new 与 twitter=following/for-you、脏数据跳过）。
+- `tweetTitle` 单测：折叠换行/多空格、短文不加…、超长加…且按词边界、emoji（代理对）不被切断、无空格 CJK 硬截。
 - 改 `tests/integration/ingest-route.test.ts`：POST **原始** reddit 条目 → 200 且 `raw_items` 落库为映射后 payload；twitter 带 `feed` 的用例。
 - 改/补 `tests/lib/platform-heat.test.ts`：reddit `{ score: 50 }` → `engagementOf` = 50。
 - 补 `tests/lib/trust.test.ts`：twitter following=0.6、for-you=0.45、缺省=0.5。
