@@ -29,7 +29,7 @@ Brainstormed via: superpowers:brainstorming
 | 抓全文 | 总是抓原文正文（readability 抽取）；失败/付费墙回退到现有文本。 |
 | 摘要模型 | 复用现有 `SCORING_MODEL`，单独一次调用，不新增模型配置。 |
 | 存量数据 | 清空旧 `items` 及衍生表，只对新数据按新规则处理。 |
-| 反馈画像 | 用 👍/👎 的 embedding 做非对称画像：点赞→排序加权；点踩→**软压制**相似文章（隐藏出 Feed、仍可搜索、可撤销）。只活在 Feed/排序层，不影响门禁 Q。 |
+| 反馈画像 | 用 👍/👎 的 embedding 做非对称画像：点赞→排序加权 **+ 门禁救回**（像我赞过的边缘分文章破例保留，仅多留不多丢）；点踩→**软压制**相似文章（隐藏出 Feed、仍可搜索、可撤销，纯 Feed 层）。 |
 
 ## Architecture: 新数据流
 
@@ -46,7 +46,9 @@ Brainstormed via: superpowers:brainstorming
    │ 4. 计算质量分 Q（时间无关）                          │
    │ 5. Q ≥ Q_THRESHOLD ?                               │
    │     ├─ 是 → 写 items + scores(Q)，入队 embed/summarize │
-   │     └─ 否 → 丢弃：raw_items 标记 processed，不写 items │
+   │     └─ 否 → 在救回带内(Q≥阈值−RESCUE_MARGIN)?         │
+   │            ├─ 是 → 算 embedding，likeSim≥阈值则破例保留 │
+   │            └─ 否 → 丢弃：raw_items 标记 processed       │
    └──────────────────────────────────────────────────┘
          │（仅保留文章）
          ▼
@@ -76,7 +78,7 @@ Q = clamp01( llm_value
 - `llm_value` ∈ [0,1]（LLM 价值分 / 100）主导。
 - relevance / 源信任度只在中性点 0.5 附近做小幅 ±调整（llm_dominant）。
 - Q 不含时间，老的高质量文章不会因变旧被误杀。
-- 计算 Q **不需要 embedding**，因此不给将被丢弃的文章浪费向量计算。
+- 计算 Q **不需要 embedding**，clearly-pass / clearly-drop 的候选都不白算向量；**仅救回带（边缘分）候选**会额外算 embedding 做点赞救回检查（见反馈画像节）。
 
 ### 排序分 R（刷 Feed 时实时计算、不存库）
 
@@ -130,6 +132,19 @@ coldStartScale     = min(1, n_up / N0)          // 反馈少时影响趋近 0
 ```
 进入 R：`R += w_aff · likeAffinity`，让"像你喜欢过的"排得更前。
 
+**门禁救回（点赞=对我有价值）**：点赞既影响排序，也能把"像我赞过的"边缘文章救回入库：
+
+```
+likeSim(item) = max cosine similarity 到点赞集合中的各文章
+救回条件： (Q_THRESHOLD − RESCUE_MARGIN ≤ Q < Q_THRESHOLD)
+          AND likeSim ≥ RESCUE_SIM_THRESHOLD
+```
+
+- **成本优化**：只有落在救回带（边缘分）的候选才去算 embedding 做 `likeSim` 检查；Q 远低于带的直接丢、不算向量。额外向量成本被限制在窄边缘带。
+- **方向安全**：救回只会**多留**像你喜欢的内容，绝不多丢。
+- 冷启动无点赞时不触发救回。
+- 张力提示：救回 + 排序加权都在强化已有口味，与 `novelty`（奖励没见过的）方向相反；靠 `w_aff` 与阈值平衡，env 可调。
+
 ### 点踩 → 软压制相似文章
 
 - `dislikeSim(item) = max cosine similarity 到点踩集合中的各文章`（用 max 而非质心，忠实于"别再给我看像**这篇**的"）。
@@ -139,8 +154,9 @@ coldStartScale     = min(1, n_up / N0)          // 反馈少时影响趋近 0
 
 ### 与门禁 Q 的关系
 
-- 点踩**不**改变留/丢（Q 不变），只影响是否在 Feed 出现 → 安全、可回溯。
-- 因此本节不改动 triage / 数据流，仅改 Feed 查询与新增"已压制"视图。
+- **点踩**：不改变留/丢（Q 不变），只影响是否在 Feed 出现 → 安全、可回溯；纯 Feed 层，不改 triage。
+- **点赞**：除排序加权外，新增**门禁救回**——会让 triage 对**边缘分**候选额外算 embedding 做 `likeSim` 检查（仅边缘带，不是全部候选）。方向上只多留不多丢。
+- 因此非对称：点踩只在 Feed 层、点赞额外影响 triage 的边缘救回；二者都不会让文章被多丢。
 
 ## Summary (独立阶段)
 
@@ -187,7 +203,8 @@ coldStartScale     = min(1, n_up / N0)          // 反馈少时影响趋近 0
   - triage：Q < 阈值不产生 item 行；Q ≥ 阈值产生 item + score(+ 入队 summarize)。
   - triage 幂等：重跑不重复。
   - summarize：保留文章写入 `title_zh/summary_en/summary_zh`。
-  - 反馈：👍 提升相似文章 R 排名；👎 使相似文章从 Feed 隐藏但仍可搜索；撤销点踩后恢复。
+  - 反馈：👍 提升相似文章 R 排名；👍 把救回带内、likeSim 达标的边缘文章破例保留；👎 使相似文章从 Feed 隐藏但仍可搜索；撤销点踩后恢复。
+  - 救回成本边界：只有救回带候选才算 embedding；Q 远低于带的不算。
   - `reset-corpus` 清空相关表。
 
 ## Out of Scope
@@ -199,6 +216,6 @@ coldStartScale     = min(1, n_up / N0)          // 反馈少时影响趋近 0
 ## Open Items (实现阶段确认)
 
 - readability 库最终选型（抽取质量 vs 依赖体积）。
-- 各 `k_平台` 与权重 / 阈值的初始默认值，含 `w_aff`、`SUPPRESS_THRESHOLD`、冷启动 `N0`、画像窗口天数（上线后按实际数据调）。
+- 各 `k_平台` 与权重 / 阈值的初始默认值，含 `w_aff`、`SUPPRESS_THRESHOLD`、`RESCUE_MARGIN`、`RESCUE_SIM_THRESHOLD`、冷启动 `N0`、画像窗口天数（上线后按实际数据调）。
 - 反馈画像物化（定时 job 刷新质心）还是查询时实时算（个人量级倾向实时，实现时定）。
 - `R` 在 SQL 内计算还是取候选后在应用层计算（个人工具量小，倾向应用层，实现时定）。
