@@ -3,6 +3,9 @@ import { config } from "../../config.js";
 
 export interface BilingualSummary { titleZh: string; summaryEn: string; summaryZh: string; }
 
+// Ceiling so a half-open socket can't hang the worker loop indefinitely.
+const SUMMARIZE_TIMEOUT_MS = 90_000;
+
 const schema = z.object({
   title_zh: z.string().catch(""),
   summary_en: z.string().catch(""),
@@ -27,6 +30,7 @@ export async function summarizeBilingual(input: { title: string; text: string })
         { role: "user", content: `Title: ${input.title}\n\n${input.text.slice(0, 6000)}` },
       ],
     }),
+    signal: AbortSignal.timeout(SUMMARIZE_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`summarize ${res.status}: ${await res.text()}`);
   const data = (await res.json()) as { choices: { message: { content: string } }[] };

@@ -17,15 +17,35 @@ const responseSchema = z.object({ results: z.array(resultSchema) });
 export type ScoreResult = z.infer<typeof resultSchema>;
 
 const BATCH = 25;
+// Cap on in-flight scoring requests. Chunks are otherwise independent, so
+// running a few concurrently turns ~N serial round-trips into ~N/CONCURRENCY.
+// Kept small to stay under OpenRouter rate limits.
+const CONCURRENCY = 4;
+// Ceiling, not an expected wait: a single chunk is bounded but can be slow.
+// Without this an idle/half-open socket would hang the worker loop forever.
+const LLM_TIMEOUT_MS = 120_000;
 
 export async function scoreBatch(candidates: Candidate[]): Promise<Map<number, ScoreResult>> {
-  const out = new Map<number, ScoreResult>();
+  const chunks: Candidate[][] = [];
   for (let i = 0; i < candidates.length; i += BATCH) {
     const chunk = candidates.slice(i, i + BATCH);
-    if (chunk.length === 0) continue;
-    const results = await scoreChunk(chunk);
-    for (const r of results) out.set(r.id, r);
+    if (chunk.length > 0) chunks.push(chunk);
   }
+
+  const out = new Map<number, ScoreResult>();
+  // Shared cursor: each worker pulls the next chunk, so at most CONCURRENCY
+  // requests are ever in flight. `next++` is atomic in single-threaded JS.
+  let next = 0;
+  async function worker(): Promise<void> {
+    while (next < chunks.length) {
+      const chunk = chunks[next++]!;
+      const results = await scoreChunk(chunk);
+      for (const r of results) out.set(r.id, r);
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(CONCURRENCY, chunks.length) }, () => worker()),
+  );
   return out;
 }
 
@@ -48,6 +68,7 @@ async function scoreChunk(chunk: Candidate[]): Promise<ScoreResult[]> {
         { role: "user", content: itemsBlock },
       ],
     }),
+    signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${await res.text()}`);
   const data = (await res.json()) as { choices: { message: { content: string } }[] };
@@ -66,6 +87,7 @@ export async function labelTopic(titles: string[]): Promise<string> {
         { role: "user", content: titles.slice(0, 8).join("\n") },
       ],
     }),
+    signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`label ${res.status}`);
   const data = (await res.json()) as { choices: { message: { content: string } }[] };
