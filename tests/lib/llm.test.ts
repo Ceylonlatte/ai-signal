@@ -19,8 +19,8 @@ describe("scoreBatch", () => {
     process.env.OPENROUTER_API_KEY = "k";
 
     const out = await scoreBatch([
-      { id: 1, title: "Anthropic X", text: "details", source: "hn", metrics: { points: 100 } },
-      { id: 2, title: "Blog", text: "", source: "hn", metrics: { points: 1 } },
+      { id: 1, title: "Anthropic X", text: "details", source: "hn", metrics: { points: 100 }, relevance: 1 },
+      { id: 2, title: "Blog", text: "", source: "hn", metrics: { points: 1 }, relevance: 0 },
     ]);
 
     expect(fetchMock).toHaveBeenCalledOnce();

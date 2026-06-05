@@ -1,7 +1,17 @@
 import { db } from "../../db/client.js";
-import { getPipelineStatus } from "../status-queries.js";
+import { getPipelineStatus, getDataStats, getModelUsage } from "../status-queries.js";
 
 export const dynamic = "force-dynamic";
+
+const KIND_LABEL: Record<string, string> = {
+  score: "打分", summarize: "摘要", label: "话题标签", embed: "向量",
+};
+
+const fmtInt = (n: number) => n.toLocaleString("en-US");
+// Cost is in USD credits; sub-cent spend is common, so show enough precision.
+const fmtCost = (n: number) => `$${n < 1 ? n.toFixed(4) : n.toFixed(2)}`;
+const fmtDate = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleString("zh-CN", { hour12: false }) : "—";
 
 function Bar({ done, total }: { done: number; total: number }) {
   const pct = total > 0 ? Math.round((done / total) * 100) : 100;
@@ -24,8 +34,25 @@ function Row({ label, done, total, extra }: { label: string; done: number; total
   );
 }
 
+function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div style={{ border: "1px solid #eee", borderRadius: 8, padding: "10px 14px", minWidth: 120 }}>
+      <div style={{ fontSize: 12, color: "#888" }}>{label}</div>
+      <div style={{ fontSize: 20, fontVariantNumeric: "tabular-nums" }}>{value}</div>
+      {hint ? <div style={{ fontSize: 12, color: "#aaa" }}>{hint}</div> : null}
+    </div>
+  );
+}
+
+const th: React.CSSProperties = { padding: "6px 10px", textAlign: "left", color: "#888", fontWeight: 500, borderBottom: "1px solid #eee" };
+const td: React.CSSProperties = { padding: "6px 10px", fontVariantNumeric: "tabular-nums" };
+
 export default async function Status() {
-  const s = await getPipelineStatus(db);
+  const [s, data, usage] = await Promise.all([
+    getPipelineStatus(db),
+    getDataStats(db),
+    getModelUsage(db),
+  ]);
   const pending = s.rawPending + s.embedPending + s.summaryPending + s.unclustered;
   return (
     <main style={{ maxWidth: 760, margin: "2rem auto", fontFamily: "system-ui" }}>
@@ -47,6 +74,65 @@ export default async function Status() {
         <p style={{ color: "#b45309", fontSize: 13 }}>
           ⚠️ {s.summaryFailed} 条摘要连续失败已死信（超过 SUMMARY_MAX_ATTEMPTS），不再重试。
         </p>
+      )}
+
+      <h2 style={{ marginTop: 36 }}>数据信息</h2>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+        <Stat label="数据源" value={`${data.sourcesEnabled} / ${data.sourcesTotal}`} hint="启用 / 总数" />
+        <Stat label="入库条目" value={fmtInt(s.items)} />
+        <Stat label="话题" value={fmtInt(s.topics)} />
+        <Stat label="关键词" value={fmtInt(data.keywords)} />
+        <Stat label="收藏 / 归档" value={`${fmtInt(data.favorited)} / ${fmtInt(data.archived)}`} hint={`已读 ${fmtInt(data.read)}`} />
+        <Stat label="反馈 ↑ / ↓" value={`${fmtInt(data.feedbackUp)} / ${fmtInt(data.feedbackDown)}`} />
+      </div>
+      <p style={{ fontSize: 13, color: "#666", marginTop: 10 }}>
+        数据覆盖区间：{fmtDate(data.earliest)} → {fmtDate(data.latest)}
+      </p>
+      {data.bySource.length > 0 && (
+        <table style={{ borderCollapse: "collapse", fontSize: 14, marginTop: 8 }}>
+          <thead><tr><th style={th}>来源</th><th style={th}>条目数</th></tr></thead>
+          <tbody>
+            {data.bySource.map((r) => (
+              <tr key={r.source}>
+                <td style={{ ...td, color: "#444" }}>{r.source}</td>
+                <td style={td}>{fmtInt(r.count)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <h2 style={{ marginTop: 36 }}>模型使用花销</h2>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+        <Stat label="总花销" value={fmtCost(usage.totalCost)} hint={`${fmtInt(usage.totalCalls)} 次调用`} />
+        <Stat label="近 24h 花销" value={fmtCost(usage.cost24h)} hint={`${fmtInt(usage.calls24h)} 次调用`} />
+        <Stat label="总 token" value={fmtInt(usage.totalTokens)} />
+      </div>
+      {usage.rows.length > 0 ? (
+        <table style={{ borderCollapse: "collapse", fontSize: 14, marginTop: 10 }}>
+          <thead>
+            <tr>
+              <th style={th}>用途</th><th style={th}>模型</th><th style={th}>调用数</th>
+              <th style={th}>输入 token</th><th style={th}>输出 token</th>
+              <th style={th}>总 token</th><th style={th}>花销</th>
+            </tr>
+          </thead>
+          <tbody>
+            {usage.rows.map((r) => (
+              <tr key={`${r.kind}:${r.model}`}>
+                <td style={{ ...td, color: "#444" }}>{KIND_LABEL[r.kind] ?? r.kind}</td>
+                <td style={{ ...td, color: "#444" }}>{r.model}</td>
+                <td style={td}>{fmtInt(r.calls)}</td>
+                <td style={td}>{fmtInt(r.promptTokens)}</td>
+                <td style={td}>{fmtInt(r.completionTokens)}</td>
+                <td style={td}>{fmtInt(r.totalTokens)}</td>
+                <td style={td}>{fmtCost(r.cost)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p style={{ fontSize: 13, color: "#888" }}>暂无模型调用记录（worker 运行后将开始累计）。</p>
       )}
     </main>
   );

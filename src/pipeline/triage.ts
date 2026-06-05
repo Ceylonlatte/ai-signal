@@ -1,7 +1,6 @@
 import { eq, isNull, sql as dsql } from "drizzle-orm";
 import { items, rawItems, scores, itemEmbeddings } from "../db/schema.js";
 import { normalizeRawItem } from "../lib/normalize.js";
-import { computeRelevance } from "../lib/keywords.js";
 import { selectCandidates } from "../lib/scoring/prefilter.js";
 import { scoreBatch } from "../lib/scoring/llm.js";
 import { computeQuality, passesGate, inRescueBand } from "../lib/scoring/quality.js";
@@ -11,11 +10,34 @@ import { RUBRIC_VERSION } from "../lib/scoring/rubric.js";
 import { likeRescues } from "../lib/feedback/profile.js";
 import { embedTexts } from "../lib/embeddings.js";
 import { computeNoveltyForVector } from "../lib/novelty.js";
+import { hybridRelevance } from "../lib/scoring/relevance.js";
+import { loadKeywords } from "../lib/scoring/keyword-store.js";
 import { config } from "../config.js";
-import type { RawPayload } from "../types.js";
+import type { NormalizedItem, RawPayload } from "../types.js";
 
 type Db = any;
 const BATCH = 500;
+const EMBED_CHUNK = 100;
+const EMBED_TEXT_MAX = 2000;
+
+function embedText(n: NormalizedItem): string {
+  return `${n.title}\n${n.text ?? ""}`.slice(0, EMBED_TEXT_MAX);
+}
+
+// Embed all candidate texts up front (chunked, best-effort). A failing chunk
+// just leaves those items without a vector → exact-only relevance + the embed
+// stage embeds them later. Uses the free EMBEDDING_MODEL.
+async function embedCandidates(texts: string[]): Promise<Map<number, number[]>> {
+  const out = new Map<number, number[]>();
+  for (let i = 0; i < texts.length; i += EMBED_CHUNK) {
+    const slice = texts.slice(i, i + EMBED_CHUNK);
+    try {
+      const vecs = await embedTexts(slice);
+      vecs.forEach((v, j) => { if (v) out.set(i + j, v); });
+    } catch { /* exact-only fallback for this chunk */ }
+  }
+  return out;
+}
 
 // Highest cosine similarity between `vec` and any recently up-voted item's
 // embedding (null when there are no liked embeddings in the window).
@@ -40,36 +62,43 @@ export async function runTriageStage(db: Db): Promise<number> {
     n: normalizeRawItem(r.payload as RawPayload),
   }));
 
-  const candInputs = normalized.map((x: any) => ({
-    id: x.rawId, title: x.n.title, text: x.n.text, source: x.n.source, metrics: x.n.metrics,
-  }));
-  const candidates = selectCandidates(candInputs);
+  // Embed every candidate once: the vector powers semantic relevance now and is
+  // reused as the item embedding on insert, so the embed stage skips it.
+  const vecByIdx = await embedCandidates(normalized.map((x: any) => embedText(x.n)));
+  const vecByRaw = new Map<number, number[]>();
+  normalized.forEach((x: any, i: number) => { const v = vecByIdx.get(i); if (v) vecByRaw.set(x.rawId, v); });
+
+  const keywords = await loadKeywords(db);
+  const relByRaw = new Map<number, number>();
+  for (const { rawId, n } of normalized) {
+    relByRaw.set(rawId, hybridRelevance(
+      { title: n.title, text: n.text, embedding: vecByRaw.get(rawId) ?? null }, keywords,
+    ));
+  }
+
+  const candidates = selectCandidates(normalized.map((x: any) => ({
+    id: x.rawId, title: x.n.title, text: x.n.text, source: x.n.source,
+    metrics: x.n.metrics, relevance: relByRaw.get(x.rawId) ?? 0,
+  })));
   const llm = await scoreBatch(candidates);
 
   let processed = 0;
   for (const { rawId, n } of normalized) {
     const r = llm.get(rawId);
     const llmValue = (r?.value ?? 0) / 100;
-    const relevance = computeRelevance(n.title, n.text);
+    const relevance = relByRaw.get(rawId) ?? 0;
     const trust = sourceTrust(n.source, n.url, n.feed);
     const q = computeQuality({ llmValue, relevance, trust });
+    const vec = vecByRaw.get(rawId) ?? null;
 
-    // Decide keep/rescue BEFORE opening the transaction: embedTexts (network) and
-    // the like-similarity read must not hold the transaction open across IO.
+    // Decide keep/rescue BEFORE opening the transaction: the like-similarity
+    // read and novelty query must not hold the transaction open across IO.
     let keep = passesGate(q);
-    let rescueVec: number[] | null = null;
-    let rescueNovelty = 0;
-    if (!keep && inRescueBand(q)) {
-      const [vec] = await embedTexts([`${n.title}\n${n.text}`.slice(0, 2000)]);
-      if (vec) {
-        const sim = await maxLikeSimForVector(db, vec);
-        if (likeRescues(sim)) {
-          keep = true;
-          rescueVec = vec;
-          rescueNovelty = await computeNoveltyForVector(db, vec, { days: 7 });
-        }
-      }
+    if (!keep && inRescueBand(q) && vec) {
+      const sim = await maxLikeSimForVector(db, vec);
+      if (likeRescues(sim)) keep = true;
     }
+    const novelty = keep && vec ? await computeNoveltyForVector(db, vec, { days: 7 }) : 0;
 
     await db.transaction(async (tx: any) => {
       if (keep) {
@@ -83,13 +112,13 @@ export async function runTriageStage(db: Db): Promise<number> {
           await tx.insert(scores).values({
             itemId: inserted.id,
             heat: normalizeHeat(n.metrics),
-            relevance, novelty: rescueVec ? rescueNovelty : 0, llmValue, composite: q,
+            relevance, novelty, llmValue, composite: q,
             summary: "", reason: r?.reason ?? "", topicTags: r?.topics ?? [],
             rubricVersion: RUBRIC_VERSION,
           }).onConflictDoNothing({ target: scores.itemId });
-          if (rescueVec) {
+          if (vec) {
             await tx.insert(itemEmbeddings)
-              .values({ itemId: inserted.id, embedding: rescueVec })
+              .values({ itemId: inserted.id, embedding: vec })
               .onConflictDoNothing({ target: itemEmbeddings.itemId });
           }
         }

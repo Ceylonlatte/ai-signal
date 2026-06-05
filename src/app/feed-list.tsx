@@ -8,6 +8,7 @@ export interface FeedItemData {
   url: string | null;
   host: string;
   title: string;
+  author: string | null;
   reason: string;
   summaryZh: string;
   summaryEn: string;
@@ -106,6 +107,12 @@ function FeedItem({
 
       <div className="item__meta">
         <span className="item__source">{data.sourceLabel}</span>
+        {data.author && (
+          <>
+            <span className="meta-dot">·</span>
+            <span className="item__author">@{data.author}</span>
+          </>
+        )}
         {data.timeText && (
           <>
             <span className="meta-dot">·</span>

@@ -1,4 +1,5 @@
 import { config } from "../config.js";
+import { recordModelUsage, type OpenRouterUsage } from "./usage.js";
 
 // Endpoint confirmed by the M4 spike: OpenRouter /embeddings, dim 2048.
 const ENDPOINT = process.env.EMBEDDINGS_ENDPOINT ?? "https://openrouter.ai/api/v1/embeddings";
@@ -14,6 +15,7 @@ export async function embedTexts(texts: string[]): Promise<number[][]> {
     signal: AbortSignal.timeout(EMBED_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`embeddings ${res.status}: ${await res.text()}`);
-  const data = (await res.json()) as { data: { embedding: number[] }[] };
+  const data = (await res.json()) as { data: { embedding: number[] }[]; usage?: OpenRouterUsage };
+  await recordModelUsage("embed", config.EMBEDDING_MODEL, data.usage);
   return data.data.map((d) => d.embedding);
 }

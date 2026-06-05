@@ -1,5 +1,5 @@
 import { db } from "../db/client.js";
-import { getFeed } from "./feed-queries.js";
+import { getFeed, type FeedSort } from "./feed-queries.js";
 import { getSourceStatus } from "./source-status.js";
 import { FeedList, type FeedItemData } from "./feed-list.js";
 import { relativeStrength, relativeTime, sourceLabel } from "./format.js";
@@ -23,6 +23,7 @@ function toFeedData(item: any, now: Date, rMin: number, rMax: number): FeedItemD
     url: item.url ?? null,
     host: hostOf(item.url ?? null),
     title: item.titleZh || item.title || "(无标题)",
+    author: item.source === "twitter" ? (item.author ?? null) : null,
     reason: item.reason ?? "",
     summaryZh: item.summaryZh ?? "",
     summaryEn: item.summaryEn ?? "",
@@ -34,10 +35,11 @@ function toFeedData(item: any, now: Date, rMin: number, rMax: number): FeedItemD
   };
 }
 
-export default async function Home({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
+export default async function Home({ searchParams }: { searchParams: Promise<{ page?: string; sort?: string }> }) {
   const sp = await searchParams;
   const requestedPage = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
-  const { items: feed, total, page, totalPages } = await getFeed(db, { page: requestedPage, pageSize: PAGE_SIZE });
+  const sort: FeedSort = sp.sort === "score" ? "score" : "time";
+  const { items: feed, total, page, totalPages } = await getFeed(db, { page: requestedPage, pageSize: PAGE_SIZE, sort });
   const status = await getSourceStatus(db);
   const stale = status.filter((s: any) => s.stale);
   const now = new Date();
@@ -50,11 +52,21 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ p
     <main className="page">
       <div className="page__head">
         <h1 className="page__title">今日信号</h1>
-        {total > 0 && (
-          <span className="page__count">
-            第 {page}/{totalPages} 页 · 共 {total} 条
-          </span>
-        )}
+        <div className="page__tools">
+          <div className="sort" role="group" aria-label="排序方式">
+            <a className="sort__btn" data-active={sort === "time"} href="/?sort=time">
+              最新
+            </a>
+            <a className="sort__btn" data-active={sort === "score"} href="/?sort=score">
+              按分数
+            </a>
+          </div>
+          {total > 0 && (
+            <span className="page__count">
+              第 {page}/{totalPages} 页 · 共 {total} 条
+            </span>
+          )}
+        </div>
       </div>
 
       {stale.length > 0 && (
@@ -81,17 +93,18 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ p
         <FeedList items={data} />
       )}
 
-      {data.length > 0 && <Pagination page={page} totalPages={totalPages} />}
+      {data.length > 0 && <Pagination page={page} totalPages={totalPages} sort={sort} />}
     </main>
   );
 }
 
-function Pagination({ page, totalPages }: { page: number; totalPages: number }) {
+function Pagination({ page, totalPages, sort }: { page: number; totalPages: number; sort: FeedSort }) {
+  const href = (p: number) => `/?sort=${sort}&page=${p}`;
   return (
     <nav className="pager" aria-label="分页">
-      {page > 1 ? <a href={`/?page=${page - 1}`}>← 上一页</a> : <span className="pager__disabled">← 上一页</span>}
+      {page > 1 ? <a href={href(page - 1)}>← 上一页</a> : <span className="pager__disabled">← 上一页</span>}
       <span>第 {page} / {totalPages} 页</span>
-      {page < totalPages ? <a href={`/?page=${page + 1}`}>下一页 →</a> : <span className="pager__disabled">下一页 →</span>}
+      {page < totalPages ? <a href={href(page + 1)}>下一页 →</a> : <span className="pager__disabled">下一页 →</span>}
     </nav>
   );
 }

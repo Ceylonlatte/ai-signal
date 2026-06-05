@@ -6,6 +6,7 @@ const NAV = [
   { href: "/", label: "信号流" },
   { href: "/topics", label: "话题" },
   { href: "/search", label: "搜索" },
+  { href: "/keywords", label: "关键词" },
   { href: "/status", label: "状态" },
   { href: "/suppressed", label: "已压制" },
 ] as const;

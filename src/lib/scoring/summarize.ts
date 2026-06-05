@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { config } from "../../config.js";
+import { recordModelUsage, type OpenRouterUsage } from "../usage.js";
 
 export interface BilingualSummary { titleZh: string; summaryEn: string; summaryZh: string; }
 
@@ -33,7 +34,8 @@ export async function summarizeBilingual(input: { title: string; text: string })
     signal: AbortSignal.timeout(SUMMARIZE_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`summarize ${res.status}: ${await res.text()}`);
-  const data = (await res.json()) as { choices: { message: { content: string } }[] };
+  const data = (await res.json()) as { choices: { message: { content: string } }[]; usage?: OpenRouterUsage };
+  await recordModelUsage("summarize", config.SCORING_MODEL, data.usage);
   const parsed = schema.parse(JSON.parse(data.choices[0]!.message.content));
   return { titleZh: parsed.title_zh, summaryEn: parsed.summary_en, summaryZh: parsed.summary_zh };
 }

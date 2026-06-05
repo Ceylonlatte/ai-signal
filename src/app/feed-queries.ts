@@ -9,6 +9,7 @@ type Db = any;
 
 interface Row {
   id: number; title: string; titleZh: string; url: string | null; source: string;
+  author: string | null;
   createdAt: string; metrics: Record<string, number>;
   q: number; novelty: number; summaryZh: string; summaryEn: string;
   topicTags: unknown; reason: string;
@@ -25,7 +26,7 @@ async function candidates(db: Db, cap: number): Promise<Row[]> {
       SELECT count(*)::int AS n FROM feedback
       WHERE signal = 'up' AND created_at > now() - ${win}::interval
     )
-    SELECT i.id, i.title, s.title_zh AS "titleZh", i.url, i.source,
+    SELECT i.id, i.title, s.title_zh AS "titleZh", i.url, i.source, i.author AS "author",
            i.created_at AS "createdAt", i.metrics,
            s.composite AS q, s.novelty, s.summary_zh AS "summaryZh", s.summary_en AS "summaryEn",
            s.topic_tags AS "topicTags", s.reason,
@@ -46,7 +47,10 @@ async function candidates(db: Db, cap: number): Promise<Row[]> {
   return (res.rows ?? res) as Row[];
 }
 
-function ranked(rows: Row[]): Array<Row & { r: number }> {
+type Ranked = Row & { r: number };
+
+// Attach the live ranking score `r` to each row (imposes no ordering itself).
+function withRanking(rows: Row[]): Ranked[] {
   const now = new Date();
   return rows.map((row) => {
     const hours = hoursSince(new Date(row.createdAt), now);
@@ -56,29 +60,44 @@ function ranked(rows: Row[]): Array<Row & { r: number }> {
     const aff = likeAffinity(row.maxLikeSim, Number(row.nUp ?? 0));
     const r = computeRanking({ q: row.q ?? 0, platformHeat: heat, novelty: row.novelty ?? 0, likeAffinity: aff });
     return { ...row, r };
-  }).sort((a, b) => b.r - a.r);
+  });
 }
 
+const byScore = (a: Ranked, b: Ranked): number => b.r - a.r;
+const byTime = (a: Ranked, b: Ranked): number =>
+  new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+
+function ranked(rows: Row[]): Ranked[] {
+  return withRanking(rows).sort(byScore);
+}
+
+export type FeedSort = "time" | "score";
+
 export interface FeedPage {
-  items: Array<Row & { r: number }>;
+  items: Ranked[];
   total: number;
   page: number;
   pageSize: number;
   totalPages: number;
+  sort: FeedSort;
 }
 
-// Ranks the whole (non-suppressed) candidate set, then returns one page of it.
-// No hard item cap on the feed — navigation is via pages instead.
-export async function getFeed(db: Db, opts: { page?: number; pageSize?: number }): Promise<FeedPage> {
+// Ranks the whole (non-suppressed) candidate set, orders it by the requested
+// sort (recency by default, ranking score on demand), and returns one page.
+export async function getFeed(
+  db: Db,
+  opts: { page?: number; pageSize?: number; sort?: FeedSort },
+): Promise<FeedPage> {
+  const sort: FeedSort = opts.sort === "score" ? "score" : "time";
   const pageSize = Math.max(1, opts.pageSize ?? 30);
   const rows = await candidates(db, MAX_CANDIDATES);
   const visible = rows.filter((row) => !isSuppressed(row.maxDislikeSim));
-  const all = ranked(visible);
+  const all = withRanking(visible).sort(sort === "score" ? byScore : byTime);
   const total = all.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const page = Math.min(Math.max(1, opts.page ?? 1), totalPages);
   const start = (page - 1) * pageSize;
-  return { items: all.slice(start, start + pageSize), total, page, pageSize, totalPages };
+  return { items: all.slice(start, start + pageSize), total, page, pageSize, totalPages, sort };
 }
 
 export async function getSuppressed(db: Db, opts: { limit: number }) {

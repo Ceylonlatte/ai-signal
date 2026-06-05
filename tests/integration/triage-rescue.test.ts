@@ -6,11 +6,12 @@ import { db, pool, truncateAll } from "../setup/db.js";
 // embeddings are vector(2048); orthogonal basis vector with 1 at index i.
 const e = (i: number) => Array.from({ length: 2048 }, (_, k) => (k === i ? 1 : 0));
 
-// Borderline LLM value (50/100 -> llmValue 0.5). With ~2 keyword hits (relevance ~0.667)
-// and trust 0.5, Q ≈ 0.525 -> below the 0.55 gate but inside the rescue band [0.45,0.55).
+// Borderline LLM value (53/100 -> llmValue 0.53). With one keyword hit ("Agent"
+// -> relevance 0.333), Q_WEIGHT_REL=0.30 and trust 0.5, Q ≈ 0.48 -> below the
+// 0.55 gate but inside the rescue band [0.45, 0.55).
 vi.mock("../../src/lib/scoring/llm.js", () => ({
   scoreBatch: vi.fn(async (cands: { id: number }[]) =>
-    new Map(cands.map((c) => [c.id, { id: c.id, value: 50, topics: [], reason: "r" }]))),
+    new Map(cands.map((c) => [c.id, { id: c.id, value: 53, topics: [], reason: "r" }]))),
 }));
 // The borderline candidate embeds identical to the liked reference (e(0)).
 vi.mock("../../src/lib/embeddings.js", () => ({

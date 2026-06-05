@@ -225,6 +225,39 @@ button {
   white-space: nowrap;
 }
 
+/* ─── Feed sort toggle (segmented control) ──────────────── */
+.page__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+.sort {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+}
+.sort__btn {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease-out-quint),
+    background var(--dur-fast) var(--ease-out-quint);
+}
+.sort__btn[data-active="true"] {
+  background: var(--surface);
+  color: var(--text-strong);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.sort__btn:hover {
+  color: var(--text-strong);
+}
+
 /* ─── Notice (stale sources / inline status) ────────────── */
 
 .notice {
@@ -383,6 +416,10 @@ button {
 .item__source {
   color: var(--text-muted);
   font-weight: 700;
+}
+.item__author {
+  color: var(--text-muted);
+  font-weight: 600;
 }
 .meta-dot {
   color: var(--ash);

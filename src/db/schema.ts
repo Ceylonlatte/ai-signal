@@ -105,3 +105,28 @@ export const topicTrends = pgTable("topic_trends", {
   itemCount: integer("item_count").notNull().default(0),
   scoreSum: doublePrecision("score_sum").notNull().default(0),
 }, (t) => ({ uq: uniqueIndex("topic_trends_uq").on(t.topicId, t.bucketDate) }));
+
+// Per-call accounting for every paid model API request (scoring, summarize,
+// topic-label, embeddings). Token counts + cost come straight from OpenRouter's
+// `usage` object, which is returned automatically on every response.
+export const modelUsage = pgTable("model_usage", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  kind: text("kind").notNull(), // score | summarize | label | embed
+  model: text("model").notNull(),
+  promptTokens: integer("prompt_tokens").notNull().default(0),
+  completionTokens: integer("completion_tokens").notNull().default(0),
+  totalTokens: integer("total_tokens").notNull().default(0),
+  cost: doublePrecision("cost").notNull().default(0), // OpenRouter credits (USD)
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// User-managed relevance keywords (replaces the hardcoded WATCHED_KEYWORDS list).
+// `embedding` is the term's vector for semantic matching; nullable until embedded.
+export const keywords = pgTable("keywords", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  term: text("term").notNull(),
+  caseSensitive: boolean("case_sensitive").notNull().default(false),
+  enabled: boolean("enabled").notNull().default(true),
+  embedding: vector("embedding", { dimensions: 2048 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({ termUq: uniqueIndex("keywords_term_uq").on(t.term) }));

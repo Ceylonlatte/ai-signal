@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { config } from "../../config.js";
 import { RUBRIC } from "./rubric.js";
+import { recordModelUsage, type OpenRouterUsage } from "../usage.js";
 import type { Candidate } from "./prefilter.js";
 
 // Lenient: real LLMs occasionally over-produce topics or push value out of
@@ -71,7 +72,8 @@ async function scoreChunk(chunk: Candidate[]): Promise<ScoreResult[]> {
     signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${await res.text()}`);
-  const data = (await res.json()) as { choices: { message: { content: string } }[] };
+  const data = (await res.json()) as { choices: { message: { content: string } }[]; usage?: OpenRouterUsage };
+  await recordModelUsage("score", config.SCORING_MODEL, data.usage);
   const parsed = responseSchema.parse(JSON.parse(data.choices[0]!.message.content));
   return parsed.results;
 }
@@ -90,6 +92,7 @@ export async function labelTopic(titles: string[]): Promise<string> {
     signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`label ${res.status}`);
-  const data = (await res.json()) as { choices: { message: { content: string } }[] };
+  const data = (await res.json()) as { choices: { message: { content: string } }[]; usage?: OpenRouterUsage };
+  await recordModelUsage("label", config.SCORING_MODEL, data.usage);
   return data.choices[0]!.message.content.trim().slice(0, 60);
 }
