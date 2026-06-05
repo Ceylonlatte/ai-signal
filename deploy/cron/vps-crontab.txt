@@ -1,5 +1,5 @@
-# HN every hour, RSS every 30 min (run inside the app container / image)
-0 * * * *  cd /app && DATABASE_URL=$DATABASE_URL node_modules/.bin/tsx bin/collect-hn.ts  >> /var/log/aisignal-hn.log 2>&1
-*/30 * * * *  cd /app && DATABASE_URL=$DATABASE_URL node_modules/.bin/tsx bin/collect-rss.ts >> /var/log/aisignal-rss.log 2>&1
+# HN every 4 hours, RSS every 24 hours (run inside the app container / image)
+0 */4 * * *  cd /app && DATABASE_URL=$DATABASE_URL node_modules/.bin/tsx bin/collect-hn.ts  >> /var/log/aisignal-hn.log 2>&1
+0 0 * * *  cd /app && DATABASE_URL=$DATABASE_URL node_modules/.bin/tsx bin/collect-rss.ts >> /var/log/aisignal-rss.log 2>&1
 # Daily retention cleanup at 04:00 (favorites preserved)
 0 4 * * *  cd /app && DATABASE_URL=$DATABASE_URL node_modules/.bin/tsx bin/cleanup.ts >> /var/log/aisignal-cleanup.log 2>&1

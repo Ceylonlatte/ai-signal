@@ -95,8 +95,8 @@ Put the dashboard behind HTTPS (Caddy/Traefik/nginx + Let's Encrypt) or restrict
 Edit the host crontab (`crontab -e`) to call the scripts inside the running `worker` container (it has the code + `.env`):
 
 ```cron
-0 * * * *   cd /opt/ai-signal && docker compose exec -T worker npm run collect:hn  >> /var/log/aisignal-hn.log 2>&1
-*/30 * * * * cd /opt/ai-signal && docker compose exec -T worker npm run collect:rss >> /var/log/aisignal-rss.log 2>&1
+0 */4 * * * cd /opt/ai-signal && docker compose exec -T worker npm run collect:hn  >> /var/log/aisignal-hn.log 2>&1
+0 0 * * *   cd /opt/ai-signal && docker compose exec -T worker npm run collect:rss >> /var/log/aisignal-rss.log 2>&1
 0 4 * * *   cd /opt/ai-signal && docker compose exec -T worker npm run cleanup      >> /var/log/aisignal-cleanup.log 2>&1
 ```
 
