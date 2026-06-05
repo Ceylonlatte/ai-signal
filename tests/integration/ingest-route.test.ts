@@ -46,3 +46,29 @@ it("maps raw reddit items and stores them", async () => {
   });
   expect(await res.json()).toEqual({ inserted: 1, mapped: 1 });
 });
+
+it("maps raw twitter items with feed + replies", async () => {
+  process.env.INGEST_TOKEN = "dev-token";
+  const { POST } = await importRoute();
+  const res = await POST(new Request("http://x/api/ingest", {
+    method: "POST",
+    headers: { authorization: "Bearer dev-token" },
+    body: JSON.stringify({
+      source: "twitter",
+      feed: "following",
+      items: [{
+        id: "t1", author: "alice", text: "hi there",
+        likes: 4, retweets: 2, replies: 1,
+        created_at: "Thu Jun 04 12:54:33 +0000 2026",
+        url: "https://x.com/alice/status/t1",
+      }],
+    }),
+  }));
+  expect(res.status).toBe(200);
+  const rows = await db.select().from(rawItems);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]!.payload).toMatchObject({
+    source: "twitter", externalId: "t1", feed: "following",
+    title: "hi there", metrics: { likes: 4, retweets: 2, replies: 1 },
+  });
+});
