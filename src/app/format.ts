@@ -34,8 +34,17 @@ export function strengthLabel(s: Strength): string {
   return s === "high" ? "强" : s === "mid" ? "中" : "弱";
 }
 
-export function strengthPips(s: Strength): number {
-  return s === "high" ? 3 : s === "mid" ? 2 : 1;
+// The same view-relative normalization as `relativeStrength`, surfaced as a
+// 0–100 "signal score" for the dial. Degenerate (all-equal) views read 50.
+export function relativeScore(
+  r: number | null | undefined,
+  min: number,
+  max: number,
+): number {
+  const v = typeof r === "number" ? r : 0;
+  if (!(max > min)) return 50;
+  const n = (v - min) / (max - min);
+  return Math.round(Math.min(1, Math.max(0, n)) * 100);
 }
 
 export function relativeTime(iso: string, now: Date = new Date()): string {

@@ -9,6 +9,10 @@
   --violet: #594ff4;
   --violet-hover: #4840d4;
   --violet-weak: rgba(89, 79, 244, 0.1);
+  /* The one semantic exception to the monochrome rule — errors + destructive
+     actions only. Matches the established #b4231f used by feed/vote errors. */
+  --danger: #b4231f;
+  --danger-weak: rgba(180, 35, 31, 0.1);
   --ink: #1f1f1f;
   --graphite: #333333;
   --slate: #5d5d5d;
@@ -53,7 +57,7 @@
     "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
 
   /* Layout */
-  --reading-width: 760px;
+  --reading-width: 900px;
   --shell-height: 60px;
 
   /* Z-index scale (semantic, never arbitrary) */
@@ -66,8 +70,12 @@
 
   /* Motion */
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --dur-fast: 120ms;
   --dur: 180ms;
+  --dur-slow: 320ms;
+  --dur-reveal: 560ms;
 }
 
 *,
@@ -123,6 +131,60 @@ button {
   border-radius: var(--space-1);
 }
 
+/* ─── Motion: global atmosphere ─────────────────────────────
+   Scroll-aware, depth-aware chrome. Violet stays tied to status
+   (reading progress) / action; pure atmosphere rides on light,
+   blur and shadow so the porcelain discipline survives. */
+
+/* Soft crossfade between server navigations (sort / pagination /
+   nav). Kills the force-dynamic full-page skeleton flash. Chromium
+   MPA only; other engines fall back to instant nav. */
+@view-transition {
+  navigation: auto;
+}
+::view-transition-group(sort-active) {
+  animation-duration: var(--dur-slow);
+  animation-timing-function: var(--ease-out-expo);
+}
+
+/* Top-of-page reading-progress bar, scrubbed by scroll position. */
+.scroll-progress {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 2px;
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  background: var(--violet);
+  z-index: var(--z-tooltip);
+  pointer-events: none;
+}
+
+@supports (animation-timeline: scroll()) {
+  .scroll-progress {
+    animation: scroll-progress linear both;
+    animation-timeline: scroll(root block);
+  }
+  @keyframes scroll-progress {
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  /* Header earns depth as content slides beneath it. */
+  .shell {
+    animation: shell-lift linear both;
+    animation-timeline: scroll(root block);
+    animation-range: 0 96px;
+  }
+  @keyframes shell-lift {
+    to {
+      background: color-mix(in srgb, var(--porcelain) 78%, transparent);
+      border-bottom-color: transparent;
+      box-shadow: 0 1px 0 var(--border), 0 14px 28px -22px rgba(0, 0, 0, 0.4);
+    }
+  }
+}
+
 /* ─── App shell ─────────────────────────────────────────── */
 
 .shell {
@@ -138,6 +200,8 @@ button {
   background: color-mix(in srgb, var(--porcelain) 88%, transparent);
   backdrop-filter: saturate(180%) blur(12px);
   border-bottom: 1px solid var(--border);
+  /* Persist the chrome across view transitions so it never crossfades. */
+  view-transition-name: shell;
 }
 
 .shell__brand {
@@ -217,6 +281,24 @@ button {
 .page__title {
   font-size: 30px;
   line-height: 1.1;
+  animation: enter-rise 600ms var(--ease-out-expo) both;
+}
+.page__tools {
+  animation: enter-rise 600ms var(--ease-out-expo) 90ms both;
+}
+
+/* One-time arrival for the page head — the "today's signal" moment. */
+@keyframes enter-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
 }
 .page__count {
   color: var(--text-faint);
@@ -253,6 +335,8 @@ button {
   background: var(--surface);
   color: var(--text-strong);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  /* The active chip slides between options across navigation. */
+  view-transition-name: sort-active;
 }
 .sort__btn:hover {
   color: var(--text-strong);
@@ -292,71 +376,111 @@ button {
   padding: var(--space-5) var(--space-4);
   border-bottom: 1px solid var(--border);
   border-radius: var(--radius-md);
-  transition: background var(--dur-fast) var(--ease-out-quint);
+  transition: background var(--dur) var(--ease-out-quart),
+    box-shadow var(--dur) var(--ease-out-quart),
+    transform var(--dur) var(--ease-out-quart);
 }
 .item:hover {
   background: var(--cloud);
+  transform: translateY(-2px);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 16px 32px -24px rgba(0, 0, 0, 0.35);
 }
 
-/* Signal-strength badge — the ranking cue, made unmistakable */
+/* Scroll-reveal: items rise + sharpen as they enter view. Hidden from
+   the very first paint via CSS (not a JS-toggled class) so the reveal
+   never flashes visible-then-hidden. Fallbacks guarantee content for
+   no-JS (<noscript> in layout), reduced-motion (below), and any env
+   where the observer can't run (JS sets data-animate="off"). --i is the
+   index *within* each IntersectionObserver batch — the first screen
+   staggers, a lone item scrolled into view reveals at once. Reveal uses
+   animation, hover uses transition, so they never fight over transform. */
+.feed .item {
+  opacity: 0;
+}
+.feed .item.is-in {
+  opacity: 1;
+  animation: item-reveal var(--dur-reveal) var(--ease-out-expo) backwards;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+.feed[data-animate="off"] .item {
+  opacity: 1;
+  animation: none;
+}
+@keyframes item-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+
+/* Signal-strength dial — the ranking cue, made unmistakable */
 .item__top {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-3);
 }
 .signal {
   flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 24px;
-  padding: 0 var(--space-3);
-  border-radius: var(--radius-pill);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  justify-content: center;
   align-self: flex-start;
-  position: relative;
-  top: 2px;
-  white-space: nowrap;
 }
-.signal[data-strength="high"] {
-  background: var(--ink);
-  color: #fff;
+.signal__ring {
+  display: block;
 }
-.signal[data-strength="mid"] {
-  background: var(--cloud);
-  color: var(--graphite);
-  border: 1px solid var(--border);
+/* A monochrome dial: the arc length reads the 0–100 signal score, and a tonal
+   ladder (ink / graphite / ash) lets the strongest dials dominate the scan
+   while the weak ones recede. Color stays out of it — Signal Violet is
+   reserved for action (votes, links). */
+.signal__track {
+  stroke: var(--mist);
 }
-.signal[data-strength="low"] {
-  background: transparent;
-  color: var(--text-faint);
-  border: 1px solid var(--border);
+.signal__fill {
+  stroke: var(--ash);
 }
-.signal__bars {
-  display: inline-flex;
-  align-items: flex-end;
-  gap: 2px;
-  height: 12px;
+.signal__num {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  fill: var(--text-faint);
 }
-.signal__bars i {
-  width: 3px;
-  border-radius: 1px;
-  background: currentColor;
-  opacity: 0.3;
+.signal[data-strength="high"] .signal__fill {
+  stroke: var(--ink);
 }
-.signal__bars i:nth-child(1) {
-  height: 5px;
+.signal[data-strength="high"] .signal__num {
+  fill: var(--ink);
 }
-.signal__bars i:nth-child(2) {
-  height: 8px;
+.signal[data-strength="mid"] .signal__fill {
+  stroke: var(--graphite);
 }
-.signal__bars i:nth-child(3) {
-  height: 12px;
+.signal[data-strength="mid"] .signal__num {
+  fill: var(--graphite);
 }
-.signal__bars i[data-on] {
-  opacity: 1;
+.signal[data-strength="low"] .signal__track {
+  stroke: #efefef;
+}
+/* The dial sweeps its arc in as the card reveals — a brief, state-bearing
+   draw, not decoration. Active only on `.is-in`; reduced-motion collapses the
+   keyframe to its filled rest state via the global guard. */
+.feed .item.is-in .signal__fill {
+  animation: signal-draw var(--dur-reveal) var(--ease-out-expo) backwards;
+  animation-delay: calc(var(--i, 0) * 45ms + 110ms);
+}
+@keyframes signal-draw {
+  from {
+    stroke-dashoffset: var(--score, 100);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 
 .item__title {
@@ -382,18 +506,32 @@ button {
 }
 
 .item__reason {
-  margin: var(--space-2) 0 0;
+  margin: 6px 0 0;
   color: var(--text);
   font-size: 15px;
-  line-height: 1.55;
+  line-height: 1.5;
   text-wrap: pretty;
 }
 
 .item__summary {
-  margin: var(--space-2) 0 0;
+  margin: 6px 0 0;
   color: var(--text-muted);
   font-size: 14px;
-  line-height: 1.55;
+  line-height: 1.5;
+}
+/* EN summary reveals by animating grid rows (0fr -> 1fr), never raw
+   height, so it expands smoothly without layout-thrash. */
+.item__en {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-slow) var(--ease-out-quart);
+}
+.item__en[data-open="true"] {
+  grid-template-rows: 1fr;
+}
+.item__en-inner {
+  min-height: 0;
+  overflow: hidden;
 }
 .item__summary-en {
   margin: var(--space-2) 0 0;
@@ -402,6 +540,11 @@ button {
   color: var(--text-faint);
   font-size: 13.5px;
   line-height: 1.5;
+  opacity: 0;
+  transition: opacity var(--dur-slow) var(--ease-out-quart);
+}
+.item__en[data-open="true"] .item__summary-en {
+  opacity: 1;
 }
 
 .item__meta {
@@ -409,7 +552,7 @@ button {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2) var(--space-3);
-  margin-top: var(--space-3);
+  margin-top: var(--space-2);
   color: var(--text-faint);
   font-size: 13px;
 }
@@ -464,6 +607,7 @@ button {
   margin-left: auto;
 }
 .vote__btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -477,13 +621,21 @@ button {
   color: var(--text-muted);
   font-size: 14px;
   line-height: 1;
+  --ring: var(--violet);
   transition: border-color var(--dur-fast) var(--ease-out-quint),
     color var(--dur-fast) var(--ease-out-quint),
-    background var(--dur-fast) var(--ease-out-quint);
+    background var(--dur-fast) var(--ease-out-quint),
+    transform var(--dur-fast) var(--ease-out-quart);
 }
 .vote__btn:hover:not(:disabled) {
   border-color: var(--violet);
   color: var(--violet);
+}
+.vote__btn:active:not(:disabled) {
+  transform: scale(0.9);
+}
+.vote__btn[data-kind="down"] {
+  --ring: var(--ink);
 }
 .vote__btn[data-active="true"] {
   background: var(--violet);
@@ -498,28 +650,105 @@ button {
   opacity: 0.55;
   cursor: default;
 }
+.vote__icon {
+  display: block;
+}
+
+/* The signal lands: a one-shot ring blooms and the thumb pops the
+   moment a vote turns active (Principle #4 — feedback you can see). */
+.vote__btn::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+}
+.vote__btn[data-active="true"]::after {
+  animation: vote-ring var(--dur-reveal) var(--ease-out-expo);
+}
+.vote__btn[data-active="true"] .vote__icon {
+  animation: icon-pop 380ms var(--ease-out-expo);
+}
+@keyframes vote-ring {
+  from {
+    opacity: 0.6;
+    box-shadow: 0 0 0 0 var(--ring);
+  }
+  to {
+    opacity: 0;
+    box-shadow: 0 0 0 9px transparent;
+  }
+}
+@keyframes icon-pop {
+  0% {
+    transform: scale(1);
+  }
+  42% {
+    transform: scale(1.3);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
 .vote__err {
   color: #b4231f;
   font-size: 12px;
 }
 
-/* ─── Pagination ────────────────────────────────────────── */
+/* ─── Infinite scroll footer ────────────────────────────── */
 
-.pager {
+.feed-foot {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: var(--space-4);
-  margin-top: var(--space-10);
-  color: var(--text-muted);
-  font-size: 14px;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+}
+.feed-status {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
-.pager a {
+.feed-more {
+  height: 38px;
+  padding: 0 var(--space-6);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
   color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 600;
+  transition: border-color var(--dur-fast) var(--ease-out-quint),
+    color var(--dur-fast) var(--ease-out-quint),
+    background var(--dur-fast) var(--ease-out-quint);
 }
-.pager__disabled {
-  color: var(--ash);
+.feed-more:hover:not(:disabled) {
+  border-color: var(--violet);
+  color: var(--violet);
+}
+.feed-more:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.feed-loading {
+  width: 100%;
+}
+.feed-end {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 13px;
+}
+.feed-error {
+  margin: 0;
+  color: #b4231f;
+  font-size: 13px;
+}
+.feed-sentinel {
+  width: 100%;
+  height: 1px;
 }
 
 /* ─── Empty / error / skeleton ──────────────────────────── */
@@ -542,6 +771,7 @@ button {
   border-bottom: 1px solid var(--border);
 }
 .skeleton-line {
+  display: block;
   height: 14px;
   border-radius: var(--radius-sm);
   background: linear-gradient(
@@ -560,7 +790,608 @@ button {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════
+   Secondary surfaces — topics / search / keywords / status /
+   suppressed. Same porcelain-and-violet discipline as the feed:
+   monochrome by default, violet only for action + active state,
+   --danger the lone semantic exception (errors / destructive).
+   ═══════════════════════════════════════════════════════════ */
+
+/* Lead paragraph under a page title — the one-line "what this is". */
+.page__lead {
+  max-width: 68ch;
+  margin: 0 0 var(--space-6);
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1.6;
+  text-wrap: pretty;
+  animation: enter-rise 600ms var(--ease-out-expo) 60ms both;
+}
+.page__lead strong {
+  color: var(--text-strong);
+  font-weight: 700;
+}
+.page__lead em {
+  font-style: normal;
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* A live-refreshing page (status) must not replay its arrival on every
+   reload, and a skeleton fallback must not animate then hand off to a
+   second animated arrival — pin the head to its rest state in both. */
+.page.is-live .page__title,
+.page.is-live .page__lead,
+.page.is-static .page__title,
+.page.is-static .page__lead {
+  animation: none;
+}
+
+/* Wider canvas for dense data tables (status). */
+.page.is-wide {
+  max-width: 1080px;
+}
+
+/* ─── Buttons — the pill vocabulary (DESIGN: Pill Primary + Ghost) ─── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: 38px;
+  padding: 0 var(--space-5);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease-out-quint),
+    border-color var(--dur-fast) var(--ease-out-quint),
+    color var(--dur-fast) var(--ease-out-quint),
+    transform var(--dur-fast) var(--ease-out-quart);
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.btn--primary {
+  background: var(--violet);
+  color: #fff;
+}
+.btn--primary:hover:not(:disabled) {
+  background: var(--violet-hover);
+}
+.btn--ghost {
+  background: var(--surface);
+  border-color: var(--border-strong);
+  color: var(--text-strong);
+}
+.btn--ghost:hover:not(:disabled) {
+  border-color: var(--violet);
+  color: var(--violet);
+}
+
+/* Small destructive text button (keyword delete). */
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--text-faint);
+  font-size: 13px;
+  font-weight: 600;
+  transition: background var(--dur-fast) var(--ease-out-quint),
+    color var(--dur-fast) var(--ease-out-quint);
+}
+.btn-danger:hover {
+  background: var(--danger-weak);
+  color: var(--danger);
+}
+
+/* ─── Text input ────────────────────────────────────────── */
+
+.field {
+  height: 38px;
+  padding: 0 var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 15px;
+  transition: border-color var(--dur-fast) var(--ease-out-quint),
+    box-shadow var(--dur-fast) var(--ease-out-quint);
+}
+.field::placeholder {
+  color: var(--text-faint);
+}
+.field:hover {
+  border-color: var(--smoke);
+}
+.field:focus {
+  outline: none;
+  border-color: var(--violet);
+  box-shadow: 0 0 0 3px var(--violet-weak);
+}
+
+/* ─── Segmented control — radio variant of .sort (search mode) ─── */
+
+.seg {
+  display: inline-flex;
+  flex: none;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+}
+.seg__opt {
+  position: relative;
+  display: inline-flex;
+}
+.seg__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.seg__face {
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.7;
+  white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease-out-quint),
+    background var(--dur-fast) var(--ease-out-quint);
+}
+.seg__opt:hover .seg__face {
+  color: var(--text-strong);
+}
+.seg__input:checked + .seg__face {
+  background: var(--surface);
+  color: var(--text-strong);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.seg__input:focus-visible + .seg__face {
+  outline: 2px solid var(--violet);
+  outline-offset: 2px;
+}
+
+/* ─── Toggle switch (keyword enable — "active state" → violet) ─── */
+
+.switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.switch__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.switch__track {
+  width: 38px;
+  height: 22px;
+  border-radius: var(--radius-pill);
+  background: var(--ash);
+  transition: background var(--dur) var(--ease-out-quint);
+}
+.switch__track::after {
+  content: "";
+  display: block;
+  width: 18px;
+  height: 18px;
+  margin: 2px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform var(--dur) var(--ease-out-quint);
+}
+.switch__input:checked + .switch__track {
+  background: var(--violet);
+}
+.switch__input:checked + .switch__track::after {
+  transform: translateX(16px);
+}
+.switch__input:focus-visible + .switch__track {
+  outline: 2px solid var(--violet);
+  outline-offset: 2px;
+}
+.switch__input:disabled + .switch__track {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ─── Badge — small status pill (dot + label, monochrome) ─── */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--cloud);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ash);
+}
+.badge--on {
+  color: var(--text-strong);
+}
+.badge--on .badge__dot {
+  background: var(--ink);
+}
+
+/* ─── Card + section scaffold ───────────────────────────── */
+
+.section {
+  margin-top: var(--space-10);
+}
+.section__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.section__title {
+  font-size: 18px;
+  line-height: 1.2;
+}
+.section__note {
+  max-width: 68ch;
+  margin: 0 0 var(--space-4);
+  color: var(--text-muted);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+/* ─── Data table ────────────────────────────────────────── */
+
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.table th {
+  padding: var(--space-3);
+  text-align: left;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-sunken);
+}
+.table td {
+  padding: var(--space-3);
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.table tbody tr {
+  transition: background var(--dur-fast) var(--ease-out-quint);
+}
+.table tbody tr:hover {
+  background: var(--surface-sunken);
+}
+.table .num {
+  text-align: right;
+}
+.table .strong {
+  color: var(--text-strong);
+  font-weight: 600;
+}
+.table .muted {
+  color: var(--text-faint);
+}
+.table__total td {
+  color: var(--text-strong);
+  font-weight: 700;
+  border-top: 1px solid var(--border-strong);
+}
+
+/* ─── Stat tiles ────────────────────────────────────────── */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-3);
+}
+.stat {
+  padding: var(--space-4);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.stat__label {
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 600;
+}
+.stat__value {
+  margin-top: 6px;
+  color: var(--text-strong);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.stat__hint {
+  margin-top: 4px;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+/* ─── Pipeline progress (status) — monochrome, like the dial ─── */
+
+.pipe {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+.pipe__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.pipe__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.pipe__label {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+}
+.pipe__val {
+  color: var(--text-faint);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pipe__pending {
+  color: var(--text-muted);
+}
+.bar {
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--mist);
+  overflow: hidden;
+}
+.bar__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ink);
+  transition: width var(--dur-slow) var(--ease-out-expo);
+}
+
+/* Running / idle status dot (status header — "status" use of violet). */
+.run-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ash);
+  vertical-align: middle;
+}
+.run-dot[data-running="true"] {
+  background: var(--violet);
+  animation: run-pulse 1.6s var(--ease-out-quint) infinite;
+}
+@keyframes run-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--violet-weak);
+  }
+  50% {
+    box-shadow: 0 0 0 5px transparent;
+  }
+}
+
+/* ─── Notice variant — warnings / alerts (--danger accent) ─── */
+
+.notice--alert {
+  background: var(--danger-weak);
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
+  color: var(--danger);
+}
+.notice--alert .notice__dot {
+  background: var(--danger);
+}
+
+/* ─── Topics — a ranked board of "what AI is talking about" ─── */
+
+.topics {
+  display: flex;
+  flex-direction: column;
+}
+.topic {
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-2);
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  transition: background var(--dur) var(--ease-out-quart);
+}
+.topic:hover {
+  background: var(--surface-sunken);
+}
+.topic__rank {
+  color: var(--text-faint);
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.topic--top .topic__rank {
+  color: var(--violet);
+}
+.topic__body {
+  min-width: 0;
+}
+.topic__label {
+  display: block;
+  color: var(--text-strong);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.topic:hover .topic__label {
+  color: var(--violet);
+}
+.topic__bar {
+  display: block;
+  margin-top: 8px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--mist);
+  overflow: hidden;
+}
+.topic__bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ash);
+}
+.topic--top .topic__bar-fill {
+  background: var(--ink);
+}
+.topic__meta {
+  color: var(--text-faint);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-align: right;
+}
+
+/* ─── Search ────────────────────────────────────────────── */
+
+.search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+.search__field {
+  flex: 1 1 260px;
+}
+.search-hint {
+  margin: 0 0 var(--space-6);
+  color: var(--text-faint);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+}
+.result {
+  display: block;
+  padding: var(--space-4) var(--space-2);
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  transition: background var(--dur) var(--ease-out-quart);
+}
+.result:hover {
+  background: var(--surface-sunken);
+  text-decoration: none;
+}
+.result__title {
+  color: var(--text-strong);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.result:hover .result__title {
+  color: var(--violet);
+}
+.result__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-top: 5px;
+  color: var(--text-faint);
+  font-size: 13px;
+}
+.result__sim {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Keywords admin ────────────────────────────────────── */
+
+.kw-form {
+  display: flex;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-3);
+}
+.kw-form__field {
+  flex: 1;
+  min-width: 0;
+}
+.kw-cell-term {
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
 /* ─── Responsive ────────────────────────────────────────── */
+
+@media (max-width: 600px) {
+  .topic {
+    grid-template-columns: 24px 1fr;
+    gap: var(--space-3);
+  }
+  .topic__meta {
+    grid-column: 2;
+    text-align: left;
+  }
+  .section {
+    margin-top: var(--space-8);
+  }
+}
 
 @media (max-width: 600px) {
   .page {
@@ -587,5 +1418,16 @@ button {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+  @view-transition {
+    navigation: none;
+  }
+  .scroll-progress {
+    display: none;
+  }
+  /* Reduced motion: skip the reveal entirely, show everything at rest. */
+  .feed .item {
+    opacity: 1;
+    animation: none;
   }
 }

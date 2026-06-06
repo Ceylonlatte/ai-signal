@@ -92,7 +92,7 @@ White or Cloud (#f6f6f6) background, 36px border-radius, 32px internal padding. 
 ### FAQ Accordion Item
 **Role:** Expandable question/answer panel
 
-Cloud (#f6f6f6) background, 16px border-radius, padding 20px 24px. Question text in Aeonik 500 at 16px Inkstone, with a small chevron icon on the right. Closed by default; expanded reveals body text below in lighter Slate. No animation emphasis — the toggle is instant and quiet.
+Cloud (#f6f6f6) background, 16px border-radius, padding 20px 24px. Question text in Aeonik 500 at 16px Inkstone, with a small chevron icon on the right. Closed by default; expands with a smooth `grid-template-rows` height transition (see ## Motion), body text below in lighter Slate, chevron rotating.
 
 ### Navigation Bar
 **Role:** Top-of-page global navigation
@@ -144,7 +144,27 @@ Obsidian (#000000) or Inkstone (#1f1f1f) background, white and Slate text. Links
 - Do not use serif, slab, or display fonts — Aeonik (or Inter/DM Sans substitute) is the only typeface
 - Do not set body text above 16px or headings below 26px — the type scale jumps are deliberate
 - Do not use emoji or multicolor icon sets — icons are monoline, monocolor, 1.5–2px stroke
-- Do not add animations, parallax, or scroll-triggered effects — the system is static and clinical
+- Motion is now a first-class layer (see ## Motion) — keep it state-bearing and brief, never decorative-only, never bounce/elastic, and always provide a `prefers-reduced-motion` fallback
+
+## Motion
+
+The canvas is no longer static. Motion is a first-class layer that conveys state and depth, built from light, blur, transform and soft shadow so the porcelain-and-violet discipline survives. Violet in motion stays tied to status (reading progress) and action (vote feedback); pure atmosphere rides on neutral light and shadow. Every effect degrades under `prefers-reduced-motion` to a crossfade or instant state, and content is never gated on JS (CSS-hidden reveals ship `<noscript>` and reduced-motion fallbacks).
+
+**Tokens** (`globals.css`): easings `--ease-out-quart`, `--ease-out-quint`, `--ease-out-expo`; durations `--dur-fast` 120ms, `--dur` 180ms, `--dur-slow` 320ms, `--dur-reveal` 560ms. No bounce, no elastic.
+
+| Moment | Motion | Material / timing |
+|--------|--------|-------------------|
+| Page-head arrival | One-time blur-in + rise, title then tools | translate + blur + opacity, expo, 600ms |
+| Feed item reveal | Rise + sharpen as it enters view; first screen staggers per observer batch | transform + blur + opacity, expo, 560ms |
+| Signal dial | Radial arc sweeps from 0 up to the item's 0–100 score as the card reveals | `stroke-dashoffset` draw on `.is-in`, expo, 560ms, +110ms after the card |
+| Reading progress | Top violet bar scrubbed by scroll | scroll-driven scaleX, `animation-timeline: scroll()` |
+| Sticky header | Gains blur + soft shadow as content slides under | scroll-driven, range 0–96px |
+| Navigation (sort / pagination / nav) | Soft crossfade + active sort chip slides between options | View Transitions API (MPA), `view-transition-name: sort-active` / `shell` |
+| Vote | Press scale 0.9, then a one-shot ring blooms + thumb pops on activate | transform + box-shadow ring, expo |
+| Item hover | Subtle lift | translateY(-2px) + soft shadow, 180ms |
+| EN summary | Smooth expand / collapse | `grid-template-rows` 0fr↔1fr + fade, 320ms |
+
+Scroll-driven and View-Transition effects are progressive enhancements (Chromium-first); other engines fall back to no progress bar / instant navigation with no loss of function.
 
 ## Elevation
 

@@ -18,7 +18,14 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh-CN" className={inter.variable}>
+      <head>
+        <noscript>
+          {/* Scroll-reveal hides items until JS runs; keep them visible without it. */}
+          <style>{`.feed .item{opacity:1!important}`}</style>
+        </noscript>
+      </head>
       <body>
+        <div className="scroll-progress" aria-hidden="true" />
         <SiteHeader />
         {children}
       </body>

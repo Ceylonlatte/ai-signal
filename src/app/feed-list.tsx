@@ -1,23 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { strengthLabel, strengthPips, type Strength } from "./format.js";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { strengthLabel, type Strength } from "./format.js";
+import type { FeedItemData } from "./feed-item-data.js";
+import type { FeedSort } from "./feed-queries.js";
+import { loadFeedPage } from "./feed-actions.js";
 
-export interface FeedItemData {
-  id: number;
-  url: string | null;
-  host: string;
-  title: string;
-  author: string | null;
-  reason: string;
-  summaryZh: string;
-  summaryEn: string;
-  sourceLabel: string;
-  tags: string[];
-  strength: Strength;
-  rText: string;
-  timeText: string;
-}
+export type { FeedItemData } from "./feed-item-data.js";
 
 type Signal = "up" | "down";
 interface VoteState {
@@ -35,8 +24,95 @@ async function mutateFeedback(itemId: number, signal: Signal, method: "POST" | "
   if (!res.ok) throw new Error(`feedback ${method} failed: ${res.status}`);
 }
 
-export function FeedList({ items }: { items: FeedItemData[] }) {
+export function FeedList({
+  initialItems,
+  total: initialTotal,
+  totalPages: initialTotalPages,
+  sort,
+}: {
+  initialItems: FeedItemData[];
+  total: number;
+  totalPages: number;
+  sort: FeedSort;
+}) {
+  const [items, setItems] = useState<FeedItemData[]>(initialItems);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(initialTotal);
+  const [totalPages, setTotalPages] = useState(initialTotalPages);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
   const [votes, setVotes] = useState<Record<number, VoteState>>({});
+
+  const hasMore = page < totalPages;
+
+  async function loadMore() {
+    if (loading || page >= totalPages) return;
+    setLoading(true);
+    setError(false);
+    try {
+      const res = await loadFeedPage(page + 1, sort);
+      setItems((prev) => {
+        const seen = new Set(prev.map((it) => it.id));
+        return [...prev, ...res.items.filter((it) => !seen.has(it.id))];
+      });
+      setPage(res.page);
+      setTotal(res.total);
+      setTotalPages(res.totalPages);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Keep the observer stable while always calling the latest closure.
+  const loadMoreRef = useRef(loadMore);
+  loadMoreRef.current = loadMore;
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) loadMoreRef.current();
+      },
+      { rootMargin: "600px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  // Scroll-reveal: items are hidden by CSS until they enter view, then
+  // rise + sharpen. --i is each item's position within its observer batch,
+  // so the first screen staggers while a lone scrolled-in item reveals at
+  // once. Re-runs on append to pick up newly loaded rows; reduced-motion
+  // or a missing observer flips the list to its at-rest visible state.
+  useEffect(() => {
+    const root = listRef.current;
+    if (!root) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce || typeof IntersectionObserver === "undefined") {
+      root.dataset.animate = "off";
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        let i = 0;
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const el = entry.target as HTMLElement;
+          el.style.setProperty("--i", String(i++));
+          el.classList.add("is-in");
+          io.unobserve(el);
+        }
+      },
+      { rootMargin: "0px 0px -8% 0px", threshold: 0.05 },
+    );
+    root.querySelectorAll<HTMLElement>(".item:not(.is-in)").forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, [items]);
 
   async function vote(id: number, signal: Signal) {
     const prev = votes[id]?.signal ?? null;
@@ -52,29 +128,114 @@ export function FeedList({ items }: { items: FeedItemData[] }) {
   }
 
   return (
-    <div className="feed" role="list">
-      {items.map((it) => (
-        <FeedItem key={it.id} data={it} vote={votes[it.id]} onVote={(s) => vote(it.id, s)} />
-      ))}
-    </div>
+    <>
+      <div className="feed" role="list" ref={listRef}>
+        {items.map((it) => (
+          <FeedItem key={it.id} data={it} vote={votes[it.id]} onVote={(s) => vote(it.id, s)} />
+        ))}
+      </div>
+
+      <div className="feed-foot">
+        <p className="feed-status" aria-live="polite">
+          已加载 {items.length} / 共 {total} 条
+        </p>
+
+        {hasMore ? (
+          <>
+            {error && (
+              <p className="feed-error" role="alert">
+                加载失败，
+                <button type="button" className="linkish" onClick={() => loadMore()}>
+                  重试
+                </button>
+              </p>
+            )}
+            <button type="button" className="feed-more" onClick={() => loadMore()} disabled={loading}>
+              {loading ? "加载中…" : "加载更多"}
+            </button>
+            {loading && (
+              <div className="feed-loading" aria-hidden="true">
+                {[0, 1].map((i) => (
+                  <div key={i} className="skeleton-item">
+                    <div className="skeleton-line" style={{ width: "70%" }} />
+                    <div className="skeleton-line" style={{ width: "92%", marginTop: 10 }} />
+                  </div>
+                ))}
+              </div>
+            )}
+            <div ref={sentinelRef} className="feed-sentinel" aria-hidden="true" />
+          </>
+        ) : (
+          items.length > 0 && <p className="feed-end">没有更多了</p>
+        )}
+      </div>
+    </>
   );
 }
 
-function SignalBadge({ strength, rText }: { strength: Strength; rText: string }) {
-  const on = strengthPips(strength);
+function ThumbIcon({ dir }: { dir: Signal }) {
+  return (
+    <svg
+      className="vote__icon"
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {dir === "up" ? (
+        <>
+          <path d="M7 10v12" />
+          <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z" />
+        </>
+      ) : (
+        <>
+          <path d="M17 14V2" />
+          <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+function SignalBadge({
+  strength,
+  score,
+  rText,
+}: {
+  strength: Strength;
+  score: number;
+  rText: string;
+}) {
   return (
     <span
       className="signal"
       data-strength={strength}
-      title={`信号强度：${strengthLabel(strength)} · R ${rText}`}
-      aria-label={`信号强度 ${strengthLabel(strength)}`}
+      title={`信号强度：${strengthLabel(strength)} · 信号分 ${score} · R ${rText}`}
+      aria-label={`信号强度 ${strengthLabel(strength)}，信号分 ${score}`}
     >
-      <span className="signal__bars" aria-hidden="true">
-        {[0, 1, 2].map((p) => (
-          <i key={p} data-on={p < on ? "" : undefined} />
-        ))}
-      </span>
-      {strengthLabel(strength)}
+      <svg className="signal__ring" width="46" height="46" viewBox="0 0 46 46" aria-hidden="true">
+        <circle className="signal__track" cx="23" cy="23" r="17" fill="none" strokeWidth="4" />
+        <circle
+          className="signal__fill"
+          cx="23"
+          cy="23"
+          r="17"
+          fill="none"
+          strokeWidth="4"
+          strokeLinecap="round"
+          pathLength={100}
+          transform="rotate(-90 23 23)"
+          style={{ "--score": score, strokeDasharray: `${score} 100` } as CSSProperties}
+        />
+        <text className="signal__num" x="23" y="24" textAnchor="middle" dominantBaseline="middle">
+          {score}
+        </text>
+      </svg>
     </span>
   );
 }
@@ -94,7 +255,7 @@ function FeedItem({
   return (
     <article className="item" role="listitem" data-strength={data.strength}>
       <div className="item__top">
-        <SignalBadge strength={data.strength} rText={data.rText} />
+        <SignalBadge strength={data.strength} score={data.score} rText={data.rText} />
         <a className="item__title" href={data.url ?? "#"} target="_blank" rel="noreferrer">
           {data.title}
           {data.host && <span className="item__ext">{data.host} ↗</span>}
@@ -103,7 +264,13 @@ function FeedItem({
 
       {data.reason && <p className="item__reason">{data.reason}</p>}
       {data.summaryZh && <p className="item__summary">{data.summaryZh}</p>}
-      {showEn && data.summaryEn && <p className="item__summary-en">{data.summaryEn}</p>}
+      {data.summaryEn && (
+        <div className="item__en" data-open={showEn} aria-hidden={!showEn}>
+          <div className="item__en-inner">
+            <p className="item__summary-en">{data.summaryEn}</p>
+          </div>
+        </div>
+      )}
 
       <div className="item__meta">
         <span className="item__source">{data.sourceLabel}</span>
@@ -146,7 +313,7 @@ function FeedItem({
             disabled={vote?.pending}
             onClick={() => onVote("up")}
           >
-            👍
+            <ThumbIcon dir="up" />
           </button>
           <button
             type="button"
@@ -158,7 +325,7 @@ function FeedItem({
             disabled={vote?.pending}
             onClick={() => onVote("down")}
           >
-            👎
+            <ThumbIcon dir="down" />
           </button>
         </span>
       </div>

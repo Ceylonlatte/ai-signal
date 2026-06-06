@@ -88,6 +88,10 @@ export interface FeedPage {
   pageSize: number;
   totalPages: number;
   sort: FeedSort;
+  // Ranking-score bounds across the whole visible set (not just this page), so
+  // strength tiers stay stable and comparable as infinite scroll appends pages.
+  rMin: number;
+  rMax: number;
 }
 
 // Ranks the whole (non-suppressed) candidate set, orders it by the requested
@@ -102,10 +106,13 @@ export async function getFeed(
   const visible = rows.filter((row) => !isSuppressed(row.maxDislikeSim));
   const all = withRanking(visible).sort(sort === "score" ? byScore : byTime);
   const total = all.length;
+  const rs = all.map((row) => row.r);
+  const rMin = rs.length ? Math.min(...rs) : 0;
+  const rMax = rs.length ? Math.max(...rs) : 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const page = Math.min(Math.max(1, opts.page ?? 1), totalPages);
   const start = (page - 1) * pageSize;
-  return { items: all.slice(start, start + pageSize), total, page, pageSize, totalPages, sort };
+  return { items: all.slice(start, start + pageSize), total, page, pageSize, totalPages, sort, rMin, rMax };
 }
 
 export async function getSuppressed(db: Db, opts: { limit: number }) {
