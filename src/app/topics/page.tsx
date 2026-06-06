@@ -25,7 +25,7 @@ export default async function Topics() {
         </div>
       </div>
       <p className="page__lead">
-        {formatDate(today)}，AI 圈正在聊的话题，按合成分排序。条形长度代表当日热度，点击任一话题做语义检索。
+        {formatDate(today)}，AI 圈正在聊的话题，按合成分排序。条形长度代表当日热度，点击任一话题查看归入的条目。
       </p>
 
       {top.length === 0 ? (
@@ -44,7 +44,7 @@ export default async function Topics() {
               <a
                 key={t.id}
                 className={`topic${i < 3 ? " topic--top" : ""}`}
-                href={`/search?q=${encodeURIComponent(t.label)}&mode=semantic`}
+                href={`/topics/${t.id}`}
               >
                 <span className="topic__rank">{i + 1}</span>
                 <span className="topic__body">

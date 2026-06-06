@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeEach, expect, it, vi } from "vitest";
+import { sql } from "drizzle-orm";
 import { items, itemEmbeddings, topics, itemTopics } from "../../src/db/schema.js";
 import { db, pool, truncateAll } from "../setup/db.js";
 
@@ -32,4 +33,30 @@ it("groups similar items into one topic and a dissimilar item into another", asy
   expect(t.length).toBe(2);
   const links = await db.select().from(itemTopics);
   expect(links.length).toBe(3);
+});
+
+it("folds new members into the topic centroid (running mean)", async () => {
+  await truncateAll();
+  const ins = await db.insert(items).values([
+    { rawItemId: 10, source: "hn", title: "a", createdAt: new Date(), contentHash: "c10" },
+    { rawItemId: 11, source: "hn", title: "b", createdAt: new Date(), contentHash: "c11" },
+  ]).returning();
+  // Two vectors close enough to cluster together (cosine dist ~0.02 < 0.2) but
+  // differing on dim 1, so a working running-mean must move the centroid there.
+  const a = Array(2048).fill(0); a[0] = 1;
+  const b = Array(2048).fill(0); b[0] = 1; b[1] = 0.2;
+  await db.insert(itemEmbeddings).values([
+    { itemId: ins[0]!.id, embedding: a },
+    { itemId: ins[1]!.id, embedding: b },
+  ]);
+
+  const { runClusterStage } = await import("../../src/lib/cluster.js");
+  await runClusterStage(db, { threshold: 0.2 });
+
+  const t = await db.select().from(topics);
+  expect(t.length).toBe(1);
+  const res = await db.execute(sql`SELECT centroid FROM topics LIMIT 1`);
+  const centroid = JSON.parse(((res.rows ?? res)[0] as { centroid: string }).centroid) as number[];
+  // Frozen-centroid behaviour would leave dim 1 at 0; the running mean lifts it.
+  expect(centroid[1]).toBeGreaterThan(0.05);
 });

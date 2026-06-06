@@ -4,6 +4,29 @@ import { labelTopic } from "./scoring/llm.js";
 
 type Db = any;
 
+// pgvector renders a stored vector as the text "[1,2,3]", which is valid JSON.
+const parseVec = (s: string): number[] => JSON.parse(s) as number[];
+
+// Fold a new member's embedding into a topic's centroid as a running mean, so
+// the center tracks its members instead of staying frozen at the first item's
+// vector. `n` is the member count BEFORE this item is linked.
+async function foldIntoCentroid(db: Db, topicId: number, embedding: string): Promise<void> {
+  const cur = await db.execute(sql`
+    SELECT t.centroid, (SELECT count(*)::int FROM item_topics WHERE topic_id = t.id) AS n
+    FROM topics t WHERE t.id = ${topicId}
+  `);
+  const row = (cur.rows ?? cur)[0] as { centroid: string; n: number } | undefined;
+  if (!row) return;
+  const c = parseVec(row.centroid);
+  const e = parseVec(embedding);
+  const n = Number(row.n);
+  const merged = c.map((x, i) => (x * n + (e[i] ?? 0)) / (n + 1));
+  await db.execute(sql`
+    UPDATE topics SET centroid = ${JSON.stringify(merged)}::vector, last_seen = now()
+    WHERE id = ${topicId}
+  `);
+}
+
 // Online clustering: for each unassigned item, find nearest topic centroid;
 // if cosine distance < threshold join it, else create a new topic.
 export async function runClusterStage(db: Db, opts: { threshold: number }): Promise<number> {
@@ -29,7 +52,7 @@ export async function runClusterStage(db: Db, opts: { threshold: number }): Prom
     let topicId: number;
     if (near && near.dist < opts.threshold) {
       topicId = Number(near.id);
-      await db.execute(sql`UPDATE topics SET last_seen = now() WHERE id = ${topicId}`);
+      await foldIntoCentroid(db, topicId, row.embedding);
     } else {
       const label = await labelTopic([row.title]);
       const created = await db.execute(sql`

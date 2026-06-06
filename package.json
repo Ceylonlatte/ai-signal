@@ -11,6 +11,7 @@
     "collect:hn": "tsx bin/collect-hn.ts",
     "collect:rss": "tsx bin/collect-rss.ts",
     "cleanup": "tsx bin/cleanup.ts",
+    "compare:embed": "tsx bin/compare-embeddings.ts",
     "reset-corpus": "tsx bin/reset-corpus.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
