@@ -10,7 +10,7 @@ import type { RawPayload } from "../src/types.js";
 // single "AI OR LLM OR ..." query matches almost nothing. Query each term
 // separately and merge (dedupe by externalId). Relevance is refined later by
 // the prefilter + LLM scoring, so broad recall here is fine.
-const QUERIES = ["AI", "LLM", "AI agent", "agentic", "Anthropic", "OpenAI", "Claude", "GPT", "RAG"];
+const QUERIES = ["AI", "AI Agent", "Agentic", "AI Workflows", "Harness", "Claude Code", "Codex"];
 
 async function main() {
   let [src] = await db.select().from(sources).where(eq(sources.kind, "hn"));

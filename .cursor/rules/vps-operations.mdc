@@ -1,0 +1,32 @@
+---
+description: How to run VPS / production operations for ai-signal
+alwaysApply: true
+---
+
+# VPS operations: connect and execute directly
+
+For ANY VPS / production task (deploy, reset, inspect logs, edit `.env`, run
+DB queries, restart containers), connect over SSH and run the commands
+yourself. Do NOT hand the user a command list to run manually.
+
+- SSH alias: `ai-hot-news-prod` (`ssh ai-hot-news-prod '<cmd>'`)
+- Project dir: `/opt/ai-signal` · compose project: `ai-signal`
+- Containers: `ai-signal-web-1`, `ai-signal-worker-1`, `ai-signal-db-1`
+
+## Permission facts (login user `deploy`)
+
+- In the `docker` group (so `docker ...` works) but has **no `sudo`**.
+- `/opt/ai-signal` dir is NOT writable by `deploy`; `.env` is owned by `deploy`
+  mode 600. Edit `.env` via `/tmp` then truncate-write the owned file:
+  `sed '...' .env > /tmp/e && cat /tmp/e > .env`. To touch a root-owned file,
+  use a throwaway root container: `docker run --rm --user 0 -v /opt/ai-signal:/work busybox sh -c '...'`.
+- `docker compose` reads `.env`, so it only works while `deploy` can read it.
+- Run DB / one-off scripts via the running container, e.g.
+  `docker exec ai-signal-db-1 psql -U aisignal -d aisignal -c "..."`,
+  `docker exec -e RESET_CONFIRM=yes ai-signal-worker-1 npm run reset-corpus`.
+
+## Still confirm first
+
+Before destructive/irreversible prod actions (wiping the corpus, dropping data,
+force-recreating), state what you're about to do and get a quick OK — then run
+it yourself. Don't make the user perform the SSH steps.

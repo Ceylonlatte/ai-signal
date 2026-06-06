@@ -1,0 +1,189 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 1700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">
+<defs>
+<filter id="sh" x="-20%" y="-20%" width="140%" height="140%">
+<feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.55"/>
+</filter>
+<marker id="arr" markerWidth="11" markerHeight="9" refX="9" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 Z" fill="#8b9bb4"/></marker>
+<marker id="arrY" markerWidth="11" markerHeight="9" refX="9" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 Z" fill="#34d399"/></marker>
+<marker id="arrN" markerWidth="11" markerHeight="9" refX="9" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 Z" fill="#fb7185"/></marker>
+<marker id="arrA" markerWidth="11" markerHeight="9" refX="9" refY="4.5" orient="auto"><path d="M0,0 L11,4.5 L0,9 Z" fill="#7c8aa5"/></marker>
+</defs>
+<rect x="0" y="0" width="1440" height="1700" fill="#0d1117"/>
+<text x="60" y="38" font-size="17" fill="#e6edf3" text-anchor="start" font-weight="800" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">AI Signal · Triage 打分流水线</text>
+<text x="1095" y="40" font-size="16.5" fill="#cbd5e1" text-anchor="middle" font-weight="700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">打分规则详解（编号对应中间各阶段）</text>
+<line x1="712" y1="60" x2="712" y2="1045" stroke="#1e2a40" stroke-width="1.4" stroke-dasharray="3,6"/>
+<path d="M430,105 L430,129" fill="none" stroke="#8b9bb4" stroke-width="2.0" marker-end="url(#arr)"/>
+<path d="M430,187 L430,235" fill="none" stroke="#8b9bb4" stroke-width="2.0" marker-end="url(#arr)"/>
+<path d="M430,305 L430,349" fill="none" stroke="#8b9bb4" stroke-width="2.0" marker-end="url(#arr)"/>
+<path d="M430,407 L430,453" fill="none" stroke="#8b9bb4" stroke-width="2.0" marker-end="url(#arr)"/>
+<path d="M430,511 L430,550" fill="none" stroke="#8b9bb4" stroke-width="2.0" marker-end="url(#arr)"/>
+<path d="M430,654 L430,698" fill="none" stroke="#34d399" stroke-width="2.0" marker-end="url(#arrY)"/>
+<path d="M430,766 L430,813" fill="none" stroke="#8b9bb4" stroke-width="2.0" marker-end="url(#arr)"/>
+<path d="M430,871 L430,908" fill="none" stroke="#8b9bb4" stroke-width="2.0" marker-end="url(#arr)"/>
+<path d="M430,1008 L430,1036" fill="none" stroke="#fb7185" stroke-width="2.0" marker-end="url(#arrN)"/>
+<path d="M430,1136 L430,1173" fill="none" stroke="#34d399" stroke-width="2.0" marker-end="url(#arrY)"/>
+<path d="M430,1227 L430,1275" fill="none" stroke="#8b9bb4" stroke-width="2.0" marker-end="url(#arr)"/>
+<path d="M430,1349 L430,1400" fill="none" stroke="#8b9bb4" stroke-width="2.0" marker-end="url(#arr)"/>
+<path d="M280,378 L267,378" fill="none" stroke="#fb7185" stroke-width="2.0" marker-end="url(#arrN)"/>
+<path d="M160,410 L160,482 L278,482" fill="none" stroke="#8b9bb4" stroke-width="2.0" marker-end="url(#arr)"/>
+<path d="M280,602 L150,602 L150,873" fill="none" stroke="#fb7185" stroke-width="2.0" marker-end="url(#arrN)"/>
+<path d="M280,1086 L150,1086 L150,931" fill="none" stroke="#fb7185" stroke-width="2.0" marker-end="url(#arrN)"/>
+<path d="M105,929 L105,1432 L278,1432" fill="none" stroke="#8b9bb4" stroke-width="2.0" marker-end="url(#arr)"/>
+<path d="M580,958 L660,958 L660,1200 L582,1200" fill="none" stroke="#34d399" stroke-width="2.0" marker-end="url(#arrY)"/>
+<path d="M580,1312 L865,1312 L865,1540" fill="none" stroke="#7c8aa5" stroke-width="2.0" stroke-dasharray="6,5" marker-end="url(#arrA)"/>
+<path d="M962,1590 L978,1590" fill="none" stroke="#7c8aa5" stroke-width="2.0" marker-end="url(#arrA)"/>
+<path d="M1172,1590 L1188,1590" fill="none" stroke="#7c8aa5" stroke-width="2.0" marker-end="url(#arrA)"/>
+<rect x="425.68" y="668.0" width="52.64" height="20" rx="4" fill="#0d1117" opacity="0.92"/>
+<text x="452" y="682.32" font-size="12" fill="#34d399" text-anchor="middle" font-weight="600" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">是 · 选中</text>
+<rect x="322.28" y="592.0" width="15.44" height="20" rx="4" fill="#0d1117" opacity="0.92"/>
+<text x="330" y="606.32" font-size="12" fill="#fb7185" text-anchor="middle" font-weight="600" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">否</text>
+<rect x="511.36" y="1012.0" width="97.28" height="20" rx="4" fill="#0d1117" opacity="0.92"/>
+<text x="560" y="1026.32" font-size="12" fill="#fb7185" text-anchor="middle" font-weight="600" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">否 · rescue 带</text>
+<rect x="444.28" y="1146.0" width="15.44" height="20" rx="4" fill="#0d1117" opacity="0.92"/>
+<text x="452" y="1160.32" font-size="12" fill="#34d399" text-anchor="middle" font-weight="600" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">是</text>
+<rect x="628.28" y="926.0" width="15.44" height="20" rx="4" fill="#0d1117" opacity="0.92"/>
+<text x="636" y="940.32" font-size="12" fill="#34d399" text-anchor="middle" font-weight="600" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">是</text>
+<rect x="217.28" y="1076.0" width="15.44" height="20" rx="4" fill="#0d1117" opacity="0.92"/>
+<text x="225" y="1090.32" font-size="12" fill="#fb7185" text-anchor="middle" font-weight="600" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">否</text>
+<rect x="671.12" y="1286.0" width="37.76" height="20" rx="4" fill="#0d1117" opacity="0.92"/>
+<text x="690" y="1300.32" font-size="12" fill="#7c8aa5" text-anchor="middle" font-weight="600" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">异步补充</text>
+<rect x="270.0" y="47.0" width="320" height="58" rx="12" ry="12" fill="#0e2f33" stroke="#22d3ee" stroke-width="2" filter="url(#sh)"/>
+<text x="430" y="72.0" font-size="14.5" fill="#e6edf3" text-anchor="middle" font-weight="700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">采集器 collectors</text>
+<text x="430" y="90.0" font-size="12" fill="#a5f3fc" text-anchor="middle" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">HN · RSS · Twitter · Reddit</text>
+<rect x="270.0" y="129.0" width="320" height="58" rx="12" ry="12" fill="#374151" stroke="#9ca3af" stroke-width="2" filter="url(#sh)"/>
+<text x="430" y="154.0" font-size="14.5" fill="#e6edf3" text-anchor="middle" font-weight="700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">ingest() 原样写入 raw_items</text>
+<text x="430" y="172.0" font-size="12" fill="#e5e7eb" text-anchor="middle" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">sourceId + externalId 去重</text>
+<rect x="270.0" y="235.0" width="320" height="70" rx="12" ry="12" fill="#1b2333" stroke="#3a4761" stroke-width="2" filter="url(#sh)"/>
+<text x="430" y="257.0" font-size="14.5" fill="#e6edf3" text-anchor="middle" font-weight="700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">Triage 阶段</text>
+<text x="430" y="275.0" font-size="12" fill="#9fb0c8" text-anchor="middle" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">取 processedAt=null，每批 500 条</text>
+<text x="430" y="293.0" font-size="12" fill="#9fb0c8" text-anchor="middle" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">归一化 normalizeRawItem</text>
+<rect x="270.0" y="349.0" width="320" height="58" rx="12" ry="12" fill="#1e3a8a" stroke="#3b82f6" stroke-width="2" filter="url(#sh)"/>
+<text x="430" y="374.0" font-size="14.5" fill="#e6edf3" text-anchor="middle" font-weight="700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">embedCandidates 整批 embed</text>
+<text x="430" y="392.0" font-size="12" fill="#bfdbfe" text-anchor="middle" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">qwen3-embedding-8b（免费）</text>
+<rect x="270.0" y="453.0" width="320" height="58" rx="12" ry="12" fill="#1b2333" stroke="#3a4761" stroke-width="2" filter="url(#sh)"/>
+<text x="430" y="478.0" font-size="14.5" fill="#e6edf3" text-anchor="middle" font-weight="700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">hybridRelevance 相关度</text>
+<text x="430" y="496.0" font-size="12" fill="#9fb0c8" text-anchor="middle" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">向量 vs 关键词余弦 + 关键词精确匹配</text>
+<circle cx="590.0" cy="482" r="12" fill="#38bdf8" stroke="#0d1117" stroke-width="2"/>
+<text x="590.0" y="486.5" font-size="12.5" fill="#0d1117" text-anchor="middle" font-weight="800" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">1</text>
+<polygon points="430,552.0 580.0,602 430,652.0 280.0,602" fill="#3b2f0b" stroke="#f59e0b" stroke-width="2" filter="url(#sh)"/>
+<text x="430" y="598.5" font-size="13.5" fill="#fde68a" text-anchor="middle" font-weight="700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">预筛 selectCandidates</text>
+<text x="430" y="615.5" font-size="11.5" fill="#f4dca0" text-anchor="middle" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">相关? 或 够热? 或 Twitter following?</text>
+<circle cx="590.0" cy="602" r="12" fill="#f59e0b" stroke="#0d1117" stroke-width="2"/>
+<text x="590.0" y="606.5" font-size="12.5" fill="#0d1117" text-anchor="middle" font-weight="800" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">2</text>
+<rect x="270.0" y="698.0" width="320" height="68" rx="12" ry="12" fill="#5b21b6" stroke="#a855f7" stroke-width="2" filter="url(#sh)"/>
+<text x="430" y="719.0" font-size="14.5" fill="#e6edf3" text-anchor="middle" font-weight="700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">scoreBatch LLM 打分</text>
+<text x="430" y="737.0" font-size="12" fill="#e9d5ff" text-anchor="middle" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">deepseek-v4-flash</text>
+<text x="430" y="755.0" font-size="12" fill="#e9d5ff" text-anchor="middle" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">value / topics / reason</text>
+<circle cx="590.0" cy="732" r="12" fill="#c084fc" stroke="#0d1117" stroke-width="2"/>
+<text x="590.0" y="736.5" font-size="12.5" fill="#0d1117" text-anchor="middle" font-weight="800" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">3</text>
+<rect x="270.0" y="813.0" width="320" height="58" rx="12" ry="12" fill="#1b2333" stroke="#3a4761" stroke-width="2" filter="url(#sh)"/>
+<text x="430" y="838.0" font-size="14.5" fill="#e6edf3" text-anchor="middle" font-weight="700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">computeQuality 质量分 Q</text>
+<text x="430" y="856.0" font-size="12" fill="#9fb0c8" text-anchor="middle" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">Q = llmValue ± relevance ± trust</text>
+<circle cx="590.0" cy="842" r="12" fill="#34d399" stroke="#0d1117" stroke-width="2"/>
+<text x="590.0" y="846.5" font-size="12.5" fill="#0d1117" text-anchor="middle" font-weight="800" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">4</text>
+<polygon points="430,908.0 580.0,958 430,1008.0 280.0,958" fill="#3b2f0b" stroke="#f59e0b" stroke-width="2" filter="url(#sh)"/>
+<text x="430" y="954.5" font-size="13.5" fill="#fde68a" text-anchor="middle" font-weight="700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">passesGate?</text>
+<text x="430" y="971.5" font-size="11.5" fill="#f4dca0" text-anchor="middle" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">Q ≥ 0.55</text>
+<circle cx="590.0" cy="958" r="12" fill="#f59e0b" stroke="#0d1117" stroke-width="2"/>
+<text x="590.0" y="962.5" font-size="12.5" fill="#0d1117" text-anchor="middle" font-weight="800" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">5</text>
+<polygon points="430,1036.0 580.0,1086 430,1136.0 280.0,1086" fill="#3b2f0b" stroke="#f59e0b" stroke-width="2" filter="url(#sh)"/>
+<text x="430" y="1082.5" font-size="13.5" fill="#fde68a" text-anchor="middle" font-weight="700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">和点赞内容够像?</text>
+<text x="430" y="1099.5" font-size="11.5" fill="#f4dca0" text-anchor="middle" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">likeRescues</text>
+<rect x="280.0" y="1173.0" width="300" height="54" rx="12" ry="12" fill="#1b2333" stroke="#34d399" stroke-width="2" filter="url(#sh)"/>
+<text x="430" y="1205.0" font-size="14.5" fill="#e6edf3" text-anchor="middle" font-weight="700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">keep = true</text>
+<rect x="270.0" y="1275.0" width="320" height="74" rx="12" ry="12" fill="#1b2333" stroke="#3a4761" stroke-width="2" filter="url(#sh)"/>
+<text x="430" y="1299.0" font-size="14.5" fill="#e6edf3" text-anchor="middle" font-weight="700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">写入正式层（事务）</text>
+<text x="430" y="1317.0" font-size="12" fill="#9fb0c8" text-anchor="middle" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">items + scores + item_embeddings</text>
+<text x="430" y="1335.0" font-size="12" fill="#9fb0c8" text-anchor="middle" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">复用 triage 阶段的向量</text>
+<rect x="270.0" y="1400.0" width="320" height="64" rx="12" ry="12" fill="#374151" stroke="#9ca3af" stroke-width="2" filter="url(#sh)"/>
+<text x="430" y="1428.0" font-size="14.5" fill="#e6edf3" text-anchor="middle" font-weight="700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">标记 raw_items.processedAt</text>
+<text x="430" y="1446.0" font-size="12" fill="#e5e7eb" text-anchor="middle" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">留在原始层，不再处理</text>
+<rect x="55.0" y="346.0" width="210" height="64" rx="12" ry="12" fill="#1e3a8a" stroke="#60a5fa" stroke-width="2" filter="url(#sh)"/>
+<text x="160" y="365.0" font-size="14.5" fill="#e6edf3" text-anchor="middle" font-weight="700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">失败回退</text>
+<text x="160" y="383.0" font-size="12" fill="#bfdbfe" text-anchor="middle" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">无向量 → 纯关键词匹配</text>
+<text x="160" y="401.0" font-size="12" fill="#bfdbfe" text-anchor="middle" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">（后续 embed 阶段补）</text>
+<rect x="65.0" y="871.0" width="170" height="58" rx="12" ry="12" fill="#3f1722" stroke="#ef4444" stroke-width="2" filter="url(#sh)"/>
+<text x="150" y="896.0" font-size="14.5" fill="#fecaca" text-anchor="middle" font-weight="700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">丢弃 unscored</text>
+<text x="150" y="914.0" font-size="12" fill="#fca5a5" text-anchor="middle" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">不打分 / 不入库</text>
+<rect x="758" y="1500" width="634" height="168" rx="14" ry="14" fill="#0c1322" stroke="#475569" stroke-width="1.5" stroke-dasharray="6,6"/>
+<text x="775" y="1524" font-size="13.5" fill="#94a3b8" text-anchor="start" font-weight="700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">后续 worker 流水线</text>
+<rect x="770.0" y="1544.0" width="190" height="96" rx="12" ry="12" fill="#1e3a8a" stroke="#3b82f6" stroke-width="2" filter="url(#sh)"/>
+<text x="865" y="1579.0" font-size="14.5" fill="#e6edf3" text-anchor="middle" font-weight="700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">runEmbedStage</text>
+<text x="865" y="1597.0" font-size="12" fill="#bfdbfe" text-anchor="middle" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">给漏网 items 补向量</text>
+<text x="865" y="1615.0" font-size="12" fill="#bfdbfe" text-anchor="middle" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">qwen3-embedding-8b</text>
+<rect x="980.0" y="1544.0" width="190" height="96" rx="12" ry="12" fill="#5b21b6" stroke="#a855f7" stroke-width="2" filter="url(#sh)"/>
+<text x="1075" y="1579.0" font-size="14.5" fill="#e6edf3" text-anchor="middle" font-weight="700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">runSummarizeStage</text>
+<text x="1075" y="1597.0" font-size="12" fill="#e9d5ff" text-anchor="middle" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">抓全文 + 双语摘要</text>
+<text x="1075" y="1615.0" font-size="12" fill="#e9d5ff" text-anchor="middle" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">deepseek-v4-flash</text>
+<rect x="1190.0" y="1544.0" width="190" height="96" rx="12" ry="12" fill="#1e3a8a" stroke="#3b82f6" stroke-width="2" filter="url(#sh)"/>
+<text x="1285" y="1579.0" font-size="14.5" fill="#e6edf3" text-anchor="middle" font-weight="700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">runClusterStage</text>
+<text x="1285" y="1597.0" font-size="12" fill="#bfdbfe" text-anchor="middle" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">向量质心余弦聚类(qwen3)</text>
+<text x="1285" y="1615.0" font-size="12" fill="#bfdbfe" text-anchor="middle" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">+ labelTopic 标签(deepseek)</text>
+<rect x="60" y="1500" width="560" height="168" rx="14" ry="14" fill="#0c1322" stroke="#27324a" stroke-width="1.4"/>
+<text x="80" y="1524" font-size="14" fill="#cbd5e1" text-anchor="start" font-weight="700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">图例</text>
+<rect x="75" y="1539" width="24" height="17" rx="4" fill="#1e3a8a" stroke="#3b82f6" stroke-width="1.6"/>
+<text x="105" y="1552" font-size="12.5" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">embed 向量阶段</text>
+<rect x="265" y="1539" width="24" height="17" rx="4" fill="#5b21b6" stroke="#a855f7" stroke-width="1.6"/>
+<text x="295" y="1552" font-size="12.5" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">LLM 打分 / 摘要</text>
+<rect x="455" y="1539" width="24" height="17" rx="4" fill="#374151" stroke="#9ca3af" stroke-width="1.6"/>
+<text x="485" y="1552" font-size="12.5" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">原始层 raw</text>
+<rect x="75" y="1587" width="24" height="17" rx="4" fill="#3b2f0b" stroke="#f59e0b" stroke-width="1.6"/>
+<text x="105" y="1600" font-size="12.5" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">判定分支</text>
+<rect x="265" y="1587" width="24" height="17" rx="4" fill="#3f1722" stroke="#ef4444" stroke-width="1.6"/>
+<text x="295" y="1600" font-size="12.5" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">丢弃 unscored</text>
+<rect x="455" y="1587" width="24" height="17" rx="4" fill="#1b2333" stroke="#3a4761" stroke-width="1.6"/>
+<text x="485" y="1600" font-size="12.5" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">处理 / 入库</text>
+<rect x="800" y="64" width="590" height="150" rx="12" ry="12" fill="#0f1626" stroke="#27324a" stroke-width="1.4"/>
+<rect x="800" y="64" width="5" height="150" rx="2" fill="#38bdf8"/>
+<circle cx="830" cy="90" r="12" fill="#38bdf8"/>
+<text x="830" y="94.5" font-size="12.5" fill="#0d1117" text-anchor="middle" font-weight="800" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">1</text>
+<text x="850" y="95" font-size="14.5" fill="#38bdf8" text-anchor="start" font-weight="700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">相关度 hybridRelevance ∈ [0,1]</text>
+<text x="820" y="120" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">• 精确匹配 exactRelevance：标题/正文命中关注关键词</text>
+<text x="820" y="141" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">• 语义 semanticRelevance：item 向量与关键词向量最大余弦 s</text>
+<text x="820" y="162" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">      s ≤ 0.35 记 0；否则 (s − 0.35) / 0.65 映射到 [0,1]</text>
+<text x="820" y="183" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">• relevance = max(精确, 语义)</text>
+<rect x="800" y="230" width="590" height="206" rx="12" ry="12" fill="#0f1626" stroke="#27324a" stroke-width="1.4"/>
+<rect x="800" y="230" width="5" height="206" rx="2" fill="#f59e0b"/>
+<circle cx="830" cy="256" r="12" fill="#f59e0b"/>
+<text x="830" y="260.5" font-size="12.5" fill="#0d1117" text-anchor="middle" font-weight="800" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">2</text>
+<text x="850" y="261" font-size="14.5" fill="#f59e0b" text-anchor="start" font-weight="700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">预筛 selectCandidates（调用 LLM 之前）</text>
+<text x="820" y="286" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">满足任一条件即保留并送 LLM 打分：</text>
+<text x="820" y="307" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">• relevance &gt; 0（关键词 / 语义相关）</text>
+<text x="820" y="328" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">• 够热 prefilterHeat ≥ 0.5</text>
+<text x="820" y="349" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">      通用：log10(1 + points + 2·comments) / 3</text>
+<text x="820" y="370" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">      Twitter：log10(1 + likes + 2·RT + replies) / 3</text>
+<text x="820" y="391" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">• Twitter following（人工策展时间线，全量送）</text>
+<text x="820" y="412" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">否则直接丢弃，不调用付费 LLM</text>
+<rect x="800" y="452" width="590" height="186" rx="12" ry="12" fill="#0f1626" stroke="#27324a" stroke-width="1.4"/>
+<rect x="800" y="452" width="5" height="186" rx="2" fill="#c084fc"/>
+<circle cx="830" cy="478" r="12" fill="#c084fc"/>
+<text x="830" y="482.5" font-size="12.5" fill="#0d1117" text-anchor="middle" font-weight="800" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">3</text>
+<text x="850" y="483" font-size="14.5" fill="#c084fc" text-anchor="start" font-weight="700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">LLM 打分 scoreBatch · deepseek-v4-flash</text>
+<text x="820" y="508" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">整批送评（每批 25 条 · 并发 4），输出 value/topics/reason</text>
+<text x="820" y="529" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">value 0–100 评分档：</text>
+<text x="820" y="550" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">• 80–100 直接可执行 / 必知的重大能力或发布</text>
+<text x="820" y="571" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">• 50–79 相关、有信息但不紧急</text>
+<text x="820" y="592" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">• 20–49 沾边或浅薄      • 0–19 营销 / 炒冷饭 / 低信噪</text>
+<text x="820" y="613" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">惩罚空洞炒作，奖励具体技术细节 →  llmValue = value / 100</text>
+<rect x="800" y="654" width="590" height="186" rx="12" ry="12" fill="#0f1626" stroke="#27324a" stroke-width="1.4"/>
+<rect x="800" y="654" width="5" height="186" rx="2" fill="#34d399"/>
+<circle cx="830" cy="680" r="12" fill="#34d399"/>
+<text x="830" y="684.5" font-size="12.5" fill="#0d1117" text-anchor="middle" font-weight="800" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">4</text>
+<text x="850" y="685" font-size="14.5" fill="#34d399" text-anchor="start" font-weight="700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">质量分 Q computeQuality（以 LLM 为主）</text>
+<text x="820" y="710" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">Q = llmValue + 0.30·(rel − 0.5) + 0.15·(trust − 0.5)，裁剪 [0,1]</text>
+<text x="820" y="731" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">信任分 trust（按来源）：</text>
+<text x="820" y="752" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">• 官方站 openai / anthropic / deepmind = 0.95</text>
+<text x="820" y="773" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">      research.google = 0.9 · cursor = 0.85</text>
+<text x="820" y="794" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">• Twitter following 0.6 / for-you 0.45</text>
+<text x="820" y="815" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">• 默认 rss 0.6 · hn / reddit / twitter 0.5</text>
+<rect x="800" y="856" width="590" height="168" rx="12" ry="12" fill="#0f1626" stroke="#27324a" stroke-width="1.4"/>
+<rect x="800" y="856" width="5" height="168" rx="2" fill="#f59e0b"/>
+<circle cx="830" cy="882" r="12" fill="#f59e0b"/>
+<text x="830" y="886.5" font-size="12.5" fill="#0d1117" text-anchor="middle" font-weight="800" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">5</text>
+<text x="850" y="887" font-size="14.5" fill="#f59e0b" text-anchor="start" font-weight="700" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">门槛 passesGate &amp; 点赞救援 likeRescues</text>
+<text x="820" y="912" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">• 通过门槛：Q ≥ 0.55（Twitter following 降到 ≥ 0.45）</text>
+<text x="820" y="933" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">• rescue 带：0.45 ≤ Q &lt; 0.55（门槛下方 0.10）</text>
+<text x="820" y="954" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">• likeRescues：与近 90 天点赞内容余弦 ≥ 0.85 → 救回 keep</text>
+<text x="820" y="975" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">• 否则丢弃，不写入正式层</text>
+<text x="820" y="996" font-size="13" fill="#c7d2e4" text-anchor="start" font-weight="normal" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Segoe UI',sans-serif">novelty 仅对 keep 项算 7 天向量新颖度，不参与门槛</text>
+</svg>

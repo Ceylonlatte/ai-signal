@@ -135,10 +135,10 @@ export default async function Status() {
 
       <section className="section">
         <div className="section__head">
-          <h2 className="section__title">采集 / 入库</h2>
+          <h2 className="section__title">采集 / raw 台账</h2>
         </div>
         <p className="section__note">
-          每个平台抓取或推送了多少条，去重后实际入库多少条（差值即重复内容）。
+          每个平台抓取或推送了多少条，去重后新增多少条 raw_items。这里是采集台账，不等于上方最终入库 items。
         </p>
         {ingestStats.length > 0 ? (
           <div className="table-wrap">
@@ -147,9 +147,9 @@ export default async function Status() {
                 <tr>
                   <th>平台</th>
                   <th className="num">抓取/推送</th>
-                  <th className="num">实际入库</th>
+                  <th className="num">新增 raw_items</th>
                   <th className="num">去重率</th>
-                  <th className="num">近 24h（抓取→入库）</th>
+                  <th className="num">近 24h（抓取→raw）</th>
                   <th>最近采集</th>
                 </tr>
               </thead>
