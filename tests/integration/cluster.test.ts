@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeEach, expect, it, vi } from "vitest";
 import { sql } from "drizzle-orm";
-import { items, itemEmbeddings, topics, itemTopics } from "../../src/db/schema.js";
+import { items, itemEmbeddings, topics, itemTopics, scores } from "../../src/db/schema.js";
 import { db, pool, truncateAll } from "../setup/db.js";
 
 vi.mock("../../src/lib/scoring/llm.js", async (orig) => ({
@@ -59,4 +59,25 @@ it("folds new members into the topic centroid (running mean)", async () => {
   const centroid = JSON.parse(((res.rows ?? res)[0] as { centroid: string }).centroid) as number[];
   // Frozen-centroid behaviour would leave dim 1 at 0; the running mean lifts it.
   expect(centroid[1]).toBeGreaterThan(0.05);
+});
+
+it("refreshes topic labels from member score tags", async () => {
+  await truncateAll();
+  const ins = await db.insert(items).values([
+    { rawItemId: 20, source: "hn", title: "An OSS benchmark for code review agents", createdAt: new Date(), contentHash: "c20" },
+    { rawItemId: 21, source: "hn", title: "Coding agents need continuity", createdAt: new Date(), contentHash: "c21" },
+    { rawItemId: 22, source: "hn", title: "Lessons from coding agents in engineering", createdAt: new Date(), contentHash: "c22" },
+  ]).returning();
+  await db.insert(itemEmbeddings).values(ins.map((row) => ({ itemId: row.id, embedding: vec(0) })));
+  await db.insert(scores).values([
+    { itemId: ins[0]!.id, composite: 0.7, topicTags: ["code review agents", "evaluation"], rubricVersion: "test" },
+    { itemId: ins[1]!.id, composite: 0.6, topicTags: ["coding agents", "continuity"], rubricVersion: "test" },
+    { itemId: ins[2]!.id, composite: 0.6, topicTags: ["coding agents", "engineering"], rubricVersion: "test" },
+  ]);
+
+  const { runClusterStage } = await import("../../src/lib/cluster.js");
+  await runClusterStage(db, { threshold: 0.2 });
+
+  const [topic] = await db.select().from(topics);
+  expect(topic!.label).toBe("Coding Agents");
 });

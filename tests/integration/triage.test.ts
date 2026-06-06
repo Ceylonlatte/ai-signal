@@ -1,13 +1,14 @@
 import { afterAll, afterEach, beforeEach, expect, it, vi } from "vitest";
 import { sql } from "drizzle-orm";
-import { rawItems, items, scores } from "../../src/db/schema.js";
+import { rawItems, items, scores, keywords } from "../../src/db/schema.js";
 import { db, pool, truncateAll } from "../setup/db.js";
+import { clearKeywordCache } from "../../src/lib/scoring/keyword-store.js";
 
 vi.mock("../../src/lib/scoring/llm.js", () => ({
   scoreBatch: vi.fn(async (cands: { id: number; title: string }[]) =>
     new Map(cands.map((c) => [c.id, {
       id: c.id,
-      value: c.title.includes("KEEP") ? 95 : 5,
+      value: c.title.includes("KEEP") ? 95 : c.title.includes("BORDERLINE") ? 45 : 5,
       topics: ["agents"], reason: "r",
     }]))),
 }));
@@ -54,4 +55,31 @@ it("is idempotent: a second run processes nothing", async () => {
   const n2 = await runTriageStage(db);
   expect(n2).toBe(0);
   expect(await db.select().from(items)).toHaveLength(1);
+});
+
+it("does not let HN keyword relevance boost borderline search results past the quality gate", async () => {
+  await truncateAll();
+  await db.insert(keywords).values([
+    { term: "Agentic", caseSensitive: false },
+    { term: "Harness", caseSensitive: false },
+    { term: "RAG", caseSensitive: false },
+  ]);
+  clearKeywordCache();
+  await db.insert(rawItems).values([
+    {
+      sourceId: 1,
+      externalId: "hn-keyword-only",
+      payload: rawPayload({
+        externalId: "hn-keyword-only",
+        title: "BORDERLINE Agentic Harness RAG directory",
+        text: "Keyword overlap alone should not make a Hacker News search result valuable.",
+        metrics: { points: 1 },
+      }),
+    },
+  ]);
+
+  const { runTriageStage } = await import("../../src/pipeline/triage.js");
+  await runTriageStage(db);
+
+  expect(await db.select().from(items)).toHaveLength(0);
 });

@@ -87,8 +87,9 @@ export async function runTriageStage(db: Db): Promise<number> {
     const r = llm.get(rawId);
     const llmValue = (r?.value ?? 0) / 100;
     const relevance = relByRaw.get(rawId) ?? 0;
+    const qualityRelevance = n.source === "hn" ? 0 : relevance;
     const trust = sourceTrust(n.source, n.url, n.feed);
-    const q = computeQuality({ llmValue, relevance, trust });
+    const q = computeQuality({ llmValue, relevance: qualityRelevance, trust });
     const vec = vecByRaw.get(rawId) ?? null;
 
     // Decide keep/rescue BEFORE opening the transaction: the like-similarity

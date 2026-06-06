@@ -9,6 +9,21 @@ const algoliaResponse = {
   }],
 };
 
+const githubHeavyResponse = {
+  hits: [
+    {
+      objectID: "repo", title: "Show HN: Agent repo", url: "https://github.com/example/agent",
+      author: "dev", points: 42, num_comments: 10, created_at_i: 1748599200,
+      story_text: null,
+    },
+    {
+      objectID: "post", title: "Agent design notes", url: "https://example.com/agent-design",
+      author: "dev", points: 30, num_comments: 8, created_at_i: 1748599200,
+      story_text: null,
+    },
+  ],
+};
+
 afterEach(() => vi.restoreAllMocks());
 
 describe("fetchHackerNews", () => {
@@ -22,5 +37,11 @@ describe("fetchHackerNews", () => {
       metrics: { points: 500, comments: 200 },
     });
     expect(out[0]!.createdAt).toBe("2025-05-30T10:00:00.000Z");
+  });
+
+  it("drops GitHub repository links from search results", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(githubHeavyResponse))));
+    const out = await fetchHackerNews({ query: "agent", sinceHours: 24 });
+    expect(out.map((i) => i.externalId)).toEqual(["post"]);
   });
 });

@@ -27,6 +27,36 @@ async function foldIntoCentroid(db: Db, topicId: number, embedding: string): Pro
   `);
 }
 
+function formatTopicTag(tag: string): string {
+  return tag.trim().split(/\s+/).map((word) => {
+    if (!word) return word;
+    if (word.length <= 4 && word === word.toUpperCase()) return word;
+    return `${word[0]!.toUpperCase()}${word.slice(1)}`;
+  }).join(" ");
+}
+
+async function refreshTopicLabelFromTags(db: Db, topicId: number): Promise<void> {
+  const res = await db.execute(sql`
+    SELECT min(tag) AS tag
+    FROM (
+      SELECT trim(value) AS tag, lower(trim(value)) AS key
+      FROM item_topics it
+      JOIN scores s ON s.item_id = it.item_id
+      CROSS JOIN LATERAL jsonb_array_elements_text(s.topic_tags) AS value
+      WHERE it.topic_id = ${topicId} AND trim(value) <> ''
+    ) tags
+    GROUP BY key
+    ORDER BY count(*) DESC, key ASC
+    LIMIT 1
+  `);
+  const row = (res.rows ?? res)[0] as { tag: string } | undefined;
+  if (!row?.tag) return;
+  await db.execute(sql`
+    UPDATE topics SET label = ${formatTopicTag(row.tag)}, last_seen = now()
+    WHERE id = ${topicId}
+  `);
+}
+
 // Online clustering: for each unassigned item, find nearest topic centroid;
 // if cosine distance < threshold join it, else create a new topic.
 export async function runClusterStage(db: Db, opts: { threshold: number }): Promise<number> {
@@ -71,6 +101,7 @@ export async function runClusterStage(db: Db, opts: { threshold: number }): Prom
       DO UPDATE SET item_count = topic_trends.item_count + 1,
                     score_sum = topic_trends.score_sum + EXCLUDED.score_sum
     `);
+    await refreshTopicLabelFromTags(db, topicId);
     assigned++;
   }
   return assigned;

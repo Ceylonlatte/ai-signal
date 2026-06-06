@@ -8,6 +8,16 @@ interface HnHit {
 
 interface FetchArgs { query: string; sinceHours: number; hitsPerPage?: number; }
 
+function isGithubUrl(url: string | null): boolean {
+  if (!url) return false;
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host === "github.com" || host === "www.github.com";
+  } catch {
+    return false;
+  }
+}
+
 export async function fetchHackerNews(args: FetchArgs): Promise<RawPayload[]> {
   const since = Math.floor(Date.now() / 1000) - args.sinceHours * 3600;
   const url = new URL("https://hn.algolia.com/api/v1/search");
@@ -22,6 +32,7 @@ export async function fetchHackerNews(args: FetchArgs): Promise<RawPayload[]> {
 
   return data.hits
     .filter((h) => h.title)
+    .filter((h) => !isGithubUrl(h.url))
     .map((h) => ({
       source: "hn" as const,
       externalId: h.objectID,
