@@ -2,7 +2,8 @@ import { sources } from "../db/schema.js";
 
 type Db = any;
 
-const STALE_HOURS: Record<string, number> = { twitter: 6, reddit: 12, hn: 3, rss: 2 };
+// RSS now runs once every 24h (daily full-fetch), so it's only "stale" past ~26h.
+const STALE_HOURS: Record<string, number> = { twitter: 6, reddit: 12, hn: 3, rss: 26 };
 
 export async function getSourceStatus(db: Db) {
   const rows = await db.select().from(sources);

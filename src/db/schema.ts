@@ -133,6 +133,24 @@ export const ingestRuns = pgTable("ingest_runs", {
   at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Standalone RSS feed items. RSS feeds can only be fetched in full, so the
+// collector keeps ONLY items published in the last 24h on each daily run and
+// drops everything else — these rows NEVER enter raw_items / triage / the LLM
+// pipeline. Displayed verbatim in the dedicated /rss tab.
+export const rssItems = pgTable("rss_items", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  feedUrl: text("feed_url").notNull(),
+  externalId: text("external_id").notNull(),
+  url: text("url"),
+  title: text("title").notNull(),
+  author: text("author"),
+  summary: text("summary").notNull().default(""),
+  publishedAt: timestamp("published_at", { withTimezone: true }).notNull(),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  uq: uniqueIndex("rss_items_feed_external_uq").on(t.feedUrl, t.externalId),
+}));
+
 // User-managed relevance keywords (replaces the hardcoded WATCHED_KEYWORDS list).
 // `embedding` is the term's vector for semantic matching; nullable until embedded.
 export const keywords = pgTable("keywords", {
