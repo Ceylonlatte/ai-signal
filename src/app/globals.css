@@ -519,6 +519,13 @@ button {
   font-size: 14px;
   line-height: 1.5;
 }
+/* Original (untranslated) title shown under a Chinese title in the RSS tab. */
+.item__orig {
+  margin: 3px 0 0;
+  color: var(--text-faint);
+  font-size: 13px;
+  line-height: 1.4;
+}
 /* EN summary reveals by animating grid rows (0fr -> 1fr), never raw
    height, so it expands smoothly without layout-thrash. */
 .item__en {

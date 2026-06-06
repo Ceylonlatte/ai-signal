@@ -144,9 +144,20 @@ export const rssItems = pgTable("rss_items", {
   url: text("url"),
   title: text("title").notNull(),
   author: text("author"),
-  summary: text("summary").notNull().default(""),
+  summary: text("summary").notNull().default(""), // raw feed contentSnippet
   publishedAt: timestamp("published_at", { withTimezone: true }).notNull(),
   fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  // LLM-generated summary + Chinese translation (mirrors the `scores` columns).
+  // RSS skips scoring/ranking, but the worker still summarizes each item: a
+  // Chinese title, an English summary, and its Chinese translation. summary_en
+  // doubles as the "already summarized" sentinel; attempts/error dead-letter a
+  // permanently-failing item instead of re-picking it forever.
+  titleZh: text("title_zh").notNull().default(""),
+  summaryEn: text("summary_en").notNull().default(""),
+  summaryZh: text("summary_zh").notNull().default(""),
+  fullTextFetched: boolean("full_text_fetched").notNull().default(false),
+  summaryAttempts: integer("summary_attempts").notNull().default(0),
+  summaryError: text("summary_error"),
 }, (t) => ({
   uq: uniqueIndex("rss_items_feed_external_uq").on(t.feedUrl, t.externalId),
 }));

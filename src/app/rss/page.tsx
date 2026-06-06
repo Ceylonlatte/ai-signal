@@ -49,7 +49,7 @@ export default async function RssPage() {
         </div>
       </div>
       <p className="page__lead">
-        来自各家官方博客 / 发布说明的 RSS 源，每 24 小时全量抓取一次、仅保留近两天发布的条目，不参与打分与 LLM 处理，原文直出。
+        来自各家官方博客 / 发布说明的 RSS 源，每 24 小时全量抓取一次、仅保留近两天发布的条目；自动生成摘要与中文翻译，但不参与打分与排序。
       </p>
 
       {rows.length === 0 ? (
@@ -69,6 +69,8 @@ export default async function RssPage() {
             <div className="results">
               {g.items.map((item) => {
                 const host = hostOf(item.url);
+                const title = item.titleZh || item.title;
+                const summary = item.summaryZh || item.summary;
                 return (
                   <article key={item.id} className="item">
                     <div className="item__top">
@@ -78,11 +80,14 @@ export default async function RssPage() {
                         target="_blank"
                         rel="noreferrer"
                       >
-                        {item.title}
+                        {title}
                         {host && <span className="item__ext">{host} ↗</span>}
                       </a>
                     </div>
-                    {item.summary && <p className="item__summary">{clamp(item.summary)}</p>}
+                    {item.titleZh && item.title && item.titleZh !== item.title && (
+                      <p className="item__orig">{item.title}</p>
+                    )}
+                    {summary && <p className="item__summary">{clamp(summary)}</p>}
                     <div className="item__meta">
                       <span className="item__source">{rssFeedLabel(item.feedUrl)}</span>
                       <span className="meta-dot">·</span>

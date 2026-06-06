@@ -8,8 +8,10 @@ export interface RssRow {
   feedUrl: string;
   url: string | null;
   title: string;
+  titleZh: string;
   author: string | null;
   summary: string;
+  summaryZh: string;
   publishedAt: string;
 }
 
@@ -21,8 +23,10 @@ export async function getRssItems(db: Db, opts: { limit?: number } = {}): Promis
       feedUrl: rssItems.feedUrl,
       url: rssItems.url,
       title: rssItems.title,
+      titleZh: rssItems.titleZh,
       author: rssItems.author,
       summary: rssItems.summary,
+      summaryZh: rssItems.summaryZh,
       publishedAt: rssItems.publishedAt,
     })
     .from(rssItems)
