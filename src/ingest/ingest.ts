@@ -1,4 +1,4 @@
-import { rawItems } from "../db/schema.js";
+import { rawItems, ingestRuns } from "../db/schema.js";
 import type { RawPayload } from "../types.js";
 
 interface IngestArgs { db: any; sourceId: number; payloads: RawPayload[]; }
@@ -10,5 +10,13 @@ export async function ingest({ db, sourceId, payloads }: IngestArgs): Promise<nu
     .values(payloads.map((p) => ({ sourceId, externalId: p.externalId, payload: p })))
     .onConflictDoNothing({ target: [rawItems.sourceId, rawItems.externalId] })
     .returning({ id: rawItems.id });
+  // Accounting row: a batch is single-source/single-feed across every caller
+  // (hn/rss collectors, /api/ingest per feed), so payloads[0] is representative.
+  await db.insert(ingestRuns).values({
+    source: payloads[0]!.source,
+    feed: payloads[0]!.feed ?? null,
+    attempted: payloads.length,
+    inserted: inserted.length,
+  });
   return inserted.length;
 }

@@ -82,6 +82,42 @@ export async function getDataStats(db: Db): Promise<DataStats> {
   };
 }
 
+export interface IngestStatRow {
+  source: string;
+  attempted: number; inserted: number;
+  attempted24h: number; inserted24h: number;
+  lastRunAt: string | null;
+}
+
+// Per-platform collect/push accounting. Counts come from ingest_runs (how many
+// items each source attempted to bring in vs. how many were actually new rows —
+// the gap is repeat/dup volume). `lastRunAt` is the source's last collect/push
+// timestamp from sources.last_run_at, which is the authoritative "last fetched"
+// signal (updated on every run, even empty ones, with real history). Anchored on
+// `sources` so every platform shows up even before its first accounting row.
+export async function getIngestStats(db: Db): Promise<IngestStatRow[]> {
+  const n = (v: unknown) => Number(v ?? 0);
+  const res = await db.execute(sql`
+    SELECT s.kind AS source,
+      COALESCE(sum(r.attempted), 0)::int AS "attempted",
+      COALESCE(sum(r.inserted), 0)::int AS "inserted",
+      COALESCE(sum(r.attempted) FILTER (WHERE r.at > now() - interval '24 hours'), 0)::int AS "attempted24h",
+      COALESCE(sum(r.inserted) FILTER (WHERE r.at > now() - interval '24 hours'), 0)::int AS "inserted24h",
+      max(s.last_run_at) AS "lastRunAt"
+    FROM sources s
+    LEFT JOIN ingest_runs r ON r.source = s.kind
+    GROUP BY s.kind
+    ORDER BY "attempted" DESC, s.kind
+  `);
+  const iso = (v: unknown) => (v ? new Date(v as string).toISOString() : null);
+  return ((res.rows ?? res) as Array<Record<string, unknown>>).map((r) => ({
+    source: String(r.source),
+    attempted: n(r.attempted), inserted: n(r.inserted),
+    attempted24h: n(r.attempted24h), inserted24h: n(r.inserted24h),
+    lastRunAt: iso(r.lastRunAt),
+  }));
+}
+
 export interface ModelUsageRow {
   kind: string; model: string; calls: number;
   promptTokens: number; completionTokens: number; totalTokens: number; cost: number;

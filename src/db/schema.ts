@@ -120,6 +120,19 @@ export const modelUsage = pgTable("model_usage", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Per-batch ingest accounting: how many items each collect/push attempt brought
+// in (`attempted`) vs. how many were actually new rows in raw_items (`inserted`,
+// i.e. survived the source+external_id dedupe). One row per `ingest()` call, so
+// the gap surfaces how much a feed (esp. twitter for-you) repeats itself.
+export const ingestRuns = pgTable("ingest_runs", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  source: text("source").notNull(), // hn | rss | reddit | twitter
+  feed: text("feed"), // reddit hot/new, twitter following/for-you; null for hn/rss
+  attempted: integer("attempted").notNull().default(0),
+  inserted: integer("inserted").notNull().default(0),
+  at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // User-managed relevance keywords (replaces the hardcoded WATCHED_KEYWORDS list).
 // `embedding` is the term's vector for semantic matching; nullable until embedded.
 export const keywords = pgTable("keywords", {

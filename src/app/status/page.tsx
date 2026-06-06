@@ -1,5 +1,5 @@
 import { db } from "../../db/client.js";
-import { getPipelineStatus, getDataStats, getModelUsage } from "../status-queries.js";
+import { getPipelineStatus, getDataStats, getModelUsage, getIngestStats } from "../status-queries.js";
 
 export const dynamic = "force-dynamic";
 
@@ -48,11 +48,23 @@ const th: React.CSSProperties = { padding: "6px 10px", textAlign: "left", color:
 const td: React.CSSProperties = { padding: "6px 10px", fontVariantNumeric: "tabular-nums" };
 
 export default async function Status() {
-  const [s, data, usage] = await Promise.all([
+  const [s, data, usage, ingestStats] = await Promise.all([
     getPipelineStatus(db),
     getDataStats(db),
     getModelUsage(db),
+    getIngestStats(db),
   ]);
+  const ingestTotal = ingestStats.reduce(
+    (a, r) => ({ attempted: a.attempted + r.attempted, inserted: a.inserted + r.inserted }),
+    { attempted: 0, inserted: 0 },
+  );
+  const ingestLastRunAt = ingestStats
+    .map((r) => r.lastRunAt)
+    .filter((v): v is string => !!v)
+    .sort()
+    .at(-1) ?? null;
+  const dupePct = (att: number, ins: number) =>
+    att > 0 ? `${Math.round(((att - ins) / att) * 100)}%` : "—";
   const pending = s.rawPending + s.embedPending + s.summaryPending + s.unclustered;
   return (
     <main style={{ maxWidth: 760, margin: "2rem auto", fontFamily: "system-ui" }}>
@@ -100,6 +112,47 @@ export default async function Status() {
             ))}
           </tbody>
         </table>
+      )}
+
+      <h2 style={{ marginTop: 36 }}>采集 / 入库</h2>
+      <p style={{ fontSize: 13, color: "#666", marginTop: 0 }}>
+        每个平台抓取或推送了多少条，去重后实际入库多少条（差值即重复内容）。
+      </p>
+      {ingestStats.length > 0 ? (
+        <table style={{ borderCollapse: "collapse", fontSize: 14, marginTop: 8 }}>
+          <thead>
+            <tr>
+              <th style={th}>平台</th>
+              <th style={th}>抓取/推送</th>
+              <th style={th}>实际入库</th>
+              <th style={th}>去重率</th>
+              <th style={th}>近 24h（抓取→入库）</th>
+              <th style={th}>最近采集</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ingestStats.map((r) => (
+              <tr key={r.source}>
+                <td style={{ ...td, color: "#444" }}>{r.source}</td>
+                <td style={td}>{fmtInt(r.attempted)}</td>
+                <td style={td}>{fmtInt(r.inserted)}</td>
+                <td style={td}>{dupePct(r.attempted, r.inserted)}</td>
+                <td style={{ ...td, color: "#666" }}>{fmtInt(r.attempted24h)} → {fmtInt(r.inserted24h)}</td>
+                <td style={{ ...td, color: "#666" }}>{fmtDate(r.lastRunAt)}</td>
+              </tr>
+            ))}
+            <tr style={{ borderTop: "1px solid #eee" }}>
+              <td style={{ ...td, color: "#888" }}>合计</td>
+              <td style={td}>{fmtInt(ingestTotal.attempted)}</td>
+              <td style={td}>{fmtInt(ingestTotal.inserted)}</td>
+              <td style={td}>{dupePct(ingestTotal.attempted, ingestTotal.inserted)}</td>
+              <td style={td}>—</td>
+              <td style={{ ...td, color: "#666" }}>{fmtDate(ingestLastRunAt)}</td>
+            </tr>
+          </tbody>
+        </table>
+      ) : (
+        <p style={{ fontSize: 13, color: "#888" }}>暂无采集记录（下次采集后开始累计）。</p>
       )}
 
       <h2 style={{ marginTop: 36 }}>模型使用花销</h2>
