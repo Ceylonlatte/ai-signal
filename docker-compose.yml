@@ -27,6 +27,9 @@ services:
       - .env
     environment:
       DATABASE_URL: postgres://aisignal:aisignal@db:5432/aisignal
+      # Render all server-side dates (status / dashboard / feed) in Beijing time;
+      # timestamptz is stored as UTC, so this only affects toLocaleString output.
+      TZ: Asia/Shanghai
     ports:
       - "3000:3000"
     depends_on:
