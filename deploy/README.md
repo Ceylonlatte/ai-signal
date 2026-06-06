@@ -37,7 +37,8 @@ BASIC_AUTH_USER=<your-user>
 BASIC_AUTH_PASS=<STRONG_PASSWORD>
 OPENROUTER_API_KEY=<your-openrouter-key>
 SCORING_MODEL=deepseek/deepseek-v4-flash
-EMBEDDING_MODEL=nvidia/llama-nemotron-embed-vl-1b-v2:free
+EMBEDDING_MODEL=qwen/qwen3-embedding-8b
+EMBEDDING_DIM=2048
 WEIGHT_HEAT=0.2
 WEIGHT_RELEVANCE=0.2
 WEIGHT_NOVELTY=0.15
@@ -116,6 +117,27 @@ docker compose up -d worker
 ```
 
 `reset-corpus` aborts unless `RESET_CONFIRM=yes` is set, and prints the target database name before truncating.
+
+### Switching the embedding model (full restart)
+
+A new embedding model lives in a different vector space, so every stored vector
+must be regenerated. After deploying the new code (which sets the model + dim):
+
+```bash
+# 1. point .env at the new model, then recreate web+worker so they pick it up
+sed -i 's#^EMBEDDING_MODEL=.*#EMBEDDING_MODEL=qwen/qwen3-embedding-8b#' .env
+grep -q '^EMBEDDING_DIM=' .env || echo 'EMBEDDING_DIM=2048' >> .env
+docker compose up -d web worker
+
+# 2. wipe the corpus (items / embeddings / topics / scores / feedback / raw_items)
+docker compose exec -T -e RESET_CONFIRM=yes worker npm run reset-corpus
+
+# 3. drop stale keyword vectors so the worker re-embeds them with the new model
+docker compose exec -T db psql -U aisignal -d aisignal -c "UPDATE keywords SET embedding = NULL;"
+
+# 4. restart the worker so collectors re-pull and re-embed everything fresh
+docker compose up -d worker
+```
 
 ## 6. Twitter + Reddit ingestion — pushed by the digest skills (on your Mac)
 

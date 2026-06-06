@@ -49,7 +49,7 @@ export async function loadKeywords(db: Db): Promise<LoadedKeyword[]> {
   const missing = rows.filter((r) => !toVec(r.embedding));
   if (missing.length > 0 && config.OPENROUTER_API_KEY) {
     try {
-      const vecs = await embedTexts(missing.map((r) => r.term));
+      const vecs = await embedTexts(missing.map((r) => r.term), { query: true });
       for (let i = 0; i < missing.length; i++) {
         const v = vecs[i];
         if (!v) continue;

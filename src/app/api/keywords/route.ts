@@ -39,7 +39,7 @@ export async function POST(req: Request): Promise<Response> {
   // embeddings call fails we still store the keyword (exact-match only) and the
   // worker's lazy backfill embeds it later.
   let embedding: number[] | null = null;
-  try { const [v] = await embedTexts([term]); embedding = v ?? null; } catch { /* backfilled later */ }
+  try { const [v] = await embedTexts([term], { query: true }); embedding = v ?? null; } catch { /* backfilled later */ }
 
   const [row] = await db.insert(keywords)
     .values({ term, caseSensitive: isAcronym(term), embedding })

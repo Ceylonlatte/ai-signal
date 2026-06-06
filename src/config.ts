@@ -10,7 +10,10 @@ const schema = z.object({
   BASIC_AUTH_PASS: z.string().default("admin"),
   OPENROUTER_API_KEY: z.string().default(""),
   SCORING_MODEL: z.string().default("deepseek/deepseek-v4-flash"),
-  EMBEDDING_MODEL: z.string().default("nvidia/llama-nemotron-embed-vl-1b-v2:free"),
+  EMBEDDING_MODEL: z.string().default("qwen/qwen3-embedding-8b"),
+  // qwen3-embedding-8b is natively 4096-dim; we request a 2048-dim MRL slice so
+  // vectors fit the `vector(2048)` columns. MUST equal the schema dimension.
+  EMBEDDING_DIM: z.coerce.number().default(2048),
   WEIGHT_HEAT: z.coerce.number().default(0.2),
   WEIGHT_RELEVANCE: z.coerce.number().default(0.2),
   WEIGHT_NOVELTY: z.coerce.number().default(0.15),
