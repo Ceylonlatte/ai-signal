@@ -9,6 +9,15 @@ export function likeAffinity(maxLikeSim: number | null, nUp: number): number {
   return sim * cold;
 }
 
+// Symmetric to likeAffinity: similarity to recently disliked items, scaled by
+// the same cold-start factor. Ranking subtracts this so content like what you
+// 👎'd is softly demoted (distinct from the hard hide at SUPPRESS_THRESHOLD).
+export function dislikeAffinity(maxDislikeSim: number | null, nDown: number): number {
+  const sim = clamp01(maxDislikeSim ?? 0);
+  const cold = config.COLDSTART_N0 <= 0 ? 1 : Math.min(1, nDown / config.COLDSTART_N0);
+  return sim * cold;
+}
+
 export function isSuppressed(maxDislikeSim: number | null): boolean {
   return (maxDislikeSim ?? 0) >= config.SUPPRESS_THRESHOLD;
 }

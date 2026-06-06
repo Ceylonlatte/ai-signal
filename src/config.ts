@@ -17,6 +17,9 @@ const schema = z.object({
   WEIGHT_LLM: z.coerce.number().default(0.45),
   // --- Quality gate Q (time-invariant, llm-dominant) ---
   Q_THRESHOLD: z.coerce.number().default(0.55),
+  // Lower gate for twitter "following": a hand-curated timeline we trust more,
+  // so it clears the bar more easily than the global threshold. Tunable.
+  Q_THRESHOLD_TWITTER_FOLLOWING: z.coerce.number().default(0.45),
   // Raised 0.15 → 0.30: keyword/semantic relevance now weighs more in Q.
   Q_WEIGHT_REL: z.coerce.number().default(0.30),
   Q_WEIGHT_TRUST: z.coerce.number().default(0.15),
@@ -28,6 +31,9 @@ const schema = z.object({
   R_WEIGHT_HEAT: z.coerce.number().default(0.30),
   R_WEIGHT_NOVELTY: z.coerce.number().default(0.10),
   R_WEIGHT_AFFINITY: z.coerce.number().default(0.15),
+  // Subtracted from R, scaled by similarity to recently disliked items, so
+  // content like what you 👎'd ranks lower (soft demotion, not a hard hide).
+  R_WEIGHT_DISLIKE: z.coerce.number().default(0.15),
   // --- Per-platform heat log-normalization divisors ---
   HEAT_K_HN: z.coerce.number().default(2.5),
   HEAT_K_REDDIT: z.coerce.number().default(2.5),
@@ -61,4 +67,5 @@ export const rankingWeights = {
   wHeat: config.R_WEIGHT_HEAT,
   wNov: config.R_WEIGHT_NOVELTY,
   wAff: config.R_WEIGHT_AFFINITY,
+  wDislike: config.R_WEIGHT_DISLIKE,
 };

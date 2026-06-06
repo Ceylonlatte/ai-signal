@@ -78,7 +78,7 @@ export async function runTriageStage(db: Db): Promise<number> {
 
   const candidates = selectCandidates(normalized.map((x: any) => ({
     id: x.rawId, title: x.n.title, text: x.n.text, source: x.n.source,
-    metrics: x.n.metrics, relevance: relByRaw.get(x.rawId) ?? 0,
+    metrics: x.n.metrics, relevance: relByRaw.get(x.rawId) ?? 0, feed: x.n.feed,
   })));
   const llm = await scoreBatch(candidates);
 
@@ -93,7 +93,11 @@ export async function runTriageStage(db: Db): Promise<number> {
 
     // Decide keep/rescue BEFORE opening the transaction: the like-similarity
     // read and novelty query must not hold the transaction open across IO.
-    let keep = passesGate(q);
+    // Twitter "following" is a trusted curated timeline → lower gate.
+    const gate = n.source === "twitter" && n.feed === "following"
+      ? config.Q_THRESHOLD_TWITTER_FOLLOWING
+      : config.Q_THRESHOLD;
+    let keep = passesGate(q, gate);
     if (!keep && inRescueBand(q) && vec) {
       const sim = await maxLikeSimForVector(db, vec);
       if (likeRescues(sim)) keep = true;

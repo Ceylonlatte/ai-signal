@@ -26,4 +26,12 @@ describe("selectCandidates", () => {
     const out = selectCandidates([mk({ id: 5, source: "twitter", relevance: 0, metrics: { likes: 3, retweets: 0, replies: 1 } })]);
     expect(out.map((i) => i.id)).not.toContain(5);
   });
+  it("always keeps twitter following tweets (curated timeline), even cold+irrelevant", () => {
+    const out = selectCandidates([mk({ id: 6, source: "twitter", feed: "following", relevance: 0, metrics: { likes: 0, retweets: 0, replies: 0 } })]);
+    expect(out.map((i) => i.id)).toContain(6);
+  });
+  it("for-you tweets still need heat or relevance", () => {
+    const out = selectCandidates([mk({ id: 7, source: "twitter", feed: "for-you", relevance: 0, metrics: { likes: 1, retweets: 0, replies: 0 } })]);
+    expect(out.map((i) => i.id)).not.toContain(7);
+  });
 });

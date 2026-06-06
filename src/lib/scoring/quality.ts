@@ -13,8 +13,8 @@ export function computeQuality(i: QualityInput): number {
   return clamp01(q);
 }
 
-export function passesGate(q: number): boolean {
-  return q >= config.Q_THRESHOLD;
+export function passesGate(q: number, threshold: number = config.Q_THRESHOLD): boolean {
+  return q >= threshold;
 }
 
 // Borderline band just below the gate, eligible for like-rescue.

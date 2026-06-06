@@ -25,6 +25,18 @@ it("records an up signal", async () => {
   expect(rows[0]).toMatchObject({ itemId: 7, signal: "up" });
 });
 
+it("coerces a string itemId (feed sends bigint ids as strings)", async () => {
+  const { POST } = await import("../../src/app/api/feedback/route.js");
+  const res = await POST(new Request("http://x/api/feedback", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ itemId: "20", signal: "down" }),
+  }));
+  expect(res.status).toBe(200);
+  const rows = await db.select().from(feedback);
+  expect(rows[0]).toMatchObject({ itemId: 20, signal: "down" });
+});
+
 it("rejects an invalid signal", async () => {
   const { POST } = await import("../../src/app/api/feedback/route.js");
   const res = await POST(new Request("http://x/api/feedback", {

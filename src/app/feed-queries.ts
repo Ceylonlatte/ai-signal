@@ -3,7 +3,7 @@ import { config } from "../config.js";
 import { platformHeat, hoursSince } from "../lib/scoring/platform-heat.js";
 import { sourceTrust } from "../lib/sources/trust.js";
 import { computeRanking } from "../lib/scoring/ranking.js";
-import { likeAffinity, isSuppressed } from "../lib/feedback/profile.js";
+import { likeAffinity, dislikeAffinity, isSuppressed } from "../lib/feedback/profile.js";
 
 type Db = any;
 
@@ -13,7 +13,7 @@ interface Row {
   createdAt: string; metrics: Record<string, number>;
   q: number; novelty: number; summaryZh: string; summaryEn: string;
   topicTags: unknown; reason: string;
-  maxLikeSim: number | null; maxDislikeSim: number | null; nUp: number;
+  maxLikeSim: number | null; maxDislikeSim: number | null; nUp: number; nDown: number;
 }
 
 // Personal-scale safety cap: rank at most this many rows in-app before paging.
@@ -25,6 +25,9 @@ async function candidates(db: Db, cap: number): Promise<Row[]> {
     WITH up AS (
       SELECT count(*)::int AS n FROM feedback
       WHERE signal = 'up' AND created_at > now() - ${win}::interval
+    ), down AS (
+      SELECT count(*)::int AS n FROM feedback
+      WHERE signal = 'down' AND created_at > now() - ${win}::interval
     )
     SELECT i.id, i.title, s.title_zh AS "titleZh", i.url, i.source, i.author AS "author",
            i.created_at AS "createdAt", i.metrics,
@@ -36,7 +39,8 @@ async function candidates(db: Db, cap: number): Promise<Row[]> {
            (SELECT 1 - MIN(de.embedding <=> e.embedding)
               FROM item_embeddings de JOIN feedback f ON f.item_id = de.item_id
               WHERE f.signal = 'down' AND f.created_at > now() - ${win}::interval) AS "maxDislikeSim",
-           (SELECT n FROM up) AS "nUp"
+           (SELECT n FROM up) AS "nUp",
+           (SELECT n FROM down) AS "nDown"
     FROM items i
     JOIN scores s ON s.item_id = i.id
     LEFT JOIN item_embeddings e ON e.item_id = i.id
@@ -58,7 +62,11 @@ function withRanking(rows: Row[]): Ranked[] {
       source: row.source, metrics: row.metrics ?? {}, hours, trust: sourceTrust(row.source, row.url),
     });
     const aff = likeAffinity(row.maxLikeSim, Number(row.nUp ?? 0));
-    const r = computeRanking({ q: row.q ?? 0, platformHeat: heat, novelty: row.novelty ?? 0, likeAffinity: aff });
+    const disaff = dislikeAffinity(row.maxDislikeSim, Number(row.nDown ?? 0));
+    const r = computeRanking({
+      q: row.q ?? 0, platformHeat: heat, novelty: row.novelty ?? 0,
+      likeAffinity: aff, dislikeAffinity: disaff,
+    });
     return { ...row, r };
   });
 }

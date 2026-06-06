@@ -6,7 +6,9 @@ import { feedback } from "../../../db/schema.js";
 export const dynamic = "force-dynamic";
 
 const schema = z.object({
-  itemId: z.number(),
+  // The feed's bigint ids arrive as strings (pg returns bigint as text via the
+  // raw feed query), so the client posts itemId as a string — coerce it back.
+  itemId: z.coerce.number(),
   signal: z.enum(["up", "down"]),
   reason: z.string().optional(),
 });

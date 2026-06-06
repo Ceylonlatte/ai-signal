@@ -6,6 +6,7 @@ export interface Candidate {
   // Hybrid (exact + semantic) relevance, precomputed by the caller (triage),
   // which has the item embedding needed for semantic matching.
   relevance: number;
+  feed?: string; // provenance, e.g. twitter following/for-you
 }
 
 const HEAT_FLOOR = 0.5;
@@ -21,7 +22,13 @@ function prefilterHeat(source: string, metrics: Record<string, number>): number 
 }
 
 // Cheap pre-pass before the (paid) LLM: keep anything that is keyword/semantic
-// relevant OR already hot. Everything else is dropped without scoring.
+// relevant OR already hot. Twitter "following" is a hand-curated timeline, so
+// every tweet from it is sent to the LLM regardless of heat/relevance (the LLM
+// + a lower gate decide; see triage). Everything else is dropped unscored.
 export function selectCandidates<T extends Candidate>(items: T[]): T[] {
-  return items.filter((i) => i.relevance > 0 || prefilterHeat(i.source, i.metrics) >= HEAT_FLOOR);
+  return items.filter((i) =>
+    i.relevance > 0
+    || prefilterHeat(i.source, i.metrics) >= HEAT_FLOOR
+    || (i.source === "twitter" && i.feed === "following"),
+  );
 }
