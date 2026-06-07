@@ -42,8 +42,14 @@ function ThumbIcon({ dir }: { dir: Signal }) {
   );
 }
 
-export function FeedbackButtons({ itemId }: { itemId: number }) {
-  const [active, setActive] = useState<Signal | null>(null);
+export function FeedbackButtons({
+  itemId,
+  initialSignal = null,
+}: {
+  itemId: number;
+  initialSignal?: Signal | null;
+}) {
+  const [active, setActive] = useState<Signal | null>(initialSignal);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(false);
 

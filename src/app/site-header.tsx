@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 
 const NAV = [
   { href: "/", label: "信号流" },
+  { href: "/liked", label: "收藏" },
   { href: "/rss", label: "RSS" },
   { href: "/topics", label: "话题" },
   { href: "/search", label: "搜索" },
