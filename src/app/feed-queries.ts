@@ -19,7 +19,23 @@ interface Row {
 // Personal-scale safety cap: rank at most this many rows in-app before paging.
 const MAX_CANDIDATES = 2000;
 
-async function candidates(db: Db, cap: number): Promise<Row[]> {
+// Main feed platforms. RSS keeps its separate surface and is excluded from `all`.
+const MAIN_FEED_SOURCES = ["hn", "reddit", "twitter"] as const;
+
+export type FeedSort = "time" | "score";
+export type FeedSource = "all" | (typeof MAIN_FEED_SOURCES)[number];
+
+export function normalizeFeedSource(source: string | null | undefined): FeedSource {
+  return source === "hn" || source === "reddit" || source === "twitter" ? source : "all";
+}
+
+function sourceFilter(source: FeedSource) {
+  return source === "all"
+    ? sql`i.source IN ('hn', 'reddit', 'twitter')`
+    : sql`i.source = ${source}`;
+}
+
+async function candidates(db: Db, cap: number, source: FeedSource): Promise<Row[]> {
   const win = `${config.PROFILE_WINDOW_DAYS} days`;
   const res = await db.execute(sql`
     WITH up AS (
@@ -45,6 +61,7 @@ async function candidates(db: Db, cap: number): Promise<Row[]> {
     JOIN scores s ON s.item_id = i.id
     LEFT JOIN item_embeddings e ON e.item_id = i.id
     WHERE i.is_archived = false
+      AND ${sourceFilter(source)}
     ORDER BY i.created_at DESC
     LIMIT ${cap}
   `);
@@ -79,8 +96,6 @@ function ranked(rows: Row[]): Ranked[] {
   return withRanking(rows).sort(byScore);
 }
 
-export type FeedSort = "time" | "score";
-
 export interface FeedPage {
   items: Ranked[];
   total: number;
@@ -88,6 +103,7 @@ export interface FeedPage {
   pageSize: number;
   totalPages: number;
   sort: FeedSort;
+  source: FeedSource;
   // Ranking-score bounds across the whole visible set (not just this page), so
   // strength tiers stay stable and comparable as infinite scroll appends pages.
   rMin: number;
@@ -98,11 +114,12 @@ export interface FeedPage {
 // sort (recency by default, ranking score on demand), and returns one page.
 export async function getFeed(
   db: Db,
-  opts: { page?: number; pageSize?: number; sort?: FeedSort },
+  opts: { page?: number; pageSize?: number; sort?: FeedSort; source?: string },
 ): Promise<FeedPage> {
   const sort: FeedSort = opts.sort === "score" ? "score" : "time";
+  const source = normalizeFeedSource(opts.source);
   const pageSize = Math.max(1, opts.pageSize ?? 30);
-  const rows = await candidates(db, MAX_CANDIDATES);
+  const rows = await candidates(db, MAX_CANDIDATES, source);
   const visible = rows.filter((row) => !isSuppressed(row.maxDislikeSim));
   const all = withRanking(visible).sort(sort === "score" ? byScore : byTime);
   const total = all.length;
@@ -112,11 +129,11 @@ export async function getFeed(
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const page = Math.min(Math.max(1, opts.page ?? 1), totalPages);
   const start = (page - 1) * pageSize;
-  return { items: all.slice(start, start + pageSize), total, page, pageSize, totalPages, sort, rMin, rMax };
+  return { items: all.slice(start, start + pageSize), total, page, pageSize, totalPages, sort, source, rMin, rMax };
 }
 
 export async function getSuppressed(db: Db, opts: { limit: number }) {
-  const rows = await candidates(db, Math.max(opts.limit * 6, 300));
+  const rows = await candidates(db, Math.max(opts.limit * 6, 300), "all");
   const hidden = rows.filter((row) => isSuppressed(row.maxDislikeSim));
   return ranked(hidden).slice(0, opts.limit);
 }
