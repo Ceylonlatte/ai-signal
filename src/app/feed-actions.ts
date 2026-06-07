@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "../db/client.js";
-import { getFeed, type FeedSort } from "./feed-queries.js";
+import { getFeed, normalizeFeedSource, type FeedSort, type FeedSource } from "./feed-queries.js";
 import { toFeedData, type FeedItemData } from "./feed-item-data.js";
 
 const PAGE_SIZE = 30;
@@ -14,10 +14,20 @@ export interface FeedPageResult {
   hasMore: boolean;
 }
 
-export async function loadFeedPage(page: number, sort: FeedSort): Promise<FeedPageResult> {
+export async function loadFeedPage(
+  page: number,
+  sort: FeedSort,
+  source: FeedSource,
+): Promise<FeedPageResult> {
   const safePage = Math.max(1, Math.floor(page) || 1);
   const safeSort: FeedSort = sort === "score" ? "score" : "time";
-  const res = await getFeed(db, { page: safePage, pageSize: PAGE_SIZE, sort: safeSort });
+  const safeSource = normalizeFeedSource(source);
+  const res = await getFeed(db, {
+    page: safePage,
+    pageSize: PAGE_SIZE,
+    sort: safeSort,
+    source: safeSource,
+  });
   const now = new Date();
   return {
     items: res.items.map((it) => toFeedData(it, now, res.rMin, res.rMax)),

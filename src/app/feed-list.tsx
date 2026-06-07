@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { strengthLabel, type Strength } from "./format.js";
 import type { FeedItemData } from "./feed-item-data.js";
-import type { FeedSort } from "./feed-queries.js";
+import type { FeedSort, FeedSource } from "./feed-queries.js";
 import { loadFeedPage } from "./feed-actions.js";
 
 export type { FeedItemData } from "./feed-item-data.js";
@@ -29,11 +29,13 @@ export function FeedList({
   total: initialTotal,
   totalPages: initialTotalPages,
   sort,
+  source,
 }: {
   initialItems: FeedItemData[];
   total: number;
   totalPages: number;
   sort: FeedSort;
+  source: FeedSource;
 }) {
   const [items, setItems] = useState<FeedItemData[]>(initialItems);
   const [page, setPage] = useState(1);
@@ -50,7 +52,7 @@ export function FeedList({
     setLoading(true);
     setError(false);
     try {
-      const res = await loadFeedPage(page + 1, sort);
+      const res = await loadFeedPage(page + 1, sort, source);
       setItems((prev) => {
         const seen = new Set(prev.map((it) => it.id));
         return [...prev, ...res.items.filter((it) => !seen.has(it.id))];

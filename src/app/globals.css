@@ -311,6 +311,8 @@ button {
 .page__tools {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: var(--space-4);
 }
 .sort {
@@ -340,6 +342,12 @@ button {
 }
 .sort__btn:hover {
   color: var(--text-strong);
+}
+
+@media (max-width: 720px) {
+  .page__tools {
+    justify-content: flex-start;
+  }
 }
 
 /* ─── Notice (stale sources / inline status) ────────────── */
