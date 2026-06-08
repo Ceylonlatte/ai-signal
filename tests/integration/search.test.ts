@@ -16,10 +16,12 @@ beforeEach(async () => {
   const ins = await db.insert(items).values([
     { rawItemId: 1, source: "hn", title: "Agent frameworks compared", text: "langgraph", createdAt: new Date(), contentHash: "h1" },
     { rawItemId: 2, source: "hn", title: "Cooking recipes", text: "pasta", createdAt: new Date(), contentHash: "h2" },
+    { rawItemId: 3, source: "twitter", title: "微信小程序可以被微信 AI 推荐了", text: "随用随走", createdAt: new Date(), contentHash: "h3" },
   ]).returning();
   await db.insert(itemEmbeddings).values([
     { itemId: ins[0]!.id, embedding: vec(0) },
     { itemId: ins[1]!.id, embedding: vec(7) },
+    { itemId: ins[2]!.id, embedding: vec(3) },
   ]);
 });
 afterEach(async () => { await truncateAll(); });
@@ -29,6 +31,13 @@ it("keyword search matches title text", async () => {
   const { keywordSearch } = await import("../../src/app/search/search-queries.js");
   const out = await keywordSearch(db, "agent");
   expect(out.map((r: any) => r.title)).toContain("Agent frameworks compared");
+  expect(out.map((r: any) => r.title)).not.toContain("Cooking recipes");
+});
+
+it("keyword search matches a CJK substring the FTS parser can't segment", async () => {
+  const { keywordSearch } = await import("../../src/app/search/search-queries.js");
+  const out = await keywordSearch(db, "小程序");
+  expect(out.map((r: any) => r.title)).toContain("微信小程序可以被微信 AI 推荐了");
   expect(out.map((r: any) => r.title)).not.toContain("Cooking recipes");
 });
 

@@ -28,7 +28,7 @@ const schema = z.object({
   Q_WEIGHT_TRUST: z.coerce.number().default(0.15),
   // Semantic relevance: cosine sim at/below this floor contributes nothing; the
   // [floor, 1] range is linearly mapped to [0, 1]. Tunable via env.
-  RELEVANCE_SIM_THRESHOLD: z.coerce.number().default(0.35),
+  RELEVANCE_SIM_THRESHOLD: z.coerce.number().default(0.45),
   // --- Ranking R (live) ---
   R_WEIGHT_Q: z.coerce.number().default(0.45),
   R_WEIGHT_HEAT: z.coerce.number().default(0.30),

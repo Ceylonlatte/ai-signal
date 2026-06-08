@@ -5,11 +5,18 @@ import { config } from "../../config.js";
 type Db = any;
 
 export async function keywordSearch(db: Db, q: string) {
+  // Postgres's default FTS parser doesn't segment space-less scripts: a whole run
+  // of CJK like "微信小程序可以被微信" becomes one lexeme, so a query token like
+  // "小程序" never matches. Pair the tsvector match (English word/stemming
+  // precision) with a case-insensitive substring (ILIKE) match that catches CJK
+  // and literal substrings. Escape LIKE metacharacters in the user's query.
+  const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
   const res = await db.execute(sql`
     SELECT id, title, url, source, created_at AS "createdAt"
     FROM items
     WHERE to_tsvector('english', coalesce(title,'') || ' ' || coalesce(text,''))
           @@ plainto_tsquery('english', ${q})
+       OR (coalesce(title,'') || ' ' || coalesce(text,'')) ILIKE ${like}
     ORDER BY created_at DESC LIMIT 50
   `);
   return (res.rows ?? res) as any[];
