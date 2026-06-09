@@ -1,5 +1,4 @@
 import { afterAll, afterEach, beforeEach, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
 import { feedback, items, scores } from "../../src/db/schema.js";
 import { db, pool, truncateAll } from "../setup/db.js";
 import { getFeed, getLiked, normalizeFeedSource } from "../../src/app/feed-queries.js";
@@ -171,13 +170,4 @@ it("getLiked: respects the limit", async () => {
   await like(2);
   const liked = await getLiked(db, { limit: 1 });
   expect(liked.length).toBe(1);
-});
-
-it("getLiked: excludes archived items", async () => {
-  await like(1);
-  await like(2);
-  await db.update(items).set({ isArchived: true }).where(eq(items.id, 1));
-
-  const liked = await getLiked(db, { limit: 50 });
-  expect(liked.map((r: any) => r.titleZh)).toEqual(["新但冷"]);
 });

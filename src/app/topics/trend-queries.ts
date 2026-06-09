@@ -26,7 +26,7 @@ export async function topicItems(db: Db, id: number) {
     FROM item_topics it
     JOIN items i ON i.id = it.item_id
     LEFT JOIN scores s ON s.item_id = i.id
-    WHERE it.topic_id = ${id} AND i.is_archived = false
+    WHERE it.topic_id = ${id}
     ORDER BY i.created_at DESC LIMIT 100
   `);
   return (res.rows ?? res) as any[];

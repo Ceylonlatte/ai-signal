@@ -60,8 +60,7 @@ async function candidates(db: Db, cap: number, source: FeedSource): Promise<Row[
     FROM items i
     JOIN scores s ON s.item_id = i.id
     LEFT JOIN item_embeddings e ON e.item_id = i.id
-    WHERE i.is_archived = false
-      AND ${sourceFilter(source)}
+    WHERE ${sourceFilter(source)}
     ORDER BY i.created_at DESC
     LIMIT ${cap}
   `);
@@ -163,7 +162,6 @@ export async function getLiked(db: Db, opts: { limit: number }): Promise<LikedRo
       WHERE signal = 'up'
       GROUP BY item_id
     ) f ON f.item_id = i.id
-    WHERE i.is_archived = false
     ORDER BY f.liked_at DESC
     LIMIT ${opts.limit}
   `);

@@ -105,7 +105,7 @@ export default async function Status() {
           <Stat label="入库条目" value={fmtInt(s.items)} />
           <Stat label="话题" value={fmtInt(s.topics)} />
           <Stat label="关键词" value={fmtInt(data.keywords)} />
-          <Stat label="收藏 / 归档" value={`${fmtInt(data.favorited)} / ${fmtInt(data.archived)}`} hint={`已读 ${fmtInt(data.read)}`} />
+          <Stat label="收藏" value={fmtInt(data.favorited)} />
           <Stat label="反馈 ↑ / ↓" value={`${fmtInt(data.feedbackUp)} / ${fmtInt(data.feedbackDown)}`} />
         </div>
         <p className="section__note" style={{ marginTop: "var(--space-3)", marginBottom: 0 }}>

@@ -43,7 +43,7 @@ export interface DataStats {
   sourcesTotal: number; sourcesEnabled: number;
   bySource: { source: string; count: number }[];
   earliest: string | null; latest: string | null;
-  favorited: number; archived: number; read: number;
+  favorited: number;
   feedbackUp: number; feedbackDown: number; keywords: number;
 }
 
@@ -57,8 +57,6 @@ export async function getDataStats(db: Db): Promise<DataStats> {
       (SELECT min(created_at) FROM items) AS "earliest",
       (SELECT max(created_at) FROM items) AS "latest",
       (SELECT count(*) FROM items WHERE is_favorited) AS "favorited",
-      (SELECT count(*) FROM items WHERE is_archived) AS "archived",
-      (SELECT count(*) FROM items WHERE read_at IS NOT NULL) AS "read",
       (SELECT count(*) FROM feedback WHERE signal = 'up') AS "feedbackUp",
       (SELECT count(*) FROM feedback WHERE signal = 'down') AS "feedbackDown",
       (SELECT count(*) FROM keywords) AS "keywords"
@@ -77,7 +75,7 @@ export async function getDataStats(db: Db): Promise<DataStats> {
     sourcesTotal: n(row.sourcesTotal), sourcesEnabled: n(row.sourcesEnabled),
     bySource,
     earliest: iso(row.earliest), latest: iso(row.latest),
-    favorited: n(row.favorited), archived: n(row.archived), read: n(row.read),
+    favorited: n(row.favorited),
     feedbackUp: n(row.feedbackUp), feedbackDown: n(row.feedbackDown), keywords: n(row.keywords),
   };
 }

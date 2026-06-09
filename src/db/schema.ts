@@ -34,8 +34,6 @@ export const items = pgTable("items", {
   metrics: jsonb("metrics").notNull().default({}),
   contentHash: text("content_hash").notNull(),
   isFavorited: boolean("is_favorited").notNull().default(false),
-  isArchived: boolean("is_archived").notNull().default(false),
-  readAt: timestamp("read_at", { withTimezone: true }),
 }, (t) => ({
   hashUq: uniqueIndex("items_content_hash_uq").on(t.contentHash),
 }));

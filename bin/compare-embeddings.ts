@@ -148,7 +148,6 @@ async function main() {
   const res = await db.execute(sql`
     SELECT i.id, i.title, i.text, coalesce(s.title_zh,'') AS "titleZh", coalesce(s.summary_zh,'') AS "summaryZh"
     FROM items i LEFT JOIN scores s ON s.item_id = i.id
-    WHERE i.is_archived = false
     ORDER BY i.created_at DESC
     LIMIT ${DOCS}
   `);
