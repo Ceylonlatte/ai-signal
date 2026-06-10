@@ -100,6 +100,17 @@ export const itemTopics = pgTable("item_topics", {
   weight: real("weight").notNull().default(1),
 }, (t) => ({ uq: uniqueIndex("item_topics_uq").on(t.itemId, t.topicId) }));
 
+// Remembers LLM "same story?" verdicts for near-centroid topic pairs so each
+// pair costs at most one judge call. Merged pairs vanish with the dropped
+// topic; rejects persist and stop the merge stage from re-asking every cycle.
+// Convention: a_id < b_id.
+export const topicMergeDecisions = pgTable("topic_merge_decisions", {
+  aId: bigint("a_id", { mode: "number" }).notNull(),
+  bId: bigint("b_id", { mode: "number" }).notNull(),
+  merged: boolean("merged").notNull(),
+  decidedAt: timestamp("decided_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({ uq: uniqueIndex("topic_merge_decisions_uq").on(t.aId, t.bId) }));
+
 export const topicTrends = pgTable("topic_trends", {
   topicId: bigint("topic_id", { mode: "number" }).notNull(),
   bucketDate: text("bucket_date").notNull(), // YYYY-MM-DD

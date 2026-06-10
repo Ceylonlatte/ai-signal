@@ -86,6 +86,38 @@ const LABEL_PROMPT =
   "产品名、公司名、模型名保留英文原文。优先描述具体事件（如「Claude Fable 5 发布」），" +
   "避免只用宽泛分类词（如「Anthropic」「AI Coding」）。只回复标题本身，不要引号和其他内容。";
 
+// Online clustering fragments one event into nearby clusters; the merge stage
+// proposes near-centroid pairs and this judge confirms they cover the same
+// story before anything is permanently merged.
+const JUDGE_PROMPT =
+  "下面是两个 AI 资讯话题，各附若干成员标题。判断它们是否在讨论同一个具体事件或同一主题，" +
+  "合并成一个话题是否对读者更清晰。只返回 JSON：{\"same\": true 或 false}。";
+
+export type TopicSample = { label: string; titles: string[] };
+
+export async function judgeSameTopic(a: TopicSample, b: TopicSample): Promise<boolean> {
+  const block = (name: string, t: TopicSample) =>
+    `${name}: ${t.label}\n${t.titles.slice(0, 5).map((s) => `- ${s.slice(0, 120)}`).join("\n")}`;
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: { authorization: `Bearer ${config.OPENROUTER_API_KEY}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      model: config.SCORING_MODEL,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: JUDGE_PROMPT },
+        { role: "user", content: `${block("话题A", a)}\n\n${block("话题B", b)}` },
+      ],
+    }),
+    signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error(`judge ${res.status}: ${await res.text()}`);
+  const data = (await res.json()) as { choices: { message: { content: string } }[]; usage?: OpenRouterUsage };
+  await recordModelUsage("merge", config.SCORING_MODEL, data.usage);
+  const parsed = z.object({ same: z.boolean() }).parse(JSON.parse(data.choices[0]!.message.content));
+  return parsed.same;
+}
+
 export async function labelTopic(titles: string[]): Promise<string> {
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",

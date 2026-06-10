@@ -9,7 +9,7 @@ export interface OpenRouterUsage {
   cost?: number;
 }
 
-export type UsageKind = "score" | "summarize" | "label" | "embed";
+export type UsageKind = "score" | "summarize" | "label" | "embed" | "merge";
 
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
