@@ -78,6 +78,14 @@ async function scoreChunk(chunk: Candidate[]): Promise<ScoreResult[]> {
   return parsed.results;
 }
 
+// Event-style Chinese label. Generic category words (company names, "AI
+// Coding") make every hot topic look the same, so the prompt explicitly
+// pushes toward the concrete event the headlines share.
+const LABEL_PROMPT =
+  "以下是同一话题下的 AI 资讯标题。用中文给这个话题起一个 4~16 字的标题，概括它们共同讨论的具体事件或主题。" +
+  "产品名、公司名、模型名保留英文原文。优先描述具体事件（如「Claude Fable 5 发布」），" +
+  "避免只用宽泛分类词（如「Anthropic」「AI Coding」）。只回复标题本身，不要引号和其他内容。";
+
 export async function labelTopic(titles: string[]): Promise<string> {
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -85,7 +93,7 @@ export async function labelTopic(titles: string[]): Promise<string> {
     body: JSON.stringify({
       model: config.SCORING_MODEL,
       messages: [
-        { role: "system", content: "Give a 2-4 word human topic label for these AI-news headlines. Reply with the label only." },
+        { role: "system", content: LABEL_PROMPT },
         { role: "user", content: titles.slice(0, 8).join("\n") },
       ],
     }),

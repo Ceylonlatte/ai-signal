@@ -1295,6 +1295,16 @@ button {
 .topic:hover .topic__label {
   color: var(--violet);
 }
+.topic__hint {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-faint);
+  font-size: 13px;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .topic__bar {
   display: block;
   margin-top: 8px;

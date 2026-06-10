@@ -27,34 +27,51 @@ async function foldIntoCentroid(db: Db, topicId: number, embedding: string): Pro
   `);
 }
 
-function formatTopicTag(tag: string): string {
-  return tag.trim().split(/\s+/).map((word) => {
-    if (!word) return word;
-    if (word.length <= 4 && word === word.toUpperCase()) return word;
-    return `${word[0]!.toUpperCase()}${word.slice(1)}`;
-  }).join(" ");
-}
+// Bound LLM label calls per cluster run; catch-up over old topics happens
+// across runs instead of stalling one run on hundreds of calls.
+const RELABEL_BATCH = 10;
 
-async function refreshTopicLabelFromTags(db: Db, topicId: number): Promise<void> {
-  const res = await db.execute(sql`
-    SELECT min(tag) AS tag
-    FROM (
-      SELECT trim(value) AS tag, lower(trim(value)) AS key
+// Re-label topics whose membership clearly outgrew the last labeling
+// (label_n = 0 means never labeled from members). The LLM sees the topic's
+// top-scored member titles, so the label names the shared event ("Claude
+// Fable 5 发布") instead of the most frequent generic tag ("Anthropic").
+async function relabelGrownTopics(db: Db): Promise<number> {
+  const due = await db.execute(sql`
+    SELECT t.id, count(it.item_id)::int AS n
+    FROM topics t
+    JOIN item_topics it ON it.topic_id = t.id
+    GROUP BY t.id
+    HAVING count(it.item_id) >= t.label_n + 3 OR count(it.item_id) >= t.label_n * 2
+    ORDER BY max(t.last_seen) DESC
+    LIMIT ${RELABEL_BATCH}
+  `);
+  const list = (due.rows ?? due) as Array<{ id: number; n: number }>;
+  let relabeled = 0;
+
+  for (const topic of list) {
+    const res = await db.execute(sql`
+      SELECT coalesce(nullif(s.title_zh, ''), i.title) AS title
       FROM item_topics it
-      JOIN scores s ON s.item_id = it.item_id
-      CROSS JOIN LATERAL jsonb_array_elements_text(s.topic_tags) AS value
-      WHERE it.topic_id = ${topicId} AND trim(value) <> ''
-    ) tags
-    GROUP BY key
-    ORDER BY count(*) DESC, key ASC
-    LIMIT 1
-  `);
-  const row = (res.rows ?? res)[0] as { tag: string } | undefined;
-  if (!row?.tag) return;
-  await db.execute(sql`
-    UPDATE topics SET label = ${formatTopicTag(row.tag)}, last_seen = now()
-    WHERE id = ${topicId}
-  `);
+      JOIN items i ON i.id = it.item_id
+      LEFT JOIN scores s ON s.item_id = i.id
+      WHERE it.topic_id = ${Number(topic.id)}
+      ORDER BY s.composite DESC NULLS LAST
+      LIMIT 8
+    `);
+    const titles = ((res.rows ?? res) as Array<{ title: string }>).map((r) => r.title);
+    if (titles.length === 0) continue;
+    try {
+      const label = await labelTopic(titles);
+      await db.execute(sql`
+        UPDATE topics SET label = ${label}, label_n = ${Number(topic.n)}
+        WHERE id = ${Number(topic.id)}
+      `);
+      relabeled++;
+    } catch (err) {
+      console.error(`relabel topic ${topic.id} failed`, err);
+    }
+  }
+  return relabeled;
 }
 
 // Online clustering: for each unassigned item, find nearest topic centroid;
@@ -86,7 +103,7 @@ export async function runClusterStage(db: Db, opts: { threshold: number }): Prom
     } else {
       const label = await labelTopic([row.title]);
       const created = await db.execute(sql`
-        INSERT INTO topics (label, centroid) VALUES (${label}, ${row.embedding}::vector) RETURNING id
+        INSERT INTO topics (label, centroid, label_n) VALUES (${label}, ${row.embedding}::vector, 1) RETURNING id
       `);
       topicId = Number(((created.rows ?? created)[0] as { id: number }).id);
     }
@@ -101,8 +118,8 @@ export async function runClusterStage(db: Db, opts: { threshold: number }): Prom
       DO UPDATE SET item_count = topic_trends.item_count + 1,
                     score_sum = topic_trends.score_sum + EXCLUDED.score_sum
     `);
-    await refreshTopicLabelFromTags(db, topicId);
     assigned++;
   }
-  return assigned;
+  const relabeled = await relabelGrownTopics(db);
+  return assigned + relabeled;
 }

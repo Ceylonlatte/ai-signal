@@ -49,6 +49,7 @@ export default async function Topics() {
                 <span className="topic__rank">{i + 1}</span>
                 <span className="topic__body">
                   <span className="topic__label">{t.label}</span>
+                  {t.topTitle && <span className="topic__hint">{t.topTitle}</span>}
                   <span className="topic__bar" aria-hidden="true">
                     <span className="topic__bar-fill" style={{ width: `${pct}%` }} />
                   </span>

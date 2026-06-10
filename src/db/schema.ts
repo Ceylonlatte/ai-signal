@@ -89,6 +89,9 @@ export const topics = pgTable("topics", {
   centroid: vector("centroid", { dimensions: 2048 }).notNull(),
   firstSeen: timestamp("first_seen", { withTimezone: true }).notNull().defaultNow(),
   lastSeen: timestamp("last_seen", { withTimezone: true }).notNull().defaultNow(),
+  // Member count at the time the label was last generated; 0 = never labeled
+  // from members. Drives relabel debounce in the cluster stage.
+  labelN: integer("label_n").notNull().default(0),
 });
 
 export const itemTopics = pgTable("item_topics", {

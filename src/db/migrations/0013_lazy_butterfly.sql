@@ -1,0 +1,1 @@
+ALTER TABLE "topics" ADD COLUMN "label_n" integer DEFAULT 0 NOT NULL;
