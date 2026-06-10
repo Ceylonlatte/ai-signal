@@ -12,6 +12,7 @@ import { embedTexts } from "../lib/embeddings.js";
 import { computeNoveltyForVector } from "../lib/novelty.js";
 import { hybridRelevance } from "../lib/scoring/relevance.js";
 import { loadKeywords } from "../lib/scoring/keyword-store.js";
+import { findTcoLinks, expandTcoLinks, replaceTcoLinks } from "../lib/tco.js";
 import { config } from "../config.js";
 import type { NormalizedItem, RawPayload } from "../types.js";
 
@@ -61,6 +62,23 @@ export async function runTriageStage(db: Db): Promise<number> {
     rawId: Number(r.id),
     n: normalizeRawItem(r.payload as RawPayload),
   }));
+
+  // Expand t.co wrappers BEFORE embedding/relevance/LLM so scoring sees real
+  // destinations instead of opaque short links (tweets whose value lives
+  // behind the link otherwise score near zero). The rewritten title/text also
+  // flow into the inserted item. contentHash stays based on the original
+  // payload (computed in normalizeRawItem), so dedupe is unaffected by
+  // expansion flakiness. No-op for batches without t.co links.
+  const tcoLinks = normalized.flatMap((x: any) => findTcoLinks(`${x.n.title}\n${x.n.text}`));
+  if (tcoLinks.length > 0) {
+    const expanded = await expandTcoLinks(tcoLinks);
+    if (expanded.size > 0) {
+      for (const { n } of normalized) {
+        n.title = replaceTcoLinks(n.title, expanded);
+        n.text = replaceTcoLinks(n.text, expanded);
+      }
+    }
+  }
 
   // Embed every candidate once: the vector powers semantic relevance now and is
   // reused as the item embedding on insert, so the embed stage skips it.
