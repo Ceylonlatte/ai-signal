@@ -99,9 +99,10 @@ export async function runTriageStage(db: Db): Promise<number> {
       ? config.Q_THRESHOLD_TWITTER_FOLLOWING
       : config.Q_THRESHOLD;
     let keep = passesGate(q, gate);
+    let rescued = false;
     if (!keep && inRescueBand(q) && vec) {
       const sim = await maxLikeSimForVector(db, vec);
-      if (likeRescues(sim)) keep = true;
+      if (likeRescues(sim)) { keep = true; rescued = true; }
     }
     const novelty = keep && vec ? await computeNoveltyForVector(db, vec, { days: 7 }) : 0;
 
@@ -128,7 +129,12 @@ export async function runTriageStage(db: Db): Promise<number> {
           }
         }
       }
-      await tx.update(rawItems).set({ processedAt: new Date() }).where(eq(rawItems.id, rawId));
+      // Persist the decision next to processed_at so /raw can explain every
+      // kept/dropped verdict (see TriageDecision in types.ts).
+      await tx.update(rawItems).set({
+        processedAt: new Date(),
+        triage: { q, gate, llmValue, relevance, trust, kept: keep, rescued, reason: r?.reason ?? "" },
+      }).where(eq(rawItems.id, rawId));
     });
     processed++;
   }

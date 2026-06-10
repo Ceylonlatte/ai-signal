@@ -17,6 +17,9 @@ export const rawItems = pgTable("raw_items", {
   payload: jsonb("payload").notNull(),
   fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
   processedAt: timestamp("processed_at", { withTimezone: true }),
+  // TriageDecision (src/types.ts) written when processed; NULL for rows
+  // triaged before the column existed.
+  triage: jsonb("triage"),
 }, (t) => ({
   uq: uniqueIndex("raw_items_source_external_uq").on(t.sourceId, t.externalId),
 }));

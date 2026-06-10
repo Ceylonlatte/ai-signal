@@ -47,6 +47,15 @@ it("keeps high-Q items (writes item + score) and drops low ones", async () => {
 
   const unprocessed = await db.execute(sql`SELECT count(*)::int n FROM raw_items WHERE processed_at IS NULL`);
   expect(Number((unprocessed.rows ?? unprocessed)[0]!.n)).toBe(0);
+
+  // Each processed row carries its persisted triage verdict (drives /raw).
+  const rawRows = await db.select().from(rawItems);
+  const keptRaw = rawRows.find((r: any) => (r.payload as any).title.includes("KEEP"))!.triage as any;
+  const droppedRaw = rawRows.find((r: any) => (r.payload as any).title.includes("DROP"))!.triage as any;
+  expect(keptRaw.kept).toBe(true);
+  expect(keptRaw.q).toBeGreaterThanOrEqual(keptRaw.gate);
+  expect(droppedRaw.kept).toBe(false);
+  expect(droppedRaw.q).toBeLessThan(droppedRaw.gate);
 });
 
 it("is idempotent: a second run processes nothing", async () => {

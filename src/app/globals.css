@@ -599,6 +599,28 @@ button {
   font-size: 12px;
   font-weight: 500;
 }
+/* Triage outcome states (/raw + search): accepted into the feed, dropped by
+   the quality gate, or not yet triaged. */
+.tag--accepted {
+  background: var(--violet-weak);
+  color: var(--violet);
+}
+.tag--dropped {
+  color: var(--text-faint);
+}
+.tag--pending {
+  background: transparent;
+  border: 1px dashed var(--border-strong);
+  color: var(--text-faint);
+}
+/* Triage decision detail on /raw: Q vs gate + component scores + LLM reason. */
+.item__triage {
+  margin: var(--space-2) 0 0;
+  color: var(--text-faint);
+  font-size: 12.5px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
 
 .linkish {
   background: none;

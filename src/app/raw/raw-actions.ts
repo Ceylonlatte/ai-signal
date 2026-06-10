@@ -1,7 +1,10 @@
 "use server";
 
 import { db } from "../../db/client.js";
-import { getRawFeed, normalizeRawSource, type RawFeedItem, type RawSource } from "./raw-queries.js";
+import {
+  getRawFeed, normalizeRawSource, normalizeRawState,
+  type RawFeedItem, type RawSource, type RawState,
+} from "./raw-queries.js";
 
 const PAGE_SIZE = 30;
 
@@ -13,10 +16,11 @@ export interface RawPageResult {
   hasMore: boolean;
 }
 
-export async function loadRawPage(page: number, source: RawSource): Promise<RawPageResult> {
+export async function loadRawPage(page: number, source: RawSource, state: RawState): Promise<RawPageResult> {
   const safePage = Math.max(1, Math.floor(page) || 1);
   const safeSource = normalizeRawSource(source);
-  const res = await getRawFeed(db, { page: safePage, pageSize: PAGE_SIZE, source: safeSource });
+  const safeState = normalizeRawState(state);
+  const res = await getRawFeed(db, { page: safePage, pageSize: PAGE_SIZE, source: safeSource, state: safeState });
   return {
     items: res.items,
     total: res.total,

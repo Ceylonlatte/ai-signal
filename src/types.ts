@@ -13,6 +13,20 @@ export interface RawPayload {
   raw: unknown;
 }
 
+// Persisted on raw_items.triage when the row is marked processed, so /raw can
+// explain WHY a row was kept or dropped (filter-accuracy analysis). Older rows
+// triaged before this column existed have NULL.
+export interface TriageDecision {
+  q: number;
+  gate: number;
+  llmValue: number;
+  relevance: number;
+  trust: number;
+  kept: boolean;
+  rescued: boolean;
+  reason: string;
+}
+
 export interface NormalizedItem {
   source: SourceKind;
   url: string | null;

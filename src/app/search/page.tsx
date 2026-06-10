@@ -68,7 +68,15 @@ export default async function Search({
       ) : (
         <>
           <p className="search-hint">
-            {semantic ? "语义" : "关键词"}匹配 · 共 {results.length} 条
+            {semantic ? (
+              <>语义匹配 · 共 {results.length} 条 · 仅覆盖已收录条目（被过滤的内容没有向量，请用关键词模式回溯）</>
+            ) : (
+              <>
+                关键词匹配 · 共 {results.length} 条 · 已收录{" "}
+                {results.filter((r: any) => r.accepted).length} / 已过滤{" "}
+                {results.filter((r: any) => r.processed && !r.accepted).length}
+              </>
+            )}
           </p>
           <div className="results">
             {results.map((r: any) => {
@@ -102,6 +110,13 @@ export default async function Search({
                         <span className="meta-dot">·</span>
                         <span className="result__sim">相似度 {sim}%</span>
                       </>
+                    )}
+                    {!r.processed ? (
+                      <span className="tag tag--pending">待处理</span>
+                    ) : r.accepted ? (
+                      <span className="tag tag--accepted">已收录</span>
+                    ) : (
+                      <span className="tag tag--dropped">已过滤</span>
                     )}
                   </span>
                 </a>

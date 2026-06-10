@@ -1,0 +1,1 @@
+ALTER TABLE "raw_items" ADD COLUMN "triage" jsonb;

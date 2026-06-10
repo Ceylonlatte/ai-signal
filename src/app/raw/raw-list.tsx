@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { RawFeedItem, RawSource } from "./raw-queries.js";
+import type { RawFeedItem, RawSource, RawState } from "./raw-queries.js";
 import { loadRawPage } from "./raw-actions.js";
 
 export type { RawFeedItem } from "./raw-queries.js";
@@ -11,11 +11,13 @@ export function RawList({
   total: initialTotal,
   totalPages: initialTotalPages,
   source,
+  state,
 }: {
   initialItems: RawFeedItem[];
   total: number;
   totalPages: number;
   source: RawSource;
+  state: RawState;
 }) {
   const [items, setItems] = useState<RawFeedItem[]>(initialItems);
   const [page, setPage] = useState(1);
@@ -31,7 +33,7 @@ export function RawList({
     setLoading(true);
     setError(false);
     try {
-      const res = await loadRawPage(page + 1, source);
+      const res = await loadRawPage(page + 1, source, state);
       setItems((prev) => {
         const seen = new Set(prev.map((it) => it.id));
         return [...prev, ...res.items.filter((it) => !seen.has(it.id))];
@@ -172,9 +174,25 @@ function RawItem({ data }: { data: RawFeedItem }) {
           </>
         )}
         <span className="tags">
-          <span className="tag">{data.processed ? "已 triage" : "待处理"}</span>
+          {!data.processed ? (
+            <span className="tag tag--pending">待处理</span>
+          ) : data.accepted ? (
+            <span className="tag tag--accepted">{data.triage?.rescued ? "已收录 · 救回" : "已收录"}</span>
+          ) : (
+            <span className="tag tag--dropped">已过滤</span>
+          )}
         </span>
       </div>
+
+      {data.processed && data.triage && (
+        <p className="item__triage">
+          Q {data.triage.q.toFixed(2)} / 门槛 {data.triage.gate.toFixed(2)}
+          <span className="meta-dot"> · </span>LLM {data.triage.llmValue.toFixed(2)}
+          <span className="meta-dot"> · </span>相关 {data.triage.relevance.toFixed(2)}
+          <span className="meta-dot"> · </span>信任 {data.triage.trust.toFixed(2)}
+          {data.triage.reason && <> — {data.triage.reason}</>}
+        </p>
+      )}
     </article>
   );
 }
