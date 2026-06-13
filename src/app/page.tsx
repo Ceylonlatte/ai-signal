@@ -5,16 +5,43 @@ import { FeedList } from "./feed-list.js";
 import { toFeedData } from "./feed-item-data.js";
 import { sourceLabel } from "./format.js";
 import { feedHref } from "./feed-nav.js";
+import { getRssItems } from "./rss/rss-queries.js";
+import { RssView } from "./rss/rss-view.js";
 
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 30;
-const SOURCE_TABS: { source: FeedSource; label: string }[] = [
+
+type TabSource = FeedSource | "rss";
+
+const SOURCE_TABS: { source: TabSource; label: string }[] = [
   { source: "all", label: "全部" },
   { source: "hn", label: "Hacker News" },
   { source: "reddit", label: "Reddit" },
   { source: "twitter", label: "X" },
+  { source: "rss", label: "RSS" },
 ];
+
+function tabHref(source: TabSource, sort: FeedSort): string {
+  return source === "rss" ? "/?source=rss" : feedHref({ source, sort });
+}
+
+function SourceTabs({ active, sort }: { active: TabSource; sort: FeedSort }) {
+  return (
+    <div className="sort" role="group" aria-label="平台过滤">
+      {SOURCE_TABS.map((tab) => (
+        <a
+          key={tab.source}
+          className="sort__btn"
+          data-active={active === tab.source}
+          href={tabHref(tab.source, sort)}
+        >
+          {tab.label}
+        </a>
+      ))}
+    </div>
+  );
+}
 
 export default async function Home({
   searchParams,
@@ -22,8 +49,28 @@ export default async function Home({
   searchParams: Promise<{ sort?: string; source?: string }>;
 }) {
   const sp = await searchParams;
+  const isRss = sp.source === "rss";
   const sort: FeedSort = sp.sort === "score" ? "score" : "time";
   const source = normalizeFeedSource(sp.source);
+
+  // RSS branch: a separate, unscored surface rendered inside the signal-flow
+  // shell. No sort control, no platform-staleness notice — RSS isn't ranked.
+  if (isRss) {
+    const rssRows = await getRssItems(db, { limit: 300 });
+    return (
+      <main className="page">
+        <div className="page__head">
+          <h1 className="page__title">今日信号</h1>
+          <div className="page__tools">
+            <SourceTabs active="rss" sort={sort} />
+            {rssRows.length > 0 && <span className="page__count">共 {rssRows.length} 条</span>}
+          </div>
+        </div>
+        <RssView rows={rssRows} />
+      </main>
+    );
+  }
+
   const { items: feed, total, totalPages, rMin, rMax } = await getFeed(db, {
     page: 1,
     pageSize: PAGE_SIZE,
@@ -40,18 +87,7 @@ export default async function Home({
       <div className="page__head">
         <h1 className="page__title">今日信号</h1>
         <div className="page__tools">
-          <div className="sort" role="group" aria-label="平台过滤">
-            {SOURCE_TABS.map((tab) => (
-              <a
-                key={tab.source}
-                className="sort__btn"
-                data-active={source === tab.source}
-                href={feedHref({ source: tab.source, sort })}
-              >
-                {tab.label}
-              </a>
-            ))}
-          </div>
+          <SourceTabs active={source} sort={sort} />
           <div className="sort" role="group" aria-label="排序方式">
             <a className="sort__btn" data-active={sort === "time"} href={feedHref({ source, sort: "time" })}>
               最新
