@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import { config } from "../config.js";
 import { platformHeat, hoursSince } from "../lib/scoring/platform-heat.js";
 import { sourceTrust } from "../lib/sources/trust.js";
@@ -13,6 +13,7 @@ interface Row {
   createdAt: string; metrics: Record<string, number>;
   q: number; novelty: number; summaryZh: string; summaryEn: string;
   topicTags: unknown; reason: string;
+  signal: "up" | "down" | null;
   maxLikeSim: number | null; maxDislikeSim: number | null; nUp: number; nDown: number;
 }
 
@@ -35,7 +36,7 @@ function sourceFilter(source: FeedSource) {
     : sql`i.source = ${source}`;
 }
 
-async function candidates(db: Db, cap: number, source: FeedSource): Promise<Row[]> {
+async function candidates(db: Db, cap: number, where: SQL): Promise<Row[]> {
   const win = `${config.PROFILE_WINDOW_DAYS} days`;
   const res = await db.execute(sql`
     WITH up AS (
@@ -49,6 +50,8 @@ async function candidates(db: Db, cap: number, source: FeedSource): Promise<Row[
            i.created_at AS "createdAt", i.metrics,
            s.composite AS q, s.novelty, s.summary_zh AS "summaryZh", s.summary_en AS "summaryEn",
            s.topic_tags AS "topicTags", s.reason,
+           (SELECT f.signal FROM feedback f WHERE f.item_id = i.id
+              ORDER BY f.created_at DESC LIMIT 1) AS "signal",
            (SELECT 1 - MIN(le.embedding <=> e.embedding)
               FROM item_embeddings le JOIN feedback f ON f.item_id = le.item_id
               WHERE f.signal = 'up' AND f.created_at > now() - ${win}::interval) AS "maxLikeSim",
@@ -60,7 +63,7 @@ async function candidates(db: Db, cap: number, source: FeedSource): Promise<Row[
     FROM items i
     JOIN scores s ON s.item_id = i.id
     LEFT JOIN item_embeddings e ON e.item_id = i.id
-    WHERE ${sourceFilter(source)}
+    WHERE ${where}
     ORDER BY i.created_at DESC
     LIMIT ${cap}
   `);
@@ -118,7 +121,7 @@ export async function getFeed(
   const sort: FeedSort = opts.sort === "score" ? "score" : "time";
   const source = normalizeFeedSource(opts.source);
   const pageSize = Math.max(1, opts.pageSize ?? 30);
-  const rows = await candidates(db, MAX_CANDIDATES, source);
+  const rows = await candidates(db, MAX_CANDIDATES, sourceFilter(source));
   const visible = rows.filter((row) => !isSuppressed(row.maxDislikeSim));
   const all = withRanking(visible).sort(sort === "score" ? byScore : byTime);
   const total = all.length;
@@ -131,8 +134,27 @@ export async function getFeed(
   return { items: all.slice(start, start + pageSize), total, page, pageSize, totalPages, sort, source, rMin, rMax };
 }
 
+// Items clustered into a topic, ranked like the main feed so the topic page can
+// reuse the signal-flow cards (score, summary, vote). Newest-first to match the
+// feed's default; rMin/rMax bound the topic's own items so strength reads stable.
+export async function getTopicFeed(
+  db: Db,
+  topicId: number,
+): Promise<{ items: Ranked[]; rMin: number; rMax: number }> {
+  const rows = await candidates(
+    db,
+    100,
+    sql`i.id IN (SELECT item_id FROM item_topics WHERE topic_id = ${topicId})`,
+  );
+  const all = withRanking(rows).sort(byTime);
+  const rs = all.map((row) => row.r);
+  const rMin = rs.length ? Math.min(...rs) : 0;
+  const rMax = rs.length ? Math.max(...rs) : 0;
+  return { items: all, rMin, rMax };
+}
+
 export async function getSuppressed(db: Db, opts: { limit: number }) {
-  const rows = await candidates(db, Math.max(opts.limit * 6, 300), "all");
+  const rows = await candidates(db, Math.max(opts.limit * 6, 300), sourceFilter("all"));
   const hidden = rows.filter((row) => isSuppressed(row.maxDislikeSim));
   return ranked(hidden).slice(0, opts.limit);
 }

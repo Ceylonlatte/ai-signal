@@ -24,6 +24,15 @@ async function mutateFeedback(itemId: number, signal: Signal, method: "POST" | "
   if (!res.ok) throw new Error(`feedback ${method} failed: ${res.status}`);
 }
 
+// Seed each item's persisted signal so up/down votes render consistently across
+// every list on load (the server is the source of truth). Without this, votes
+// start blank and re-clicking an already-voted item POSTs a duplicate feedback row.
+function seedVotes(items: FeedItemData[]): Record<number, VoteState> {
+  const m: Record<number, VoteState> = {};
+  for (const it of items) m[it.id] = { signal: it.signal, pending: false, error: false };
+  return m;
+}
+
 export function FeedList({
   initialItems,
   total: initialTotal,
@@ -43,7 +52,7 @@ export function FeedList({
   const [totalPages, setTotalPages] = useState(initialTotalPages);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
-  const [votes, setVotes] = useState<Record<number, VoteState>>({});
+  const [votes, setVotes] = useState<Record<number, VoteState>>(() => seedVotes(initialItems));
 
   const hasMore = page < totalPages;
 
@@ -56,6 +65,15 @@ export function FeedList({
       setItems((prev) => {
         const seen = new Set(prev.map((it) => it.id));
         return [...prev, ...res.items.filter((it) => !seen.has(it.id))];
+      });
+      // Seed persisted signals for the newly appended rows, but never clobber a
+      // vote the user already changed this session.
+      setVotes((prev) => {
+        const next = { ...prev };
+        for (const it of res.items) {
+          if (!(it.id in next)) next[it.id] = { signal: it.signal, pending: false, error: false };
+        }
+        return next;
       });
       setPage(res.page);
       setTotal(res.total);

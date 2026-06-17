@@ -49,7 +49,7 @@ export default async function Suppressed() {
                       <span>{relativeTime(item.createdAt, now)}</span>
                     </>
                   )}
-                  <FeedbackButtons itemId={item.id} />
+                  <FeedbackButtons itemId={item.id} initialSignal={item.signal ?? null} />
                 </div>
               </article>
             );

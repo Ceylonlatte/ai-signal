@@ -55,7 +55,7 @@ export default async function Topics() {
                   </span>
                 </span>
                 <span className="topic__meta">
-                  {t.itemCount} 条 · {score.toFixed(1)}
+                  今日 {t.itemCount} 条 · {score.toFixed(1)}
                 </span>
               </a>
             );
