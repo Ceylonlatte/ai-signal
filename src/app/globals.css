@@ -733,6 +733,42 @@ button {
   font-size: 12px;
 }
 
+/* ─── Knowledge base: ⭐ star + card preview ─────────────── */
+
+.star {
+  display: inline-flex;
+  align-items: center;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  color: var(--text-faint);
+  padding: var(--space-1);
+  line-height: 0;
+  transition: color var(--dur-fast) var(--ease-out-quint);
+}
+.star[data-active="true"] {
+  color: var(--violet);
+}
+.star:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.kb-card__points {
+  margin: var(--space-2) 0 0;
+  padding-left: 18px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.kb-card__points li {
+  margin: 2px 0;
+}
+.kb-status[data-status="failed"] {
+  color: var(--danger);
+}
+.kb-status[data-status="pending"] {
+  color: var(--text-faint);
+}
+
 /* ─── Infinite scroll footer ────────────────────────────── */
 
 .feed-foot {

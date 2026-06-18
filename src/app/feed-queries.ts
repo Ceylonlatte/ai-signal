@@ -164,40 +164,6 @@ export async function getSuppressed(db: Db, opts: { limit: number }) {
   return ranked(hidden).slice(0, opts.limit);
 }
 
-export interface LikedRow {
-  id: number; title: string; titleZh: string; url: string | null; source: string;
-  externalId: string | null;
-  author: string | null; createdAt: string; metrics: Record<string, number>;
-  summaryZh: string; summaryEn: string; topicTags: unknown; reason: string;
-  likedAt: string;
-}
-
-// Items the user 👍'd, newest like first. Reuses `up` feedback (no separate
-// favorite action) and ignores the profile time window so it reads as a
-// long-lived collection. Dedupes multiple up rows per item via max(created_at).
-export async function getLiked(db: Db, opts: { limit: number }): Promise<LikedRow[]> {
-  const res = await db.execute(sql`
-    SELECT i.id, i.title, s.title_zh AS "titleZh", i.url, i.source, ri.external_id AS "externalId",
-           i.author AS "author",
-           i.created_at AS "createdAt", i.metrics,
-           s.summary_zh AS "summaryZh", s.summary_en AS "summaryEn",
-           s.topic_tags AS "topicTags", s.reason,
-           f.liked_at AS "likedAt"
-    FROM items i
-    JOIN scores s ON s.item_id = i.id
-    LEFT JOIN raw_items ri ON ri.id = i.raw_item_id
-    JOIN (
-      SELECT item_id, max(created_at) AS liked_at
-      FROM feedback
-      WHERE signal = 'up'
-      GROUP BY item_id
-    ) f ON f.item_id = i.id
-    ORDER BY f.liked_at DESC
-    LIMIT ${opts.limit}
-  `);
-  return (res.rows ?? res) as LikedRow[];
-}
-
 export interface FavoriteRow {
   id: number; title: string; titleZh: string; url: string | null; source: string;
   author: string | null; createdAt: string; favoritedAt: string | null;

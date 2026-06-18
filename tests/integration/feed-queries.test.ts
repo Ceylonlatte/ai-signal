@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeEach, expect, it } from "vitest";
-import { feedback, items, scores } from "../../src/db/schema.js";
+import { items, scores } from "../../src/db/schema.js";
 import { db, pool, truncateAll } from "../setup/db.js";
-import { getFeed, getLiked, normalizeFeedSource } from "../../src/app/feed-queries.js";
+import { getFeed, normalizeFeedSource } from "../../src/app/feed-queries.js";
 
 async function insertScoredItem(opts: {
   rawItemId: number;
@@ -32,10 +32,6 @@ async function insertScoredItem(opts: {
     rubricVersion: "t",
   });
   return item!;
-}
-
-async function like(itemId: number, at?: Date) {
-  await db.insert(feedback).values({ itemId, signal: "up", ...(at ? { createdAt: at } : {}) });
 }
 
 beforeEach(async () => {
@@ -139,35 +135,4 @@ it("filters to a requested platform before paging", async () => {
   expect(feed.total).toBe(1);
   expect(feed.totalPages).toBe(1);
   expect(feed.items.map((r: any) => r.source)).toEqual(["twitter"]);
-});
-
-it("getLiked: only includes up-voted items (excludes down-only and no-feedback)", async () => {
-  // base items 1=热门, 2=新但冷. Like 热门, down-only 新但冷, leave a third bare.
-  await like(1);
-  await db.insert(feedback).values({ itemId: 2, signal: "down" });
-  await insertScoredItem({
-    rawItemId: 3, source: "hn", title: "bare", titleZh: "无反馈",
-    createdAt: new Date(), metrics: {}, contentHash: "bare",
-  });
-
-  const liked = await getLiked(db, { limit: 50 });
-  expect(liked.map((r: any) => r.titleZh)).toEqual(["热门"]);
-});
-
-it("getLiked: orders by most recent like and dedupes multiple up votes", async () => {
-  const now = new Date();
-  // 新但冷 liked once (1h ago); 热门 liked twice, latest just now -> 热门 first.
-  await like(2, new Date(now.getTime() - 3600_000));
-  await like(1, new Date(now.getTime() - 2 * 3600_000));
-  await like(1, now);
-
-  const liked = await getLiked(db, { limit: 50 });
-  expect(liked.map((r: any) => r.titleZh)).toEqual(["热门", "新但冷"]);
-});
-
-it("getLiked: respects the limit", async () => {
-  await like(1);
-  await like(2);
-  const liked = await getLiked(db, { limit: 1 });
-  expect(liked.length).toBe(1);
 });

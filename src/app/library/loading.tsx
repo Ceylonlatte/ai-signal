@@ -5,7 +5,7 @@ export default function Loading() {
         <h1 className="page__title">收藏</h1>
       </div>
       <p className="page__lead">
-        这里收录你点过 👍 的内容，按最近点赞时间排列，方便长期回看。
+        点 ⭐ 存入的内容会在这里整理成知识库笔记，可点开看全文与结构化摘要。
       </p>
       <div className="results">
         {Array.from({ length: 5 }).map((_, i) => (
