@@ -15,6 +15,7 @@ interface Row {
   q: number; novelty: number; summaryZh: string; summaryEn: string;
   topicTags: unknown; reason: string;
   signal: "up" | "down" | null;
+  isFavorited: boolean;
   maxLikeSim: number | null; maxDislikeSim: number | null; nUp: number; nDown: number;
 }
 
@@ -49,6 +50,7 @@ async function candidates(db: Db, cap: number, where: SQL): Promise<Row[]> {
     )
     SELECT i.id, i.title, s.title_zh AS "titleZh", i.url, i.source, ri.external_id AS "externalId",
            i.author AS "author",
+           i.is_favorited AS "isFavorited",
            i.created_at AS "createdAt", i.metrics,
            s.composite AS q, s.novelty, s.summary_zh AS "summaryZh", s.summary_en AS "summaryEn",
            s.topic_tags AS "topicTags", s.reason,
@@ -194,4 +196,28 @@ export async function getLiked(db: Db, opts: { limit: number }): Promise<LikedRo
     LIMIT ${opts.limit}
   `);
   return (res.rows ?? res) as LikedRow[];
+}
+
+export interface FavoriteRow {
+  id: number; title: string; titleZh: string; url: string | null; source: string;
+  author: string | null; createdAt: string; favoritedAt: string | null;
+  summaryZh: string; status: string | null; note: unknown;
+}
+
+// Items the user ⭐ saved to the knowledge base, newest-favorite first. Joins the
+// kb_entry (may be null while the worker is still processing) for card preview.
+export async function getFavorites(db: Db, opts: { limit: number }): Promise<FavoriteRow[]> {
+  const res = await db.execute(sql`
+    SELECT i.id::int AS id, i.title, s.title_zh AS "titleZh", i.url, i.source, i.author AS "author",
+           i.created_at AS "createdAt", i.favorited_at AS "favoritedAt",
+           s.summary_zh AS "summaryZh",
+           k.status AS "status", k.note AS "note"
+    FROM items i
+    LEFT JOIN scores s ON s.item_id = i.id
+    LEFT JOIN kb_entries k ON k.item_id = i.id
+    WHERE i.is_favorited = true
+    ORDER BY i.favorited_at DESC NULLS LAST
+    LIMIT ${opts.limit}
+  `);
+  return (res.rows ?? res) as FavoriteRow[];
 }

@@ -12,6 +12,7 @@ export interface FeedItemData {
   sourceLabel: string;
   tags: string[];
   signal: "up" | "down" | null;
+  isFavorited: boolean;
   strength: Strength;
   score: number;
   rText: string;
@@ -60,6 +61,7 @@ export function toFeedData(item: any, now: Date, rMin: number, rMax: number): Fe
     sourceLabel: sourceLabel(item.source),
     tags: Array.isArray(item.topicTags) ? item.topicTags.map(String) : [],
     signal: item.signal === "up" || item.signal === "down" ? item.signal : null,
+    isFavorited: item.isFavorited === true,
     strength: relativeStrength(item.r, rMin, rMax),
     score: relativeScore(item.r, rMin, rMax),
     rText: typeof item.r === "number" ? item.r.toFixed(2) : "—",
