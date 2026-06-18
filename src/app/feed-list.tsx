@@ -5,6 +5,7 @@ import { strengthLabel, type Strength } from "./format.js";
 import type { FeedItemData } from "./feed-item-data.js";
 import type { FeedSort, FeedSource } from "./feed-queries.js";
 import { loadFeedPage } from "./feed-actions.js";
+import { FavoriteButton } from "./favorite-button.js";
 
 export type { FeedItemData } from "./feed-item-data.js";
 
@@ -348,6 +349,8 @@ function FeedItem({
             <ThumbIcon dir="down" />
           </button>
         </span>
+
+        <FavoriteButton itemId={data.id} initial={data.isFavorited} />
       </div>
     </article>
   );
