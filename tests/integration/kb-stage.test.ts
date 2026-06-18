@@ -62,3 +62,36 @@ it("does not pick non-favorited items", async () => {
   const { runKbStage } = await import("../../src/pipeline/kb-stage.js");
   expect(await runKbStage(db)).toBe(0);
 });
+
+it("retries on error then dead-letters to failed at KB_MAX_ATTEMPTS", async () => {
+  const id = await makeItem();
+  const { synthesizeNotes } = await import("../../src/lib/kb/notes.js");
+  const { runKbStage } = await import("../../src/pipeline/kb-stage.js");
+  (synthesizeNotes as any).mockRejectedValue(new Error("boom"));
+  try {
+    // KB_MAX_ATTEMPTS defaults to 3.
+    await runKbStage(db); // attempt 1
+    let [k] = await db.select().from(kbEntries).where(eq(kbEntries.itemId, id));
+    expect(k!.status).toBe("pending");
+    expect(k!.attempts).toBe(1);
+
+    await runKbStage(db); // attempt 2
+    await runKbStage(db); // attempt 3 -> dead-letter
+    [k] = await db.select().from(kbEntries).where(eq(kbEntries.itemId, id));
+    expect(k!.status).toBe("failed");
+    expect(k!.attempts).toBe(3);
+
+    // Dead-lettered rows are no longer selected.
+    expect(await runKbStage(db)).toBe(0);
+  } finally {
+    // Restore the default resolving impl so this rejection doesn't leak to other tests.
+    (synthesizeNotes as any).mockResolvedValue({ overview: "ov", keypoints: ["k"], facts: [], why: "w", terms: [] });
+  }
+});
+
+it("does not re-select an already-ready item", async () => {
+  await makeItem();
+  const { runKbStage } = await import("../../src/pipeline/kb-stage.js");
+  expect(await runKbStage(db)).toBe(1); // processed once -> ready
+  expect(await runKbStage(db)).toBe(0); // ready rows excluded
+});
