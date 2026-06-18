@@ -23,10 +23,15 @@ export function isNoiseImage(srcUrl: string): boolean {
 export async function downloadAndStore(itemId: number, srcUrl: string): Promise<StoredImage | null> {
   if (!r2Configured() || !isFetchableUrl(srcUrl) || isNoiseImage(srcUrl)) return null;
   const res = await fetch(srcUrl, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
-  if (!res.ok) return null;
+  // Re-validate the post-redirect URL: fetch follows redirects, so a literal-OK
+  // src can still land on a private/metadata host. (res.url is empty for the
+  // synthetic Response objects used in unit tests, so only check when present.)
+  if (!res.ok || (res.url && !isFetchableUrl(res.url))) return null;
   const contentType = (res.headers.get("content-type") ?? "").split(";")[0]!.trim().toLowerCase();
   const ext = ALLOWED[contentType];
   if (!ext) return null;
+  const declared = Number(res.headers.get("content-length") ?? "");
+  if (Number.isFinite(declared) && declared > config.KB_MAX_IMAGE_BYTES) return null;
   const buf = new Uint8Array(await res.arrayBuffer());
   if (buf.byteLength === 0 || buf.byteLength > config.KB_MAX_IMAGE_BYTES) return null;
   const key = `kb/${itemId}/${createHash("sha1").update(srcUrl).digest("hex")}.${ext}`;

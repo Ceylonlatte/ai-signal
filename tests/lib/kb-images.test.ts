@@ -7,7 +7,7 @@ vi.mock("../../src/lib/kb/r2.js", () => ({
   putObject: vi.fn(async (k: string) => `https://cdn.test/${k}`),
 }));
 
-afterEach(() => { vi.restoreAllMocks(); });
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 function imgResponse(bytes: number, contentType = "image/png") {
   return new Response(new Uint8Array(bytes), { status: 200, headers: { "content-type": contentType } });
