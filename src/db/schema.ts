@@ -37,6 +37,7 @@ export const items = pgTable("items", {
   metrics: jsonb("metrics").notNull().default({}),
   contentHash: text("content_hash").notNull(),
   isFavorited: boolean("is_favorited").notNull().default(false),
+  favoritedAt: timestamp("favorited_at", { withTimezone: true }),
 }, (t) => ({
   hashUq: uniqueIndex("items_content_hash_uq").on(t.contentHash),
 }));
@@ -187,3 +188,17 @@ export const keywords = pgTable("keywords", {
   embedding: vector("embedding", { dimensions: 2048 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({ termUq: uniqueIndex("keywords_term_uq").on(t.term) }));
+
+// 个人知识库条目：与 items 1:1。重内容（全文 Markdown、结构化笔记、图片清单）
+// 独立成表，不污染 scores。仅对 isFavorited 条目由 runKbStage 生成。
+export const kbEntries = pgTable("kb_entries", {
+  itemId: bigint("item_id", { mode: "number" }).primaryKey(),
+  status: text("status").notNull().default("pending"), // pending | ready | failed | skipped
+  note: jsonb("note").notNull().default({}), // { overview, keypoints[], facts[], why, terms[{term,def}] }
+  bodyMd: text("body_md").notNull().default(""), // 正文 Markdown（图片 URL 已改写为 R2）
+  bodySource: text("body_source").notNull().default(""), // firecrawl | markdownnew | extractor | fallback
+  images: jsonb("images").notNull().default([]), // [{ srcUrl, r2Url, bytes, contentType }]
+  attempts: integer("attempts").notNull().default(0),
+  error: text("error"),
+  processedAt: timestamp("processed_at", { withTimezone: true }),
+});
