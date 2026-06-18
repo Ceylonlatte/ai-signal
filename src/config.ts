@@ -49,6 +49,18 @@ const schema = z.object({
   PROFILE_WINDOW_DAYS: z.coerce.number().default(90),
   // --- Summarize stage ---
   SUMMARY_MAX_ATTEMPTS: z.coerce.number().default(3),
+  // --- Knowledge base (收藏 → KB) ---
+  FIRECRAWL_API_KEY: z.string().default(""),
+  R2_ACCOUNT_ID: z.string().default(""),
+  R2_ACCESS_KEY_ID: z.string().default(""),
+  R2_SECRET_ACCESS_KEY: z.string().default(""),
+  R2_BUCKET: z.string().default(""),
+  R2_PUBLIC_BASE_URL: z.string().default(""),
+  KB_FETCH_LIMIT: z.coerce.number().default(5),
+  KB_MAX_ATTEMPTS: z.coerce.number().default(3),
+  KB_MAX_IMAGE_BYTES: z.coerce.number().default(5_000_000),
+  KB_MIN_BODY_CHARS: z.coerce.number().default(400),
+  KB_NOTE_INPUT_CHARS: z.coerce.number().default(12000),
 });
 
 export const config = schema.parse(process.env);

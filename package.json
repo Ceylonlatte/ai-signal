@@ -20,6 +20,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1071.0",
     "@extractus/article-extractor": "^8.1.0",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.36.0",
@@ -27,6 +28,8 @@
     "pg": "^8.13.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "rss-parser": "^3.13.0",
     "zod": "^3.24.0"
   },
