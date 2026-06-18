@@ -33,33 +33,40 @@ function StarIcon({ filled }: { filled: boolean }) {
 export function FavoriteButton({ itemId, initial = false }: { itemId: number; initial?: boolean }) {
   const [on, setOn] = useState(initial);
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState(false);
 
   async function toggle() {
     if (pending) return;
     const next = !on;
     setOn(next);
     setPending(true);
+    setError(false);
     try {
       await setFavorite(itemId, next);
-    } catch {
+    } catch (err) {
       setOn(!next);
+      setError(true);
+      console.error("favorite toggle failed", err);
     } finally {
       setPending(false);
     }
   }
 
   return (
-    <button
-      type="button"
-      className="star"
-      data-active={on}
-      aria-pressed={on}
-      aria-label={on ? "已存入知识库，点击移除" : "存入知识库"}
-      title={on ? "已存入知识库" : "存入知识库"}
-      disabled={pending}
-      onClick={toggle}
-    >
-      <StarIcon filled={on} />
-    </button>
+    <>
+      {error && <span className="vote__err">未保存</span>}
+      <button
+        type="button"
+        className="star"
+        data-active={on}
+        aria-pressed={on}
+        aria-label={on ? "已存入知识库，点击移除" : "存入知识库"}
+        title={on ? "已存入知识库" : "存入知识库"}
+        disabled={pending}
+        onClick={toggle}
+      >
+        <StarIcon filled={on} />
+      </button>
+    </>
   );
 }
