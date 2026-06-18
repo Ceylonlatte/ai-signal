@@ -2,7 +2,7 @@ import { db } from "../../db/client.js";
 import { getSuppressed } from "../feed-queries.js";
 import { FeedbackButtons } from "../feedback-buttons.js";
 import { sourceLabel, relativeTime } from "../format.js";
-import { hostOf } from "../feed-item-data.js";
+import { hostOf, itemUrl } from "../feed-item-data.js";
 
 export const dynamic = "force-dynamic";
 
@@ -31,11 +31,12 @@ export default async function Suppressed() {
         <div className="results">
           {rows.map((item: any) => {
             const title = item.titleZh || item.title || "(无标题)";
-            const host = hostOf(item.url ?? null);
+            const url = itemUrl(item);
+            const host = hostOf(url);
             return (
               <article key={item.id} className="item">
                 <div className="item__top">
-                  <a className="item__title" href={item.url ?? "#"} target="_blank" rel="noreferrer">
+                  <a className="item__title" href={url ?? "#"} target="_blank" rel="noreferrer">
                     {title}
                     {host && <span className="item__ext">{host} ↗</span>}
                   </a>
