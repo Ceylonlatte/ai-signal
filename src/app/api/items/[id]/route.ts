@@ -15,7 +15,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (!parsed.success) return new Response("bad request", { status: 400 });
 
   const patch: Record<string, unknown> = {};
-  if (parsed.data.isFavorited !== undefined) patch.isFavorited = parsed.data.isFavorited;
+  if (parsed.data.isFavorited !== undefined) {
+    patch.isFavorited = parsed.data.isFavorited;
+    patch.favoritedAt = parsed.data.isFavorited ? new Date() : null;
+  }
   if (Object.keys(patch).length === 0) return new Response("no-op", { status: 400 });
 
   await db.update(items).set(patch).where(eq(items.id, Number(id)));

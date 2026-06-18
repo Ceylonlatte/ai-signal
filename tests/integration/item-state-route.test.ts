@@ -31,3 +31,22 @@ it("toggles favorite", async () => {
   const [row] = await db.select().from(items).where(eq(items.id, id));
   expect(row!.isFavorited).toBe(true);
 });
+
+it("sets favorited_at when favoriting and clears it when unfavoriting", async () => {
+  const { PATCH } = await import("../../src/app/api/items/[id]/route.js");
+  const on = await PATCH(
+    new Request(`http://x/api/items/${id}`, { method: "PATCH", body: JSON.stringify({ isFavorited: true }) }),
+    { params: Promise.resolve({ id: String(id) }) },
+  );
+  expect(on.status).toBe(200);
+  const [a] = await db.select().from(items).where(eq(items.id, id));
+  expect(a!.favoritedAt).toBeInstanceOf(Date);
+
+  const off = await PATCH(
+    new Request(`http://x/api/items/${id}`, { method: "PATCH", body: JSON.stringify({ isFavorited: false }) }),
+    { params: Promise.resolve({ id: String(id) }) },
+  );
+  expect(off.status).toBe(200);
+  const [b] = await db.select().from(items).where(eq(items.id, id));
+  expect(b!.favoritedAt).toBeNull();
+});
