@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db } from "../../../../db/client.js";
-import { items } from "../../../../db/schema.js";
+import { items, kbEntries } from "../../../../db/schema.js";
 
 export const dynamic = "force-dynamic";
 
@@ -22,5 +22,11 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (Object.keys(patch).length === 0) return new Response("no-op", { status: 400 });
 
   await db.update(items).set(patch).where(eq(items.id, Number(id)));
+  // Unfavoriting drops the knowledge-base entry: prevents orphan rows and lets a
+  // later re-favorite reprocess from scratch (a `failed` entry would otherwise be
+  // permanently excluded by runKbStage's attempts cap).
+  if (parsed.data.isFavorited === false) {
+    await db.delete(kbEntries).where(eq(kbEntries.itemId, Number(id)));
+  }
   return Response.json({ ok: true });
 }

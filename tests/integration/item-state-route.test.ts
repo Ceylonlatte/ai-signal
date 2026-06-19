@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeEach, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { items } from "../../src/db/schema.js";
+import { items, kbEntries } from "../../src/db/schema.js";
 import { db, pool, truncateAll } from "../setup/db.js";
 
 // Override the app db client with a connection to the TEST database.
@@ -49,4 +49,16 @@ it("sets favorited_at when favoriting and clears it when unfavoriting", async ()
   expect(off.status).toBe(200);
   const [b] = await db.select().from(items).where(eq(items.id, id));
   expect(b!.favoritedAt).toBeNull();
+});
+
+it("deletes the kb_entry when unfavoriting (so re-favoriting reprocesses fresh)", async () => {
+  const { PATCH } = await import("../../src/app/api/items/[id]/route.js");
+  await db.insert(kbEntries).values({ itemId: id, status: "failed", attempts: 3 });
+  const res = await PATCH(
+    new Request(`http://x/api/items/${id}`, { method: "PATCH", body: JSON.stringify({ isFavorited: false }) }),
+    { params: Promise.resolve({ id: String(id) }) },
+  );
+  expect(res.status).toBe(200);
+  const rows = await db.select().from(kbEntries).where(eq(kbEntries.itemId, id));
+  expect(rows).toHaveLength(0);
 });
