@@ -40,7 +40,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default async function LibraryDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const entry = await getEntry(Number(id));
+  const numId = Number(id);
+  const entry = Number.isInteger(numId) ? await getEntry(numId) : null;
   const now = new Date();
 
   if (!entry) {
