@@ -30,11 +30,6 @@ services:
       # Render all server-side dates (status / dashboard / feed) in Beijing time;
       # timestamptz is stored as UTC, so this only affects toLocaleString output.
       TZ: Asia/Shanghai
-      # Least privilege: only the worker writes to R2 (kb image pipeline). Blank
-      # the R2 secret credentials for the web container even though it never imports
-      # the r2 client — `environment` overrides the shared env_file values.
-      R2_ACCESS_KEY_ID: ""
-      R2_SECRET_ACCESS_KEY: ""
     ports:
       - "3000:3000"
     depends_on:

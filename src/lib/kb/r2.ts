@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectsCommand } from "@aws-sdk/client-s3";
 import { config } from "../../config.js";
 
 let client: S3Client | null = null;
@@ -37,4 +37,33 @@ export async function putObject(key: string, body: Uint8Array, contentType: stri
     ContentType: contentType,
   }));
   return publicUrl(key);
+}
+
+// Delete every object under a key prefix (e.g. `kb/<itemId>/`). Best-effort GC
+// when an item leaves the knowledge base, so unfavoriting doesn't orphan its
+// transferred images in the bucket. Returns how many objects were deleted.
+export async function deletePrefix(prefix: string): Promise<number> {
+  const client = s3();
+  let deleted = 0;
+  let token: string | undefined;
+  do {
+    const listed = await client.send(new ListObjectsV2Command({
+      Bucket: config.R2_BUCKET,
+      Prefix: prefix,
+      ContinuationToken: token,
+    }));
+    const objects = (listed.Contents ?? [])
+      .map((o) => o.Key)
+      .filter((k): k is string => Boolean(k))
+      .map((Key) => ({ Key }));
+    if (objects.length > 0) {
+      await client.send(new DeleteObjectsCommand({
+        Bucket: config.R2_BUCKET,
+        Delete: { Objects: objects, Quiet: true },
+      }));
+      deleted += objects.length;
+    }
+    token = listed.IsTruncated ? listed.NextContinuationToken : undefined;
+  } while (token);
+  return deleted;
 }
