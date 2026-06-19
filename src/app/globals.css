@@ -768,6 +768,9 @@ button {
 .kb-status[data-status="pending"] {
   color: var(--text-faint);
 }
+.kb-status[data-status="skipped"] {
+  color: var(--text-muted);
+}
 
 /* ─── Knowledge base: detail (reader) view ──────────────── */
 
