@@ -321,7 +321,7 @@ function FeedItem({
             {showEn ? "隐藏 EN" : "EN"}
           </button>
         )}
-        <a className="item__detail" href={`/library/${data.id}`}>详情</a>
+        <a className="item__detail" href={`/library/${data.id}`}>详情 →</a>
 
         <span className="vote">
           {vote?.error && <span className="vote__err">未保存，重试</span>}

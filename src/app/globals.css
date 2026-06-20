@@ -635,15 +635,18 @@ button {
   color: var(--text-strong);
 }
 
-/* "详情" entry link on feed/RSS cards → KB detail page. */
+/* "详情" entry link on feed/RSS cards → KB detail page. Accent = action (brand),
+   so it reads as the card's primary navigation, not muted meta text. */
 .item__detail {
-  color: var(--text-faint);
+  color: var(--violet);
   font-size: 13px;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 .item__detail:hover {
-  color: var(--text-strong);
+  color: var(--violet-hover);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /* ─── Feedback (ghost pills, reversible) ────────────────── */
