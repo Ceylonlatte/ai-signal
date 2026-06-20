@@ -6,6 +6,7 @@ import { runSummarizeStage } from "./summarize-stage.js";
 import { runRssSummarizeStage } from "./rss-summarize-stage.js";
 import { runClusterStage, runTopicMergeStage } from "../lib/cluster.js";
 import { runKbStage } from "./kb-stage.js";
+import { runRssKbStage } from "./rss-kb-stage.js";
 
 const POLL_MS = 5000;
 
@@ -19,7 +20,8 @@ async function loop() {
       const clustered = await runClusterStage(db, { threshold: 0.25 });
       const mergedTopics = await runTopicMergeStage(db);
       const kb = await runKbStage(db);
-      if (triaged + embedded + summarized + rssSummarized + clustered + mergedTopics + kb === 0) {
+      const rssKb = await runRssKbStage(db);
+      if (triaged + embedded + summarized + rssSummarized + clustered + mergedTopics + kb + rssKb === 0) {
         await new Promise((r) => setTimeout(r, POLL_MS));
       }
     } catch (err) {

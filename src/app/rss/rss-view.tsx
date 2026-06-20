@@ -67,6 +67,8 @@ export function RssView({ rows }: { rows: RssRow[] }) {
                           <span className="item__author">{item.author}</span>
                         </>
                       )}
+                      <span className="meta-dot">·</span>
+                      <a className="item__detail" href={`/rss/${item.id}`}>详情</a>
                     </div>
                   </article>
                 );

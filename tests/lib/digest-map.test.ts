@@ -23,6 +23,46 @@ describe("mapDigestItems reddit", () => {
   });
 });
 
+describe("mapDigestItems reddit_discussion.v1", () => {
+  const doc = {
+    schema_version: "reddit_discussion.v1",
+    source: { feed: "hot" },
+    post: {
+      id: "abc123", title: "Example", subreddit: "r/OpenAI", author: "op_user",
+      score: 420, num_comments: 87, created_utc: 1781930000,
+      url: "https://www.reddit.com/r/OpenAI/comments/abc123/example/",
+      external_url: "https://example.com/article", selftext: "Post body",
+    },
+    discussion: {
+      fetch: { status: "success" },
+      comments: [{ id: "c1", body: "Top comment", score: 210, depth: 0, replies: [] }],
+    },
+  };
+
+  it("maps the post and keeps the whole document (incl. comment tree) under raw", () => {
+    const [p] = mapDigestItems("reddit", undefined, [doc]);
+    expect(p).toMatchObject({
+      source: "reddit", externalId: "abc123", title: "Example", text: "Post body",
+      url: "https://www.reddit.com/r/OpenAI/comments/abc123/example/", author: "op_user",
+      metrics: { score: 420, comments: 87 }, feed: "hot",
+    });
+    expect(p!.createdAt).toBe(new Date(1781930000 * 1000).toISOString());
+    expect((p!.raw as typeof doc).discussion.comments[0]!.body).toBe("Top comment");
+  });
+
+  it("maps a link post with empty selftext (comments still carried in raw)", () => {
+    const linkDoc = { ...doc, post: { ...doc.post, selftext: "", external_url: "https://x.com/a" } };
+    const [p] = mapDigestItems("reddit", undefined, [linkDoc]);
+    expect(p!.text).toBe("");
+    expect(p!.externalId).toBe("abc123");
+  });
+
+  it("skips a v1 doc missing post id or title", () => {
+    const bad = { schema_version: "reddit_discussion.v1", post: { title: "no id" }, discussion: {} };
+    expect(mapDigestItems("reddit", undefined, [bad])).toHaveLength(0);
+  });
+});
+
 describe("mapDigestItems twitter", () => {
   it("maps a tweet (replies in metrics) + feed + parses twitter date", () => {
     const [p] = mapDigestItems("twitter", "following", [{

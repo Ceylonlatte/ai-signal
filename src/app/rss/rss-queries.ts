@@ -1,4 +1,4 @@
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { rssItems } from "../../db/schema.js";
 
 type Db = any;
@@ -33,4 +33,37 @@ export async function getRssItems(db: Db, opts: { limit?: number } = {}): Promis
     .orderBy(desc(rssItems.publishedAt))
     .limit(limit);
   return rows.map((r: any) => ({ ...r, publishedAt: new Date(r.publishedAt).toISOString() }));
+}
+
+export interface RssEntry extends RssRow {
+  kbStatus: string;
+  bodyMd: string;
+  bodyZhMd: string;
+  bodySource: string;
+  note: unknown;
+}
+
+export async function getRssEntry(db: Db, id: number): Promise<RssEntry | null> {
+  const [r] = await db
+    .select({
+      id: rssItems.id,
+      feedUrl: rssItems.feedUrl,
+      url: rssItems.url,
+      title: rssItems.title,
+      titleZh: rssItems.titleZh,
+      author: rssItems.author,
+      summary: rssItems.summary,
+      summaryZh: rssItems.summaryZh,
+      publishedAt: rssItems.publishedAt,
+      kbStatus: rssItems.kbStatus,
+      bodyMd: rssItems.bodyMd,
+      bodyZhMd: rssItems.bodyZhMd,
+      bodySource: rssItems.bodySource,
+      note: rssItems.note,
+    })
+    .from(rssItems)
+    .where(eq(rssItems.id, id))
+    .limit(1);
+  if (!r) return null;
+  return { ...r, publishedAt: new Date(r.publishedAt).toISOString() } as RssEntry;
 }

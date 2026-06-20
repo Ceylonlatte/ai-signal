@@ -635,6 +635,17 @@ button {
   color: var(--text-strong);
 }
 
+/* "详情" entry link on feed/RSS cards → KB detail page. */
+.item__detail {
+  color: var(--text-faint);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.item__detail:hover {
+  color: var(--text-strong);
+}
+
 /* ─── Feedback (ghost pills, reversible) ────────────────── */
 
 .vote {
@@ -841,6 +852,40 @@ button {
   padding: var(--space-3);
   border-radius: var(--radius-sm);
   background: var(--surface-sunken);
+}
+
+/* "查看原文" toggle under the translated body / comments. */
+.kb-original {
+  margin-top: var(--space-3);
+}
+.kb-original > summary {
+  cursor: pointer;
+  color: var(--text-faint);
+  font-size: 13px;
+  list-style: none;
+}
+.kb-original > summary::-webkit-details-marker {
+  display: none;
+}
+.kb-original > summary::before {
+  content: "▸ ";
+}
+.kb-original[open] > summary::before {
+  content: "▾ ";
+}
+.kb-original > .markdown {
+  margin-top: var(--space-3);
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--border);
+  color: var(--text-faint);
+}
+/* Full reddit discussion: tighter nested list so deep threads stay readable. */
+.kb-comments .markdown ul {
+  margin: var(--space-2) 0;
+  padding-left: var(--space-4);
+}
+.kb-comments .markdown li {
+  margin: var(--space-1) 0;
 }
 
 /* ─── Infinite scroll footer ────────────────────────────── */

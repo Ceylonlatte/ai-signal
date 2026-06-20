@@ -174,6 +174,15 @@ export const rssItems = pgTable("rss_items", {
   fullTextFetched: boolean("full_text_fetched").notNull().default(false),
   summaryAttempts: integer("summary_attempts").notNull().default(0),
   summaryError: text("summary_error"),
+  // KB 详情页字段（RSS 无 items 行，故内联在此，由 runRssKbStage 生成）：抓取全文
+  // Markdown、其中文翻译、结构化笔记。RSS 无评论。
+  kbStatus: text("kb_status").notNull().default("pending"), // pending | ready | failed | skipped
+  bodyMd: text("body_md").notNull().default(""),
+  bodyZhMd: text("body_zh_md").notNull().default(""),
+  note: jsonb("note").notNull().default({}),
+  bodySource: text("body_source").notNull().default(""),
+  kbAttempts: integer("kb_attempts").notNull().default(0),
+  kbError: text("kb_error"),
 }, (t) => ({
   uq: uniqueIndex("rss_items_feed_external_uq").on(t.feedUrl, t.externalId),
 }));
@@ -190,13 +199,18 @@ export const keywords = pgTable("keywords", {
 }, (t) => ({ termUq: uniqueIndex("keywords_term_uq").on(t.term) }));
 
 // 个人知识库条目：与 items 1:1。重内容（全文 Markdown、结构化笔记、图片清单）
-// 独立成表，不污染 scores。仅对 isFavorited 条目由 runKbStage 生成。
+// 独立成表，不污染 scores。由 runKbStage 为所有入库 item 生成。
 export const kbEntries = pgTable("kb_entries", {
   itemId: bigint("item_id", { mode: "number" }).primaryKey(),
   status: text("status").notNull().default("pending"), // pending | ready | failed | skipped
   note: jsonb("note").notNull().default({}), // { overview, keypoints[], facts[], why, terms[{term,def}] }
   bodyMd: text("body_md").notNull().default(""), // 正文 Markdown（图片 URL 已改写为 R2）
-  bodySource: text("body_source").notNull().default(""), // firecrawl | markdownnew | extractor | fallback
+  // 正文中文翻译（仅当原文非中文时生成；空=原文已是中文/未翻译，详情页回退展示 bodyMd）。
+  bodyZhMd: text("body_zh_md").notNull().default(""),
+  // reddit 完整评论树渲染成 Markdown（原文，不截断）；commentsZhMd 为其中文翻译。
+  commentsMd: text("comments_md").notNull().default(""),
+  commentsZhMd: text("comments_zh_md").notNull().default(""),
+  bodySource: text("body_source").notNull().default(""), // firecrawl | markdownnew | extractor | fallback | source | reddit
   images: jsonb("images").notNull().default([]), // [{ srcUrl, r2Url, bytes, contentType }]
   attempts: integer("attempts").notNull().default(0),
   error: text("error"),

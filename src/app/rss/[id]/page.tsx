@@ -1,34 +1,11 @@
-import { sql } from "drizzle-orm";
 import { db } from "../../../db/client.js";
-import { sourceLabel, relativeTime } from "../../format.js";
+import { getRssEntry } from "../rss-queries.js";
+import { rssFeedLabel } from "../../../lib/sources/rss-feeds.js";
+import { relativeTime } from "../../format.js";
 import { hostOf } from "../../feed-item-data.js";
-import { FavoriteButton } from "../../favorite-button.js";
 import { TranslatedBlock } from "../../kb-markdown.js";
 
 export const dynamic = "force-dynamic";
-
-interface DetailRow {
-  id: number; title: string; titleZh: string; url: string | null; source: string;
-  author: string | null; createdAt: string; isFavorited: boolean;
-  status: string | null; note: any; bodyMd: string | null; bodySource: string | null;
-  bodyZhMd: string | null; commentsMd: string | null; commentsZhMd: string | null;
-}
-
-async function getEntry(id: number): Promise<DetailRow | null> {
-  const res = await db.execute(sql`
-    SELECT i.id::int AS id, i.title, s.title_zh AS "titleZh", i.url, i.source, i.author AS "author",
-           i.created_at AS "createdAt", i.is_favorited AS "isFavorited",
-           k.status AS "status", k.note AS "note", k.body_md AS "bodyMd", k.body_source AS "bodySource",
-           k.body_zh_md AS "bodyZhMd", k.comments_md AS "commentsMd", k.comments_zh_md AS "commentsZhMd"
-    FROM items i
-    LEFT JOIN scores s ON s.item_id = i.id
-    LEFT JOIN kb_entries k ON k.item_id = i.id
-    WHERE i.id = ${id}
-    LIMIT 1
-  `);
-  const rows = (res.rows ?? res) as unknown as DetailRow[];
-  return rows[0] ?? null;
-}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -39,10 +16,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export default async function LibraryDetail({ params }: { params: Promise<{ id: string }> }) {
+export default async function RssDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const numId = Number(id);
-  const entry = Number.isInteger(numId) ? await getEntry(numId) : null;
+  const entry = Number.isInteger(numId) ? await getRssEntry(db, numId) : null;
   const now = new Date();
 
   if (!entry) {
@@ -50,7 +27,7 @@ export default async function LibraryDetail({ params }: { params: Promise<{ id: 
       <main className="page">
         <div className="placeholder">
           <p className="placeholder__title">条目不存在</p>
-          <p className="placeholder__body"><a href="/library">← 返回收藏</a></p>
+          <p className="placeholder__body"><a href="/?source=rss">← 返回 RSS</a></p>
         </div>
       </main>
     );
@@ -62,34 +39,33 @@ export default async function LibraryDetail({ params }: { params: Promise<{ id: 
     overview?: string; keypoints?: string[]; facts?: string[]; why?: string;
     terms?: { term: string; def: string }[];
   };
-  const hasNote = entry.status === "ready" && (note.overview || (note.keypoints?.length ?? 0) > 0);
+  const hasNote = entry.kbStatus === "ready" && (note.overview || (note.keypoints?.length ?? 0) > 0);
 
   return (
     <main className="page kb-detail">
-      <p className="kb-detail__back"><a href="/library">← 收藏</a></p>
+      <p className="kb-detail__back"><a href="/?source=rss">← RSS</a></p>
 
       <div className="kb-detail__head">
         <h1 className="kb-detail__title">{title}</h1>
         <div className="item__meta">
-          <span className="item__source">{sourceLabel(entry.source)}</span>
-          {entry.author && entry.source === "twitter" && (
-            <><span className="meta-dot">·</span><span>@{entry.author}</span></>
+          <span className="item__source">{rssFeedLabel(entry.feedUrl)}</span>
+          {entry.author && (
+            <><span className="meta-dot">·</span><span>{entry.author}</span></>
           )}
-          {entry.createdAt && (
-            <><span className="meta-dot">·</span><span>{relativeTime(entry.createdAt, now)}</span></>
+          {entry.publishedAt && (
+            <><span className="meta-dot">·</span><span>{relativeTime(entry.publishedAt, now)}</span></>
           )}
           {entry.url && (
             <><span className="meta-dot">·</span>
             <a href={entry.url} target="_blank" rel="noreferrer">原文{host ? `（${host}）` : ""} ↗</a></>
           )}
-          <FavoriteButton itemId={entry.id} initial={entry.isFavorited} />
         </div>
       </div>
 
-      {entry.status === "pending" || entry.status === null ? (
+      {entry.kbStatus === "pending" || entry.kbStatus === null ? (
         <div className="notice" role="status">正在整理这篇内容，稍后刷新查看。</div>
-      ) : entry.status === "failed" ? (
-        <div className="notice" role="status">整理失败。可取消 ⭐ 再重新收藏以重试。</div>
+      ) : entry.kbStatus === "failed" ? (
+        <div className="notice" role="status">整理失败，仅展示原文摘要。</div>
       ) : null}
 
       {hasNote && (
@@ -114,19 +90,17 @@ export default async function LibraryDetail({ params }: { params: Promise<{ id: 
         </div>
       )}
 
-      {entry.bodyMd && (
+      {entry.bodyMd ? (
         <div className="kb-body">
           <h2 className="kb-body__h">全文</h2>
           <TranslatedBlock zh={entry.bodyZhMd} original={entry.bodyMd} />
         </div>
-      )}
-
-      {entry.commentsMd && (
-        <div className="kb-body kb-comments">
-          <h2 className="kb-body__h">讨论</h2>
-          <TranslatedBlock zh={entry.commentsZhMd} original={entry.commentsMd} />
+      ) : entry.summary ? (
+        <div className="kb-body">
+          <h2 className="kb-body__h">摘要</h2>
+          <p className="item__summary">{entry.summaryZh || entry.summary}</p>
         </div>
-      )}
+      ) : null}
     </main>
   );
 }
