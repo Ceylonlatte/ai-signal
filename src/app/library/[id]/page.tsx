@@ -4,6 +4,7 @@ import { sourceLabel, relativeTime } from "../../format.js";
 import { hostOf } from "../../feed-item-data.js";
 import { FavoriteButton } from "../../favorite-button.js";
 import { TranslatedBlock } from "../../kb-markdown.js";
+import { BackLink } from "../../back-link.js";
 
 export const dynamic = "force-dynamic";
 
@@ -39,8 +40,15 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export default async function LibraryDetail({ params }: { params: Promise<{ id: string }> }) {
+export default async function LibraryDetail({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string }>;
+}) {
   const { id } = await params;
+  const { from } = await searchParams;
   const numId = Number(id);
   const entry = Number.isInteger(numId) ? await getEntry(numId) : null;
   const now = new Date();
@@ -66,7 +74,7 @@ export default async function LibraryDetail({ params }: { params: Promise<{ id: 
 
   return (
     <main className="page kb-detail">
-      <p className="kb-detail__back"><a href="/library">← 收藏</a></p>
+      <p className="kb-detail__back"><BackLink from={from} /></p>
 
       <div className="kb-detail__head">
         <h1 className="kb-detail__title">{title}</h1>

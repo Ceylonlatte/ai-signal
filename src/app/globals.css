@@ -1,45 +1,75 @@
 /* ───────────────────────────────────────────────────────────
    AI Signal — global foundation
-   Tokens distilled from DESIGN.md (ivory terminal, violet pulse).
-   Monochrome porcelain canvas; Signal Violet reserved for action.
+   Awesomic system (light): a Mist canvas with white cards, one
+   near-black action colour, and colour almost absent from the UI —
+   ember is a scarce, badge-sized spark only. Depth comes from the
+   surface-tone steps (Mist → Snow → Fog) and generous rounding,
+   never from drop shadows.
    ─────────────────────────────────────────────────────────── */
 
 :root {
-  /* Brand + neutrals (DESIGN.md palette) */
-  --violet: #594ff4;
-  --violet-hover: #4840d4;
-  --violet-weak: rgba(89, 79, 244, 0.1);
-  /* The one semantic exception to the monochrome rule — errors + destructive
-     actions only. Matches the established #b4231f used by feed/vote errors. */
+  /* Action — the ONLY filled-action colour (white text on near-black).
+     The system has no chromatic CTA; --accent resolves here too, so the
+     existing accent call-sites read as monochrome ink. */
+  --action: #09090b;
+  --action-hover: #000000;
+  --action-weak: rgba(9, 9, 11, 0.06);
+  --accent: #09090b;
+  --accent-hover: #000000;
+  --accent-weak: rgba(9, 9, 11, 0.06);
+  --on-accent: #ffffff; /* text on a near-black fill */
+  /* Ember — the scarce spark. Badge-sized only: eyebrow, live pulse,
+     saved star, top rank, accepted tag. Never a UI state or hover.
+     --ember is the vivid fill/dot; --ember-ink is the AA-safe text on light. */
+  --ember: #ff5a00;
+  --ember-ink: #c2410c; /* ~5.2:1 on white — ember used as text/icon */
+  --ember-weak: rgba(255, 90, 0, 0.12);
+  /* Errors / destructive — the established crimson on light. */
   --danger: #b4231f;
   --danger-weak: rgba(180, 35, 31, 0.1);
-  --ink: #1f1f1f;
-  --graphite: #333333;
-  --slate: #5d5d5d;
-  --smoke: #888888;
-  --ash: #b0b0b0;
-  --mist: #e7e7e7;
-  --cloud: #f6f6f6;
-  --porcelain: #ffffff;
-  --obsidian: #000000;
 
-  /* Text roles — tuned to clear WCAG AA on white (no #888 body text) */
+  /* Zinc neutral ladder (light) */
+  --ink: #18181b;
+  --graphite: #3f3f46;
+  --slate: #52525b;
+  --smoke: #71717a;
+  --ash: #a1a1aa;
+  --pebble: #d4d4d8;
+  --porcelain: #ffffff;
+  --obsidian: #09090b;
+
+  /* Surface steps — Mist → Snow → Fog. */
+  --mist: #ececee; /* fog / hairline */
+  --cloud: #f4f4f5; /* canvas + sunken tone */
+  /* Light remaps for the retired dark "glass" tokens so any stray
+     reference degrades to a sensible light surface / no-op shadow. */
+  --glass: #f4f4f5;
+  --glass-strong: #ffffff;
+  --glass-line: #ececee;
+  --glass-line-strong: #d4d4d8;
+  --inset-hi: 0 0 0 0 transparent;
+  --glow-ember: 0 0 0 0 transparent;
+
+  /* Text roles — clear WCAG AA on white */
   --text-strong: var(--ink);
-  --text: #2a2a2a;
-  --text-muted: var(--slate); /* ~6.3:1 */
-  --text-faint: #707070; /* ~4.9:1, lowest we let text go */
+  --text: #27272a;
+  --text-muted: var(--slate); /* ~7:1 */
+  --text-faint: #6b6b73; /* ~4.9:1, lowest we let text go */
 
   /* Lines + surfaces */
   --border: var(--mist);
-  --border-strong: var(--ash);
-  --surface: var(--porcelain);
+  --border-strong: var(--pebble);
+  --app-bg: var(--cloud); /* Mist tablecloth */
+  --surface: var(--porcelain); /* white cards */
   --surface-sunken: var(--cloud);
 
-  /* Radii (DESIGN.md) */
+  /* Radii — Awesomic's generous rounding */
   --radius-pill: 999px;
   --radius-lg: 36px;
   --radius-md: 16px;
   --radius-sm: 10px;
+  --radius-badge: 12px;
+  --radius-input: 14px;
 
   /* Spacing scale (4px base) */
   --space-1: 4px;
@@ -52,13 +82,17 @@
   --space-10: 40px;
   --space-16: 64px;
 
-  /* Type */
-  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont,
+  /* Type — a single family (Awesomic's rule: weight does the hierarchy, not
+     family-switching). Latin picks up Plus Jakarta Sans; CJK falls back to the
+     system Chinese face so 中文 stays crisp without shipping a CJK webfont. */
+  --font-sans: var(--font-sans-latin), -apple-system, BlinkMacSystemFont,
     "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-display: var(--font-sans);
 
   /* Layout */
-  --reading-width: 900px;
+  --reading-width: 1160px;
   --shell-height: 60px;
+  --sidebar-w: 232px;
 
   /* Z-index scale (semantic, never arbitrary) */
   --z-sticky: 100;
@@ -72,10 +106,12 @@
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-island: cubic-bezier(0.32, 0.72, 0, 1); /* the heavy spring everything rides */
   --dur-fast: 120ms;
   --dur: 180ms;
   --dur-slow: 320ms;
   --dur-reveal: 560ms;
+  --dur-island: 620ms;
 }
 
 *,
@@ -90,7 +126,7 @@ html {
 
 body {
   margin: 0;
-  background: var(--surface);
+  background: var(--app-bg);
   color: var(--text);
   font-family: var(--font-sans);
   font-weight: 500;
@@ -98,21 +134,21 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-feature-settings: "ss01" on, "cv11" on;
 }
 
 h1,
 h2,
 h3 {
   color: var(--text-strong);
+  font-family: var(--font-display);
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   text-wrap: balance;
   margin: 0;
 }
 
 a {
-  color: var(--violet);
+  color: var(--accent);
   text-decoration: none;
 }
 a:hover {
@@ -126,15 +162,15 @@ button {
 }
 
 :focus-visible {
-  outline: 2px solid var(--violet);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
   border-radius: var(--space-1);
 }
 
 /* ─── Motion: global atmosphere ─────────────────────────────
-   Scroll-aware, depth-aware chrome. Violet stays tied to status
+   Scroll-aware, depth-aware chrome. Ember stays tied to status
    (reading progress) / action; pure atmosphere rides on light,
-   blur and shadow so the porcelain discipline survives. */
+   blur and shadow so the cool-neutral discipline survives. */
 
 /* Soft crossfade between server navigations (sort / pagination /
    nav). Kills the force-dynamic full-page skeleton flash. Chromium
@@ -154,7 +190,7 @@ button {
   height: 2px;
   transform: scaleX(0);
   transform-origin: 0 50%;
-  background: var(--violet);
+  background: var(--ember);
   z-index: var(--z-tooltip);
   pointer-events: none;
 }
@@ -169,106 +205,236 @@ button {
       transform: scaleX(1);
     }
   }
-
-  /* Header earns depth as content slides beneath it. */
-  .shell {
-    animation: shell-lift linear both;
-    animation-timeline: scroll(root block);
-    animation-range: 0 96px;
-  }
-  @keyframes shell-lift {
-    to {
-      background: color-mix(in srgb, var(--porcelain) 78%, transparent);
-      border-bottom-color: transparent;
-      box-shadow: 0 1px 0 var(--border), 0 14px 28px -22px rgba(0, 0, 0, 0.4);
-    }
-  }
 }
 
-/* ─── App shell ─────────────────────────────────────────── */
+/* ─── App shell — left sidebar rail + main reading pane ─────
+   No floating card: the page is one surface, split by tone (mist rail,
+   white main) and a hairline, so the horizontal space is used. */
+.app {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  min-height: 100dvh;
+  background: var(--surface);
+}
+.app__main {
+  min-width: 0;
+}
 
-.shell {
+.sidebar {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-6) var(--space-4);
+  background: var(--surface-sunken);
+  border-right: 1px solid var(--border);
+  /* Persist across view transitions so it never crossfades. */
+  view-transition-name: sidebar;
+}
+.sidebar__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-1) var(--space-2) var(--space-5);
+  color: var(--text-strong);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-size: 16px;
+}
+.sidebar__brand:hover {
+  text-decoration: none;
+}
+.sidebar__mark,
+.topbar__mark {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 9px;
+  background: var(--action);
+  color: var(--on-accent);
+  font-size: 15px;
+  font-weight: 700;
+}
+.sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sidebar__link {
+  display: flex;
+  align-items: center;
+  height: 38px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  transition: color var(--dur) var(--ease-island),
+    background var(--dur) var(--ease-island);
+}
+.sidebar__link:hover {
+  color: var(--text-strong);
+  background: var(--surface);
+  text-decoration: none;
+}
+.sidebar__link[aria-current="page"] {
+  color: var(--on-accent);
+  background: var(--action);
+  font-weight: 600;
+}
+
+/* Mobile top bar — replaces the sidebar below the breakpoint. */
+.topbar {
+  display: none;
   position: sticky;
   top: 0;
   z-index: var(--z-sticky);
-  display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-6);
-  height: var(--shell-height);
-  padding: 0 var(--space-6);
-  background: color-mix(in srgb, var(--porcelain) 88%, transparent);
+  height: 56px;
+  padding: 0 var(--space-4);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
   backdrop-filter: saturate(180%) blur(12px);
   border-bottom: 1px solid var(--border);
-  /* Persist the chrome across view transitions so it never crossfades. */
-  view-transition-name: shell;
 }
-
-.shell__brand {
+.topbar__brand {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   color: var(--text-strong);
   font-weight: 700;
-  letter-spacing: -0.02em;
-  font-size: 17px;
+  letter-spacing: -0.01em;
+  font-size: 16px;
 }
-.shell__brand:hover {
+.topbar__brand:hover {
   text-decoration: none;
 }
-.shell__mark {
+.topbar__burger {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+}
+.topbar__burger span {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 50%;
+  height: 1.5px;
+  margin-top: -0.75px;
+  border-radius: 2px;
+  background: var(--text-strong);
+  transition: transform var(--dur) var(--ease-island);
+}
+.topbar__burger span:nth-child(1) {
+  transform: translateY(-4px);
+}
+.topbar__burger span:nth-child(2) {
+  transform: translateY(4px);
+}
+.topbar__burger[aria-expanded="true"] span:nth-child(1) {
+  transform: rotate(45deg);
+}
+.topbar__burger[aria-expanded="true"] span:nth-child(2) {
+  transform: rotate(-45deg);
+}
+
+/* ─── Mobile nav — full-screen glass takeover with staggered reveal ─── */
+
+.navmodal {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-1);
+  padding: var(--space-16) var(--space-8);
+  background: color-mix(in srgb, var(--porcelain) 88%, transparent);
+  backdrop-filter: blur(22px) saturate(150%);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--dur-slow) var(--ease-island),
+    visibility var(--dur-slow) var(--ease-island);
+}
+.navmodal[data-open="true"] {
+  opacity: 1;
+  visibility: visible;
+}
+.navmodal__close {
+  position: absolute;
+  top: calc(var(--space-4) - 2px);
+  right: var(--space-5);
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  background: var(--violet);
-  color: #fff;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.shell__nav {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.shell__nav::-webkit-scrollbar {
-  display: none;
-}
-
-.shell__link {
-  display: inline-flex;
-  align-items: center;
-  height: 34px;
-  padding: 0 var(--space-3);
-  border-radius: var(--radius-pill);
-  color: var(--text-muted);
-  font-size: 15px;
-  font-weight: 500;
-  white-space: nowrap;
-  transition: color var(--dur-fast) var(--ease-out-quint),
-    background var(--dur-fast) var(--ease-out-quint);
-}
-.shell__link:hover {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
   color: var(--text-strong);
-  background: var(--cloud);
+}
+.navmodal__link {
+  width: max-content;
+  font-family: var(--font-display);
+  font-size: clamp(2.25rem, 11vw, 3.5rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--text-muted);
+  opacity: 0;
+  transform: translateY(28px);
+  filter: blur(8px);
+  transition: opacity var(--dur-island) var(--ease-island),
+    transform var(--dur-island) var(--ease-island),
+    filter var(--dur-island) var(--ease-island),
+    color var(--dur) var(--ease-island);
+}
+.navmodal[data-open="true"] .navmodal__link {
+  opacity: 1;
+  transform: none;
+  filter: blur(0);
+  transition-delay: calc(var(--i, 0) * 55ms + 80ms);
+}
+.navmodal__link:hover,
+.navmodal__link[aria-current="page"] {
+  color: var(--accent);
   text-decoration: none;
 }
-.shell__link[aria-current="page"] {
-  color: var(--violet);
-  background: var(--violet-weak);
+
+@media (max-width: 860px) {
+  .app {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sidebar {
+    display: none;
+  }
+  .topbar {
+    display: flex;
+  }
+}
+@media (min-width: 861px) {
+  .navmodal {
+    display: none;
+  }
 }
 
-/* ─── Page scaffold ─────────────────────────────────────── */
+/* ─── Page scaffold — a centered reading column in the main pane,
+   no card: the surface is the main pane itself. ──────────── */
 
 .page {
+  position: relative;
   width: 100%;
   max-width: var(--reading-width);
-  margin: 0 auto;
-  padding: var(--space-10) var(--space-5) var(--space-16);
+  margin: 0;
+  padding: var(--space-10) var(--space-8) var(--space-16);
 }
 
 .page__head {
@@ -279,8 +445,9 @@ button {
   margin-bottom: var(--space-6);
 }
 .page__title {
-  font-size: 30px;
-  line-height: 1.1;
+  font-size: clamp(1.9rem, 4vw, 2.75rem);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
   animation: enter-rise 600ms var(--ease-out-expo) both;
 }
 .page__tools {
@@ -305,6 +472,36 @@ button {
   font-size: 14px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* Visually hidden but exposed to screen readers / SEO. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Bare head (home feed): no visible title — the toolbar IS the page head.
+   The <h1> stays for a11y/SEO via .sr-only. */
+.page__head--bare {
+  margin-bottom: var(--space-5);
+}
+/* Toolbar head splits into two groups: platform filter on the left,
+   sort + count on the right — so they don't read as one ambiguous strip. */
+.page__head--bare .page__tools {
+  flex: 1;
+  justify-content: space-between;
+}
+.page__tools__right {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
 }
 
 /* ─── Feed sort toggle (segmented control) ──────────────── */
@@ -373,6 +570,25 @@ button {
   background: var(--ash);
 }
 
+/* Soft variant — a quiet advisory line (no filled box) for low-priority status
+   like stale sources, so it recedes instead of reading as an alert before content. */
+.notice--soft {
+  gap: var(--space-2);
+  padding: 0;
+  margin-bottom: var(--space-5);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.notice--soft .notice__dot {
+  width: 6px;
+  height: 6px;
+  margin-top: 5px;
+}
+
 /* ─── Feed list ─────────────────────────────────────────── */
 
 .feed {
@@ -382,16 +598,32 @@ button {
 
 .item {
   padding: var(--space-5) var(--space-4);
-  border-bottom: 1px solid var(--border);
+  border: 1px solid transparent;
+  border-bottom-color: var(--border);
   border-radius: var(--radius-md);
-  transition: background var(--dur) var(--ease-out-quart),
-    box-shadow var(--dur) var(--ease-out-quart),
-    transform var(--dur) var(--ease-out-quart);
+  transition: background var(--dur-slow) var(--ease-island),
+    border-color var(--dur-slow) var(--ease-island),
+    box-shadow var(--dur-slow) var(--ease-island),
+    transform var(--dur-slow) var(--ease-island);
+}
+/* Home feed items carry a signal dial in a left gutter + a content column so
+   title, reason, summary and meta align. Other lists (raw / library / rss /
+   suppressed) reuse .item without a dial, so this scopes to the dialed layout. */
+.item--feed {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  column-gap: var(--space-3);
+  cursor: pointer;
+}
+.item__body {
+  min-width: 0;
 }
 .item:hover {
   background: var(--cloud);
+  border-color: var(--border);
   transform: translateY(-2px);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 16px 32px -24px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 16px 32px -24px rgba(0, 0, 0, 0.22);
 }
 
 /* Scroll-reveal: items rise + sharpen as they enter view. Hidden from
@@ -417,8 +649,8 @@ button {
 @keyframes item-reveal {
   from {
     opacity: 0;
-    transform: translateY(18px);
-    filter: blur(6px);
+    transform: translateY(24px);
+    filter: blur(8px);
   }
   to {
     opacity: 1;
@@ -427,12 +659,14 @@ button {
   }
 }
 
-/* Signal-strength dial — the ranking cue, made unmistakable */
+/* Title row for the dial-less lists (raw / library / rss / suppressed). */
 .item__top {
   display: flex;
   align-items: center;
   gap: var(--space-3);
 }
+
+/* Signal-strength dial — the ranking cue, made unmistakable */
 .signal {
   flex: none;
   display: inline-flex;
@@ -443,10 +677,9 @@ button {
 .signal__ring {
   display: block;
 }
-/* A monochrome dial: the arc length reads the 0–100 signal score, and a tonal
-   ladder (ink / graphite / ash) lets the strongest dials dominate the scan
-   while the weak ones recede. Color stays out of it — Signal Violet is
-   reserved for action (votes, links). */
+/* A monochrome dial: the arc length reads the 0–100 signal score on a tonal
+   ladder (ink → graphite → ash) so the strongest dials dominate the scan and
+   the weak ones recede. Colour stays out of it — Awesomic keeps the UI achromatic. */
 .signal__track {
   stroke: var(--mist);
 }
@@ -473,7 +706,18 @@ button {
   fill: var(--graphite);
 }
 .signal[data-strength="low"] .signal__track {
-  stroke: #efefef;
+  stroke: #f1f1f2;
+}
+/* Strength shows in the ring's tone + thickness and in the number's colour, which
+   tracks the ring (ink → graphite → faint). Size and weight stay uniform across
+   tiers. Track + fill move together so the ring stays even. */
+.signal[data-strength="high"] .signal__track,
+.signal[data-strength="high"] .signal__fill {
+  stroke-width: 5;
+}
+.signal[data-strength="low"] .signal__track,
+.signal[data-strength="low"] .signal__fill {
+  stroke-width: 3.5;
 }
 /* The dial sweeps its arc in as the card reveals — a brief, state-bearing
    draw, not decoration. Active only on `.is-in`; reduced-motion collapses the
@@ -499,11 +743,8 @@ button {
   line-height: 1.3;
   letter-spacing: -0.01em;
 }
-.item[data-strength="high"] .item__title {
-  font-size: 19px;
-}
 .item__title:hover {
-  color: var(--violet);
+  color: var(--accent);
   text-decoration: none;
 }
 .item__ext {
@@ -512,20 +753,30 @@ button {
   font-size: 13px;
   font-weight: 500;
 }
+/* The host chip doubles as the original-source link on the feed. */
+.item__src {
+  transition: color var(--dur-fast) var(--ease-out-quint);
+}
+.item__src:hover {
+  color: var(--accent);
+  text-decoration: none;
+}
 
 .item__reason {
   margin: 6px 0 0;
+  max-width: 72ch;
   color: var(--text);
   font-size: 15px;
-  line-height: 1.5;
+  line-height: 1.55;
   text-wrap: pretty;
 }
 
 .item__summary {
   margin: 6px 0 0;
+  max-width: 72ch;
   color: var(--text-muted);
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 /* Original (untranslated) title shown under a Chinese title in the RSS tab. */
 .item__orig {
@@ -567,7 +818,7 @@ button {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2) var(--space-3);
-  margin-top: var(--space-2);
+  margin-top: var(--space-3);
   color: var(--text-faint);
   font-size: 13px;
 }
@@ -593,7 +844,7 @@ button {
   align-items: center;
   height: 22px;
   padding: 0 var(--space-2);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-badge);
   background: var(--cloud);
   color: var(--text-muted);
   font-size: 12px;
@@ -602,8 +853,8 @@ button {
 /* Triage outcome states (/raw + search): accepted into the feed, dropped by
    the quality gate, or not yet triaged. */
 .tag--accepted {
-  background: var(--violet-weak);
-  color: var(--violet);
+  background: var(--ember-weak);
+  color: var(--ember-ink);
 }
 .tag--dropped {
   color: var(--text-faint);
@@ -638,24 +889,33 @@ button {
 /* "详情" entry link on feed/RSS cards → KB detail page. Accent = action (brand),
    so it reads as the card's primary navigation, not muted meta text. */
 .item__detail {
-  color: var(--violet);
+  color: var(--accent);
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
 }
 .item__detail:hover {
-  color: var(--violet-hover);
+  color: var(--accent-hover);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
 /* ─── Feedback (ghost pills, reversible) ────────────────── */
 
+/* The action cluster (EN / 详情 / vote / save) sits to the right, separated
+   from the read-only metadata (source · author · time · tags) on the left, so
+   primary actions don't compete with metadata at the same visual weight. */
+.item__actions {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  margin-left: auto;
+}
 .vote {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  margin-left: auto;
 }
 .vote__btn {
   position: relative;
@@ -672,15 +932,15 @@ button {
   color: var(--text-muted);
   font-size: 14px;
   line-height: 1;
-  --ring: var(--violet);
+  --ring: var(--accent);
   transition: border-color var(--dur-fast) var(--ease-out-quint),
     color var(--dur-fast) var(--ease-out-quint),
     background var(--dur-fast) var(--ease-out-quint),
     transform var(--dur-fast) var(--ease-out-quart);
 }
 .vote__btn:hover:not(:disabled) {
-  border-color: var(--violet);
-  color: var(--violet);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .vote__btn:active:not(:disabled) {
   transform: scale(0.9);
@@ -689,13 +949,15 @@ button {
   --ring: var(--ink);
 }
 .vote__btn[data-active="true"] {
-  background: var(--violet);
-  border-color: var(--violet);
-  color: #fff;
+  background: var(--action);
+  border-color: var(--action);
+  color: var(--on-accent);
 }
 .vote__btn[data-active="true"][data-kind="down"] {
-  background: var(--ink);
-  border-color: var(--ink);
+  background: var(--graphite);
+  border-color: var(--graphite);
+  color: var(--on-accent);
+  box-shadow: none;
 }
 .vote__btn:disabled {
   opacity: 0.55;
@@ -743,13 +1005,14 @@ button {
   }
 }
 .vote__err {
-  color: #b4231f;
+  color: var(--danger);
   font-size: 12px;
 }
 
 /* ─── Knowledge base: ⭐ star + card preview ─────────────── */
 
 .star {
+  position: relative;
   display: inline-flex;
   align-items: center;
   background: none;
@@ -760,12 +1023,45 @@ button {
   line-height: 0;
   transition: color var(--dur-fast) var(--ease-out-quint);
 }
+.star__icon {
+  display: block;
+}
 .star[data-active="true"] {
-  color: var(--violet);
+  color: var(--ember-ink);
 }
 .star:disabled {
   opacity: 0.5;
   cursor: default;
+}
+/* Saving lands with the same satisfaction as a vote, but in ember (its scarce
+   "saved" home): the star pops and a single ember ring blooms — distinct from
+   the vote's ink ring, so colour carries the meaning (saved vs calibrated). */
+.star::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 24px;
+  height: 24px;
+  margin: auto;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+}
+.star[data-active="true"]::after {
+  animation: saved-ring var(--dur-reveal) var(--ease-out-expo);
+}
+.star[data-active="true"] .star__icon {
+  animation: icon-pop 380ms var(--ease-out-expo);
+}
+@keyframes saved-ring {
+  from {
+    opacity: 0.5;
+    box-shadow: 0 0 0 0 var(--ember);
+  }
+  to {
+    opacity: 0;
+    box-shadow: 0 0 0 8px transparent;
+  }
 }
 .kb-card__points {
   margin: var(--space-2) 0 0;
@@ -792,6 +1088,18 @@ button {
   margin: 0 0 var(--space-3);
   font-size: 13px;
 }
+.kb-detail__back-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.kb-detail__back-btn:hover {
+  text-decoration: underline;
+}
 .kb-detail__title {
   font-size: 22px;
   line-height: 1.3;
@@ -814,7 +1122,7 @@ button {
 .kb-note__h {
   font-size: 13px;
   font-weight: 600;
-  color: var(--violet);
+  color: var(--accent);
   margin: 0 0 var(--space-2);
 }
 .kb-note ul {
@@ -921,8 +1229,8 @@ button {
     background var(--dur-fast) var(--ease-out-quint);
 }
 .feed-more:hover:not(:disabled) {
-  border-color: var(--violet);
-  color: var(--violet);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .feed-more:disabled {
   opacity: 0.55;
@@ -938,7 +1246,7 @@ button {
 }
 .feed-error {
   margin: 0;
-  color: #b4231f;
+  color: var(--danger);
   font-size: 13px;
 }
 .feed-sentinel {
@@ -987,8 +1295,8 @@ button {
 
 /* ═══════════════════════════════════════════════════════════
    Secondary surfaces — topics / search / keywords / status /
-   suppressed. Same porcelain-and-violet discipline as the feed:
-   monochrome by default, violet only for action + active state,
+   suppressed. Same ink-and-ember discipline as the feed:
+   monochrome by default, ember only for action + active state,
    --danger the lone semantic exception (errors / destructive).
    ═══════════════════════════════════════════════════════════ */
 
@@ -1054,11 +1362,14 @@ button {
   cursor: default;
 }
 .btn--primary {
-  background: var(--violet);
-  color: #fff;
+  background: var(--action);
+  color: var(--on-accent);
+  /* Awesomic's pressed-glass pill: inner highlight + ring + soft drop. */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 0 0 1px rgba(9, 9, 11, 0.6),
+    0 4px 10px -4px rgba(0, 0, 0, 0.35);
 }
 .btn--primary:hover:not(:disabled) {
-  background: var(--violet-hover);
+  background: var(--action-hover);
 }
 .btn--ghost {
   background: var(--surface);
@@ -1066,8 +1377,8 @@ button {
   color: var(--text-strong);
 }
 .btn--ghost:hover:not(:disabled) {
-  border-color: var(--violet);
-  color: var(--violet);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 /* Small destructive text button (keyword delete). */
@@ -1097,7 +1408,7 @@ button {
   padding: 0 var(--space-4);
   background: var(--surface);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-input);
   color: var(--text-strong);
   font: inherit;
   font-size: 15px;
@@ -1112,8 +1423,8 @@ button {
 }
 .field:focus {
   outline: none;
-  border-color: var(--violet);
-  box-shadow: 0 0 0 3px var(--violet-weak);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-weak);
 }
 
 /* ─── Segmented control — radio variant of .sort (search mode) ─── */
@@ -1158,11 +1469,11 @@ button {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 .seg__input:focus-visible + .seg__face {
-  outline: 2px solid var(--violet);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-/* ─── Toggle switch (keyword enable — "active state" → violet) ─── */
+/* ─── Toggle switch (keyword enable — "active state" → ember) ─── */
 
 .switch {
   position: relative;
@@ -1197,13 +1508,13 @@ button {
   transition: transform var(--dur) var(--ease-out-quint);
 }
 .switch__input:checked + .switch__track {
-  background: var(--violet);
+  background: var(--accent);
 }
 .switch__input:checked + .switch__track::after {
   transform: translateX(16px);
 }
 .switch__input:focus-visible + .switch__track {
-  outline: 2px solid var(--violet);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 .switch__input:disabled + .switch__track {
@@ -1219,7 +1530,7 @@ button {
   gap: 6px;
   height: 22px;
   padding: 0 var(--space-2);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-badge);
   background: var(--cloud);
   color: var(--text-muted);
   font-size: 12px;
@@ -1396,7 +1707,7 @@ button {
   transition: width var(--dur-slow) var(--ease-out-expo);
 }
 
-/* Running / idle status dot (status header — "status" use of violet). */
+/* Running / idle status dot (status header — "status" use of ember). */
 .run-dot {
   display: inline-block;
   width: 9px;
@@ -1406,13 +1717,13 @@ button {
   vertical-align: middle;
 }
 .run-dot[data-running="true"] {
-  background: var(--violet);
+  background: var(--ember);
   animation: run-pulse 1.6s var(--ease-out-quint) infinite;
 }
 @keyframes run-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 var(--violet-weak);
+    box-shadow: 0 0 0 0 var(--ember-weak);
   }
   50% {
     box-shadow: 0 0 0 5px transparent;
@@ -1457,7 +1768,7 @@ button {
   text-align: right;
 }
 .topic--top .topic__rank {
-  color: var(--violet);
+  color: var(--ink);
 }
 .topic__body {
   min-width: 0;
@@ -1473,7 +1784,7 @@ button {
   white-space: nowrap;
 }
 .topic:hover .topic__label {
-  color: var(--violet);
+  color: var(--accent);
 }
 .topic__hint {
   display: block;
@@ -1551,7 +1862,7 @@ button {
   line-height: 1.4;
 }
 .result:hover .result__title {
-  color: var(--violet);
+  color: var(--accent);
 }
 .result__meta {
   display: flex;
@@ -1602,13 +1913,8 @@ button {
   .page {
     padding: var(--space-6) var(--space-4) var(--space-10);
   }
-  .shell {
-    padding: 0 var(--space-4);
-    gap: var(--space-3);
-  }
   .item {
     padding: var(--space-4) var(--space-2);
-    gap: var(--space-3);
   }
   .page__title {
     font-size: 24px;

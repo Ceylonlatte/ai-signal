@@ -190,7 +190,12 @@ function RawItem({ data }: { data: RawFeedItem }) {
           <span className="meta-dot"> · </span>LLM {data.triage.llmValue.toFixed(2)}
           <span className="meta-dot"> · </span>相关 {data.triage.relevance.toFixed(2)}
           <span className="meta-dot"> · </span>信任 {data.triage.trust.toFixed(2)}
-          {data.triage.reason && <> — {data.triage.reason}</>}
+          {data.triage.reason && (
+            <>
+              <span className="meta-dot"> · </span>
+              {data.triage.reason}
+            </>
+          )}
         </p>
       )}
     </article>

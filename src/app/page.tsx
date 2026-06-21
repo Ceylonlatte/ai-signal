@@ -59,11 +59,13 @@ export default async function Home({
     const rssRows = await getRssItems(db, { limit: 300 });
     return (
       <main className="page">
-        <div className="page__head">
-          <h1 className="page__title">今日信号</h1>
+        <div className="page__head page__head--bare">
+          <h1 className="sr-only">信号流</h1>
           <div className="page__tools">
             <SourceTabs active="rss" sort={sort} />
-            {rssRows.length > 0 && <span className="page__count">共 {rssRows.length} 条</span>}
+            <div className="page__tools__right">
+              {rssRows.length > 0 && <span className="page__count">共 {rssRows.length} 条</span>}
+            </div>
           </div>
         </div>
         <RssView rows={rssRows} />
@@ -84,24 +86,26 @@ export default async function Home({
 
   return (
     <main className="page">
-      <div className="page__head">
-        <h1 className="page__title">今日信号</h1>
+      <div className="page__head page__head--bare">
+        <h1 className="sr-only">信号流</h1>
         <div className="page__tools">
           <SourceTabs active={source} sort={sort} />
-          <div className="sort" role="group" aria-label="排序方式">
-            <a className="sort__btn" data-active={sort === "time"} href={feedHref({ source, sort: "time" })}>
-              最新
-            </a>
-            <a className="sort__btn" data-active={sort === "score"} href={feedHref({ source, sort: "score" })}>
-              按分数
-            </a>
+          <div className="page__tools__right">
+            <div className="sort" role="group" aria-label="排序方式">
+              <a className="sort__btn" data-active={sort === "time"} href={feedHref({ source, sort: "time" })}>
+                最新
+              </a>
+              <a className="sort__btn" data-active={sort === "score"} href={feedHref({ source, sort: "score" })}>
+                按分数
+              </a>
+            </div>
+            {total > 0 && <span className="page__count">共 {total} 条</span>}
           </div>
-          {total > 0 && <span className="page__count">共 {total} 条</span>}
         </div>
       </div>
 
       {stale.length > 0 && (
-        <div className="notice" role="status">
+        <div className="notice notice--soft" role="status">
           <span className="notice__dot" aria-hidden="true" />
           <span>
             部分源数据已过期：

@@ -1,194 +1,186 @@
-# Shares — Style Reference
-> Ivory terminal with violet pulse — a clinical white workspace where one color marks every deliberate action.
+# AI Signal — Style Reference
+> Awesomic light — a Mist canvas with white cards, one near-black action colour, and colour almost absent from the UI. Ember is a scarce, badge-sized spark.
 
 **Theme:** light
 
-A monochromatic fintech interface on near-white surfaces, where one vivid violet does all the talking. The visual language is sparse and confident: no decorative gradients, no chromatic ornamentation, no shadow theatrics. Everything sits on flat porcelain with dark charcoal text, and the only color that earns attention is Signal Violet (#594ff4), reserved strictly for action — filled buttons, active links, brand marks. Components lean on geometry rather than depth: pill-shaped controls (99px radius), generously rounded cards (36px), and soft 1px gray dividers instead of elevation. Typography is geometric and tightly tracked, with large headlines at compressed line-heights (1.05–1.15) that feel architectural rather than editorial. Product mockups float in layered, slightly overlapping arrangements — phone + dashboard + code panel — anchored by a single brand color.
+A quiet, achromatic reading tool. Content sits on white cards floating on a Mist (`#f4f4f5`) canvas; depth comes from surface-tone steps (Mist → Snow → Fog) and generous rounding (36px cards), never from drop shadows. The system has **no chromatic CTA**: every filled action is near-black `#09090b` with white text — the same pressed-pill the whole UI shares. Colour is reserved: a single ember (`#ff5a00`) appears only at badge size — the page eyebrow, the saved star, the "live" pulse, the accepted tag. Hierarchy is weight-driven within one typeface (Plus Jakarta Sans). The signal dial and trend bars stay monochrome — strength reads as tone (ink → graphite → ash), not hue. The interface recedes; the content speaks.
+
+These are the tokens implemented in `src/app/globals.css` (`:root`). Treat that file as the source of truth.
 
 ## Colors
 
-| Name | Value | Role |
-|------|-------|------|
-| Signal Violet | `#594ff4` | Primary action fill, active links, brand iconography — the only chromatic color in the system, creating high-contrast urgency against the monochrome canvas |
-| Inkstone | `#1f1f1f` | Primary headings, body text emphasis, dark surface fills — the dominant dark neutral |
-| Graphite | `#333333` | Secondary text, dense borders, icon strokes — the most-used neutral |
-| Slate | `#5d5d5d` | Muted body text, navigation subtext, secondary borders |
-| Smoke | `#888888` | Tertiary text, helper copy, light borders |
-| Ash | `#b0b0b0` | Muted link text, hairline dividers, inactive borders |
-| Mist | `#e7e7e7` | Image and photo borders, very light separators |
-| Cloud | `#f6f6f6` | Card surfaces, FAQ panels, subtle background tints — the soft elevation layer |
-| Porcelain | `#ffffff` | Page canvas, button text on violet fill, primary card background — the dominant base surface |
-| Obsidian | `#000000` | Footer fill, maximum-contrast text — used sparingly for the darkest dark |
+| Name | Token | Value | Role |
+|------|-------|-------|------|
+| Action | `--action` / `--accent` | `#09090b` | The only filled-action colour: primary buttons, vote-active, toggle-on, brand mark, active states. White text on it. `--accent` resolves here, so all accent call-sites read as monochrome ink. |
+| On-action | `--on-accent` | `#ffffff` | Text/icon on a near-black fill |
+| Ember (spark) | `--ember` | `#ff5a00` | The scarce vivid spark — badge-sized fills/dots only: eyebrow dot, scroll-progress bar, live pulse |
+| Ember (ink) | `--ember-ink` | `#c2410c` | Ember used as text/icon on light (~5.2:1 AA): eyebrow label, saved star, accepted tag |
+| Ember weak | `--ember-weak` | `rgba(255,90,0,0.12)` | Ember tint backgrounds (eyebrow / accepted tag) |
+| Danger | `--danger` | `#b4231f` | Errors + destructive only (vote/feed errors, delete) |
+| Ink | `--ink` | `#18181b` | Headings, strongest dial/bar, body emphasis |
+| Graphite | `--graphite` | `#3f3f46` | Mid-strength dial, secondary strokes |
+| Slate | `--slate` | `#52525b` | Muted body text (`--text-muted`, ~7:1) |
+| Steel | `--smoke` | `#71717a` | Tertiary text, input hover border |
+| Ash | `--ash` | `#a1a1aa` | Faint dial/dot, idle indicators |
+| Pebble | `--pebble` | `#d4d4d8` | Strong hairline (`--border-strong`) |
+| Fog | `--mist` | `#ececee` | Hairline dividers / borders (`--border`) |
+| Mist | `--cloud` | `#f4f4f5` | Page canvas (`--app-bg`) + sunken surfaces |
+| Snow | `--porcelain` | `#ffffff` | White card / control surface (`--surface`) |
+| Obsidian | `--obsidian` | `#09090b` | Darkest — same as the action colour |
+
+### Text roles
+
+| Token | Value | Use |
+|-------|-------|-----|
+| `--text-strong` | `#18181b` | Headings, titles, emphasis |
+| `--text` | `#27272a` | Body / reading text |
+| `--text-muted` | `#52525b` | Summaries, secondary copy (~7:1) |
+| `--text-faint` | `#6b6b73` | Meta, captions — the lowest we let text go (~4.9:1) |
 
 ## Typography
 
-### Aeonik — Primary brand typeface for all text — geometric sans with weights 500 (medium) for body/UI and 700 (bold) for headlines. The 72px/56px display sizes paired with tight 1.05–1.10 line-heights create architectural headlines that feel constructed rather than editorial. Tracking of 0.075em applies to uppercase eyebrows and headings, giving them a premium, slightly-spaced cadence.
-- **Substitute:** Inter, DM Sans, or Manrope at matching weights
-- **Weights:** 500, 700
-- **Sizes:** 14px, 15px, 16px, 17px, 18px, 20px, 26px, 36px, 56px, 72px
-- **Line height:** 1.00–1.50
-- **Letter spacing:** 0.075em (uppercase eyebrows and display headlines)
-- **OpenType features:** `"ss01" on, "cv11" on`
+### Plus Jakarta Sans — the single family across the entire system
+Hierarchy is **weight-driven**, never family-switching. Latin glyphs use Plus Jakarta Sans; CJK falls back to the system Chinese face (PingFang SC / Hiragino Sans GB / Microsoft YaHei) so 中文 stays crisp without shipping a CJK webfont.
+- **Substitute:** DM Sans, system-ui
+- **Weights:** 400, 500, 600, 700, 800 (body 500, headings 700)
+- **Tracking:** near-normal — headings `-0.01em`; no tracked-out display text
+- **Variables:** `--font-sans` (body/UI) and `--font-display` (= `--font-sans`; one family)
 
-### Rubik — Minor inline use only — appears in small widget contexts, not the primary system font
-- **Substitute:** Inter, system-ui
-- **Weights:** 500
-- **Sizes:** 14px
-- **Line height:** 1.50
+### Type scale (implemented)
 
-### Type Scale
-
-| Role | Size | Line Height | Letter Spacing |
-|------|------|-------------|----------------|
-| caption | 14px | 1.5 | 1.05px |
-| heading-sm | 20px | 1.33 | 1.5px |
-| heading | 26px | 1.2 | 1.95px |
-| heading-lg | 36px | 1.15 | 2.7px |
-| display | 56px | 1.1 | 4.2px |
-| display-lg | 72px | 1.05 | 5.4px |
+| Role | Size | Line height | Notes |
+|------|------|-------------|-------|
+| page title | `clamp(1.9rem, 4vw, 2.75rem)` | 1.08 | weight 700, `-0.02em` |
+| section title | 18px | 1.2 | weight 700 |
+| item title | 18–19px | 1.3 | weight 700 |
+| body | 15–16px | 1.5 | weight 500 |
+| meta / caption | 12–14px | 1.4–1.5 | tabular-nums for figures |
+| eyebrow | 10px | — | uppercase, `0.2em`, ember-ink |
 
 ## Spacing & Layout
 
-**Base unit:** 4px
+**Base unit:** 4px · **Density:** comfortable
 
-**Density:** comfortable
+- **Reading width:** 900px (centered white card)
+- **Card padding:** 32–40px (`--space-8`/`--space-10`)
+- **Element gap:** 16–24px
+- **Shell height:** 60px
 
-- **Page max-width:** 1200px
-- **Section gap:** 64px
-- **Card padding:** 32px
-- **Element gap:** 24px
+### Border radius
 
-### Border Radius
-
-- **tags:** 99px
-- **cards:** 36px
-- **images:** 10px
-- **inputs:** 16px
-- **buttons:** 99px
-- **accordion:** 16px
+| Token | Value | Use |
+|-------|-------|-----|
+| `--radius-lg` | 36px | Page card + large surfaces (the signature rounding) |
+| `--radius-pill` | 999px | Buttons, vote/sort/switch controls, nav pills |
+| `--radius-md` | 16px | Notice, kb-note, table wrap |
+| `--radius-input` | 14px | Text inputs |
+| `--radius-badge` | 12px | Tags + badges |
+| `--radius-sm` | 10px | Images, code blocks |
 
 ## Components
 
-### Pill Primary Button
-**Role:** Main call-to-action — the sole filled chromatic element
+### App Top Bar (`.shell`)
+Sticky full-width bar, 60px, translucent white (`color-mix(porcelain 86%)`) with `backdrop-filter` blur and a hairline bottom border. Left: brand mark (near-black rounded square, white "S") + wordmark. Right: inline nav pills. On scroll it earns a hairline + soft shadow. Below 860px the inline nav is replaced by a hamburger.
 
-Filled Signal Violet (#594ff4) background, white text, 99px border-radius (full pill), Aeonik 500 at 16px. Padding 12px 28px or 16px 28px depending on size. No shadow. The pill geometry and single-color confidence make every CTA visually unmistakable against the monochrome canvas.
+### Mobile Nav Takeover (`.navmodal`)
+Full-screen near-white glass (`backdrop-filter` blur). Hamburger morphs to an X; large display links fade + rise in with a per-item stagger. Esc / backdrop / link-tap closes; body scroll locks while open.
 
-### Ghost Navigation Button
-**Role:** Secondary header CTA — minimal, text-and-border
+### Page Card (`.page`)
+A white card on the Mist canvas: `--surface` fill, 1px Fog border, 36px radius, **no drop shadow** (depth via the colour step). Centered at 900px. Full-bleed (no side radius/border) below 600px.
 
-Transparent or white background with Signal Violet border, Signal Violet text, 99px radius, Aeonik 500 at 16px, padding 10px 24px. Lighter visual weight than the primary pill, signaling secondary action hierarchy.
+### Page Eyebrow (`.page__eyebrow`)
+One of ember's few homes: a 12px-radius pill, `--ember-weak` background, ember-tint border, `--ember-ink` uppercase label, a vivid `--ember` dot. One per page, never per section.
 
-### Feature Highlight Card
-**Role:** Icon + heading + description unit in 3-column grids
+### Feed Item (`.item`) + Signal Dial (`.signal`)
+Borderless row separated by a hairline; on hover it lifts (`translateY(-2px)`) onto a faint Mist wash with a soft shadow. The signal dial is **monochrome**: an SVG ring whose arc length is the 0–100 score, on a tonal ladder — high = `--ink`, mid = `--graphite`, low/default = `--ash` on a faint track. No colour in the dial.
 
-Transparent or white background, no border. Icon at top (Signal Violet stroke), heading in Aeonik 700 at 20px Inkstone (#1f1f1f), body in Aeonik 500 at 16px Slate (#5d5d5d). Vertical rhythm of 16–24px between elements. The card does not carry its own surface — the white page IS the card.
+### Vote Pills (`.vote__btn`)
+Ghost pills (white, strong-border). Hover → near-black border/text. Active (up) → near-black fill, white thumb; active (down) → graphite fill. Activation blooms a one-shot ring + thumb pop.
 
-### Product Showcase Card
-**Role:** Large 2-column section with text-left, visual-right
+### Favorite Star (`.star`)
+Active = `--ember-ink` (a scarce saved-marker).
 
-White or Cloud (#f6f6f6) background, 36px border-radius, 32px internal padding. Left column: heading (Aeonik 700 36px Inkstone), body (Aeonik 500 16px Slate), CTA pill button. Right column: layered product mockup floating slightly above the card surface with the single soft shadow pattern.
+### Primary Button (`.btn--primary`)
+Near-black `--action` fill, white text, pill radius, Awesomic pressed-glass shadow (inner highlight + 1px ring + soft drop). Hover darkens to `--action-hover`. There is no chromatic button.
 
-### FAQ Accordion Item
-**Role:** Expandable question/answer panel
+### Ghost Button (`.btn--ghost`)
+White fill, strong hairline border, ink text; hover → near-black border/text.
 
-Cloud (#f6f6f6) background, 16px border-radius, padding 20px 24px. Question text in Aeonik 500 at 16px Inkstone, with a small chevron icon on the right. Closed by default; expands with a smooth `grid-template-rows` height transition (see ## Motion), body text below in lighter Slate, chevron rotating.
+### Segmented Control (`.sort` / `.seg`)
+Pill track on a sunken Mist surface; the active chip is a white pill with a subtle shadow and slides between options via View Transitions (`view-transition-name: sort-active`).
 
-### Navigation Bar
-**Role:** Top-of-page global navigation
+### Toggle Switch (`.switch`)
+Off = ash track; on = near-black track, white knob (action = near-black).
 
-White background, full-width, 64–80px height. Left: logo mark (Signal Violet geometric 'S' + wordmark). Center: nav links (Aeonik 500 16px Inkstone, with dropdown chevrons). Right: Ghost or Primary pill CTA. Hairline bottom border in Ash (#b0b0b0) or none — the nav floats on white with no shadow.
+### Tag / Badge (`.tag` / `.badge`)
+12px radius, Mist fill, muted text. `--tag--accepted` = `--ember-weak` fill + `--ember-ink` text (scarce). Status badge carries a dot.
 
-### Layered Product Mockup Cluster
-**Role:** Hero visual composition of phone, dashboard, and code panels
+### Data Table (`.table`) + Stat Tile (`.stat`)
+Sunken Mist header, hairline row borders, tabular-nums. Stat tiles are sunken Mist cards with a 16px radius.
 
-Three overlapping product screenshots arranged with intentional layering: phone mockup front-left, dashboard panel center-right, code/JSON panel back-right. Each panel has 10–16px border-radius and the single shadow pattern (rgba(0,0,0,0.12) 0 0 60px -13px) for soft depth. Accent green line charts inside the dashboard are the only secondary color (from product content, not design tokens).
-
-### Stats Display Block
-**Role:** Large number + label pattern
-
-Large figure in Aeonik 700 at 26–36px Inkstone, with a small percentage delta in muted green below (product data). Label in Aeonik 500 at 14–16px Smoke (#888888) above. Horizontal row layout with 24–32px gaps between stat groups.
-
-### Section Eyebrow Label
-**Role:** Small uppercase heading above section titles
-
-Aeonik 500 at 14–16px, letter-spacing 0.075em, uppercase, centered or left-aligned. Color: Inkstone or Smoke. Paired with a large heading below. This eyebrow-to-headline rhythm is the section signature.
-
-### Dark Footer
-**Role:** Full-bleed dark band at page bottom
-
-Obsidian (#000000) or Inkstone (#1f1f1f) background, white and Slate text. Links in Aeonik 500 at 16px. Generous padding (48–64px vertical). Logo, nav columns, and legal text in a multi-column grid. The only dark surface in an otherwise light page — it reads as a definitive close.
-
-### Stat Badge / Tag
-**Role:** Small pill-shaped label with violet or neutral fill
-
-99px border-radius, padding 4px 12px, Aeonik 500 at 14px. Two variants: Signal Violet background with white text (active/selected), or Cloud (#f6f6f6) background with Inkstone text (neutral tag).
+### Pipeline Bar (`.bar`) + Topics Board (`.topic`)
+Both monochrome: bar fill and the #1 topic's rank/trend bar are `--ink`; lower bars are `--ash`. Strength reads as tone, not hue.
 
 ## Do's and Don'ts
 
 ### Do
-- Use #594ff4 Signal Violet exclusively for primary actions, active states, and brand iconography — never for decorative or background purposes
-- Set all interactive buttons to 99px border-radius for the signature pill geometry
-- Set all content cards to 36px border-radius with 32px internal padding for the soft, generous feel
-- Use Aeonik 500 for body and UI, Aeonik 700 for headings — never mix in other weights or families
-- Apply 0.075em letter-spacing to all uppercase eyebrows and display headlines for the tracked-out premium cadence
-- Use #f6f6f6 Cloud as the card surface to create elevation through tint, not shadow
-- Reserve the single soft shadow pattern for floating product mockups only — never for buttons, cards, or inputs
-- Keep section gaps at 64px and element gaps at 24px to maintain the comfortable, architectural rhythm
+- Use near-black `#09090b` for **every** filled action — buttons, vote-active, toggle-on, brand mark. It's the only filled-action colour.
+- Keep ember scarce and badge-sized: eyebrow, saved star, accepted tag, scroll-progress, live pulse. Use `--ember-ink` (`#c2410c`) whenever ember is text or an icon, for AA.
+- Express depth with the surface steps (Mist → Snow → Fog) and 36px rounding — not drop shadows.
+- Carry hierarchy with weight inside Plus Jakarta Sans; one family only.
+- Keep the signal dial and trend bars monochrome (ink → graphite → ash).
+- Hold body text ≥ `--text-faint` (~4.9:1); verify AA.
+- Give every animation a `prefers-reduced-motion` fallback; never gate content visibility on JS.
 
 ### Don't
-- Do not introduce additional chromatic colors — the system is 98% monochrome and any new hue breaks the discipline
-- Do not use sharp corners (0–4px) on cards or images — all containers should be 16px+ radius
-- Do not apply heavy drop shadows to UI elements — depth comes from surface tint, not blur
-- Do not use gradient fills anywhere — the system is flat by design
-- Do not use serif, slab, or display fonts — Aeonik (or Inter/DM Sans substitute) is the only typeface
-- Do not set body text above 16px or headings below 26px — the type scale jumps are deliberate
-- Do not use emoji or multicolor icon sets — icons are monoline, monocolor, 1.5–2px stroke
-- Motion is now a first-class layer (see ## Motion) — keep it state-bearing and brief, never decorative-only, never bounce/elastic, and always provide a `prefers-reduced-motion` fallback
+- No chromatic CTA. Never colour a primary button/action ember (or anything else).
+- Don't spread ember into UI states, hovers, or repeated elements — its power is scarcity.
+- No drop shadows on cards; no glows; no gradients.
+- No second typeface; no tracked-out display text.
+- No sharp corners on cards (stay ≥ 16px; cards 36px).
+- No emoji or multicolour icon sets — icons are monoline, near-black/ink.
 
 ## Motion
 
-The canvas is no longer static. Motion is a first-class layer that conveys state and depth, built from light, blur, transform and soft shadow so the porcelain-and-violet discipline survives. Violet in motion stays tied to status (reading progress) and action (vote feedback); pure atmosphere rides on neutral light and shadow. Every effect degrades under `prefers-reduced-motion` to a crossfade or instant state, and content is never gated on JS (CSS-hidden reveals ship `<noscript>` and reduced-motion fallbacks).
+State-bearing and brief, built from transform / opacity / blur. Ember in motion stays tied to status (reading progress) and the live pulse; everything else is achromatic. Every effect degrades under `prefers-reduced-motion`; content is never gated on JS (CSS-hidden reveals ship `<noscript>` + reduced-motion fallbacks).
 
-**Tokens** (`globals.css`): easings `--ease-out-quart`, `--ease-out-quint`, `--ease-out-expo`; durations `--dur-fast` 120ms, `--dur` 180ms, `--dur-slow` 320ms, `--dur-reveal` 560ms. No bounce, no elastic.
+**Tokens** (`globals.css`): easings `--ease-out-quart/quint/expo` and `--ease-island` `cubic-bezier(0.32,0.72,0,1)`; durations `--dur-fast` 120ms, `--dur` 180ms, `--dur-slow` 320ms, `--dur-reveal` 560ms. No bounce, no elastic.
 
 | Moment | Motion | Material / timing |
 |--------|--------|-------------------|
 | Page-head arrival | One-time blur-in + rise, title then tools | translate + blur + opacity, expo, 600ms |
 | Feed item reveal | Rise + sharpen as it enters view; first screen staggers per observer batch | transform + blur + opacity, expo, 560ms |
-| Signal dial | Radial arc sweeps from 0 up to the item's 0–100 score as the card reveals | `stroke-dashoffset` draw on `.is-in`, expo, 560ms, +110ms after the card |
-| Reading progress | Top violet bar scrubbed by scroll | scroll-driven scaleX, `animation-timeline: scroll()` |
-| Sticky header | Gains blur + soft shadow as content slides under | scroll-driven, range 0–96px |
-| Navigation (sort / pagination / nav) | Soft crossfade + active sort chip slides between options | View Transitions API (MPA), `view-transition-name: sort-active` / `shell` |
-| Vote | Press scale 0.9, then a one-shot ring blooms + thumb pops on activate | transform + box-shadow ring, expo |
-| Item hover | Subtle lift | translateY(-2px) + soft shadow, 180ms |
+| Signal dial | Arc sweeps 0 → score as the card reveals | `stroke-dashoffset` draw on `.is-in`, expo, 560ms, +110ms after the card |
+| Reading progress | Top **ember** bar scrubbed by scroll | scroll-driven scaleX, `animation-timeline: scroll()` |
+| Live pulse | Running status dot pulses ember | `box-shadow` ring, 1.6s loop |
+| Sticky top bar | Gains hairline + soft shadow as content slides under | scroll-driven, range 0–96px |
+| Navigation (sort / nav) | Soft crossfade + active sort chip slides | View Transitions API (MPA), `view-transition-name: sort-active` / `shell` |
+| Mobile takeover | Hamburger → X; links fade + rise, staggered | transform + blur + opacity, island ease |
+| Vote | Press scale 0.9, then a one-shot ring + thumb pop on activate | transform + box-shadow ring, expo |
+| Item hover | Subtle lift | translateY(-2px) + soft shadow, slow |
 | EN summary | Smooth expand / collapse | `grid-template-rows` 0fr↔1fr + fade, 320ms |
 
 Scroll-driven and View-Transition effects are progressive enhancements (Chromium-first); other engines fall back to no progress bar / instant navigation with no loss of function.
 
-## Elevation
-
-- **Layered Product Mockup:** `rgba(0, 0, 0, 0.12) 0px 0px 60px -13px`
-
 ## Surfaces
 
-- **Porcelain** (`#ffffff`) — Page canvas — the dominant base surface
-- **Cloud** (`#f6f6f6`) — Card and FAQ panel surface — subtle elevation through tint, not shadow
-- **Signal Violet** (`#594ff4`) — Action surface — filled buttons and active states
-- **Inkstone** (`#1f1f1f`) — Dark surface — footer and inverted panels
+- **Mist** (`#f4f4f5`, `--app-bg`/`--cloud`) — page canvas + sunken controls
+- **Snow** (`#ffffff`, `--surface`) — white cards and control fills
+- **Fog** (`#ececee`, `--border`) — hairlines and dividers
+- **Action** (`#09090b`, `--action`) — filled buttons + active states
 
 ## Imagery
 
-No photography, no illustration, no decorative graphics. The visual language is entirely product-mockup-driven: floating phone screens, dashboard panels, and code editor windows arranged in layered, slightly overlapping compositions. Mockups have 10–16px border-radius and one soft shadow pattern. Inside the product, a vivid green line chart (#1AAB8B approximate) provides the only secondary color accent. The product IS the hero — there are no lifestyle images, no team photos, no abstract backgrounds. Icons are minimal line-art, 1.5–2px stroke, monocolor (Signal Violet or Inkstone).
+No photography, illustration, or decorative graphics. Icons are minimal monoline, ~1.5–2px stroke, near-black/ink (never multicolour). The product content is the hero; the chrome stays out of the way.
 
 ## Layout
 
-Max-width 1200px centered container, full-bleed sections within that constraint. Hero: centered headline (72px) + subtext (17–18px) stacked vertically, then layered product mockup cluster below. Feature highlights: 3-column equal grid with icon + heading + body, centered within container. Product detail sections: 2-column text-left / visual-right, alternating direction down the page. FAQ: centered single-column with max-width ~720px. Footer: full-bleed dark band spanning edge-to-edge. Navigation: sticky top bar, white, 64–80px height, logo-left / nav-center / CTA-right. Section rhythm: generous vertical breathing (64–96px between sections) with seamless flow, no alternating dark bands.
+A single centered white card (max-width 900px) on the Mist canvas, padded 32–40px, 36px radius. Sticky top bar above it (brand-left, nav-right). Page head: ember eyebrow + large title on the left, tools (source tabs / sort / count) on the right, wrapping below 720px. Below 600px the card goes full-bleed and the nav collapses to a hamburger takeover.
 
 ## Similar Brands
 
-- **Mercury** — Same monochrome-on-white fintech aesthetic with a single accent color, pill-shaped CTAs, and generous whitespace — both treat the product mockup as the hero visual
-- **Stripe** — Shared commitment to a single chromatic accent against a clean white canvas, tight typographic discipline, and pill-shaped primary actions
-- **Linear** — Identical 99px pill-button radius, monochrome interface with one vivid accent, and the same flat-surface-over-shadow elevation philosophy
-- **Ramp** — Same sparse white-canvas fintech language, dark charcoal typography, and violet-adjacent accent used only for actions — the product UI does the visual heavy lifting
-- **Wealthfront** — Fellow investing platform with a clinical white-interface approach, large rounded product cards, and restrained use of color for functional emphasis only
+- **Awesomic** — the direct reference: Mist canvas, white cards, near-black filled actions, scarce vivid accents, single typeface, extreme rounding.
+- **Arc.dev** — near-black primary actions on white, graduated zinc neutrals, rounded containers.
+- **Contra** — extreme rounded corners and minimal accent against achromatic surfaces.
+- **Framer** — single typeface at all sizes, large rounded cards, dark filled CTAs on a light page.
+- **Linear** — pill controls, monochrome interface, flat-surface-over-shadow elevation.

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useRouter } from "next/navigation";
 import { strengthLabel, type Strength } from "./format.js";
 import type { FeedItemData } from "./feed-item-data.js";
 import type { FeedSort, FeedSource } from "./feed-queries.js";
@@ -272,86 +273,110 @@ function FeedItem({
 }) {
   const [showEn, setShowEn] = useState(false);
   const active = vote?.signal ?? null;
+  const router = useRouter();
+
+  // Clicking the card opens the detail page. Real links / buttons keep their
+  // own behaviour, and a text selection never triggers navigation.
+  function openDetail(e: React.MouseEvent<HTMLElement>) {
+    const target = e.target as HTMLElement;
+    if (target.closest("a, button")) return;
+    if (window.getSelection()?.toString()) return;
+    router.push(`/library/${data.id}?from=feed`);
+  }
 
   return (
-    <article className="item" role="listitem" data-strength={data.strength}>
-      <div className="item__top">
-        <SignalBadge strength={data.strength} score={data.score} rText={data.rText} />
-        <a className="item__title" href={data.url ?? "#"} target="_blank" rel="noreferrer">
+    <article
+      className="item item--feed"
+      role="listitem"
+      data-strength={data.strength}
+      onClick={openDetail}
+    >
+      <SignalBadge strength={data.strength} score={data.score} rText={data.rText} />
+      <div className="item__body">
+        <a className="item__title" href={`/library/${data.id}?from=feed`}>
           {data.title}
-          {data.host && <span className="item__ext">{data.host} ↗</span>}
         </a>
-      </div>
+        {data.host && (
+          <a
+            className="item__ext item__src"
+            href={data.url ?? "#"}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {data.host} ↗
+          </a>
+        )}
 
-      {data.reason && <p className="item__reason">{data.reason}</p>}
-      {data.summaryZh && <p className="item__summary">{data.summaryZh}</p>}
-      {data.summaryEn && (
-        <div className="item__en" data-open={showEn} aria-hidden={!showEn}>
-          <div className="item__en-inner">
-            <p className="item__summary-en">{data.summaryEn}</p>
-          </div>
-        </div>
-      )}
-
-      <div className="item__meta">
-        <span className="item__source">{data.sourceLabel}</span>
-        {data.author && (
-          <>
-            <span className="meta-dot">·</span>
-            <span className="item__author">@{data.author}</span>
-          </>
-        )}
-        {data.timeText && (
-          <>
-            <span className="meta-dot">·</span>
-            <span>{data.timeText}</span>
-          </>
-        )}
-        {data.tags.length > 0 && (
-          <span className="tags">
-            {data.tags.map((t) => (
-              <span key={t} className="tag">
-                {t}
-              </span>
-            ))}
-          </span>
-        )}
+        {data.reason && <p className="item__reason">{data.reason}</p>}
+        {data.summaryZh && <p className="item__summary">{data.summaryZh}</p>}
         {data.summaryEn && (
-          <button type="button" className="linkish" onClick={() => setShowEn((v) => !v)}>
-            {showEn ? "隐藏 EN" : "EN"}
-          </button>
+          <div className="item__en" data-open={showEn} aria-hidden={!showEn}>
+            <div className="item__en-inner">
+              <p className="item__summary-en">{data.summaryEn}</p>
+            </div>
+          </div>
         )}
-        <a className="item__detail" href={`/library/${data.id}`}>详情 →</a>
 
-        <span className="vote">
-          {vote?.error && <span className="vote__err">未保存，重试</span>}
-          <button
-            type="button"
-            className="vote__btn"
-            data-kind="up"
-            data-active={active === "up"}
-            aria-pressed={active === "up"}
-            aria-label="点赞，提升类似内容排序"
-            disabled={vote?.pending}
-            onClick={() => onVote("up")}
-          >
-            <ThumbIcon dir="up" />
-          </button>
-          <button
-            type="button"
-            className="vote__btn"
-            data-kind="down"
-            data-active={active === "down"}
-            aria-pressed={active === "down"}
-            aria-label="点踩，降低类似内容排序"
-            disabled={vote?.pending}
-            onClick={() => onVote("down")}
-          >
-            <ThumbIcon dir="down" />
-          </button>
-        </span>
+        <div className="item__meta">
+          <span className="item__source">{data.sourceLabel}</span>
+          {data.author && (
+            <>
+              <span className="meta-dot">·</span>
+              <span className="item__author">@{data.author}</span>
+            </>
+          )}
+          {data.timeText && (
+            <>
+              <span className="meta-dot">·</span>
+              <span>{data.timeText}</span>
+            </>
+          )}
+          {data.tags.length > 0 && (
+            <span className="tags">
+              {data.tags.map((t) => (
+                <span key={t} className="tag">
+                  {t}
+                </span>
+              ))}
+            </span>
+          )}
+          <span className="item__actions">
+            {data.summaryEn && (
+              <button type="button" className="linkish" onClick={() => setShowEn((v) => !v)}>
+                {showEn ? "隐藏 EN" : "EN"}
+              </button>
+            )}
+            <span className="vote">
+              {vote?.error && <span className="vote__err">未保存，重试</span>}
+              <button
+                type="button"
+                className="vote__btn"
+                data-kind="up"
+                data-active={active === "up"}
+                aria-pressed={active === "up"}
+                aria-label="点赞，提升类似内容排序"
+                disabled={vote?.pending}
+                onClick={() => onVote("up")}
+              >
+                <ThumbIcon dir="up" />
+              </button>
+              <button
+                type="button"
+                className="vote__btn"
+                data-kind="down"
+                data-active={active === "down"}
+                aria-pressed={active === "down"}
+                aria-label="点踩，降低类似内容排序"
+                disabled={vote?.pending}
+                onClick={() => onVote("down")}
+              >
+                <ThumbIcon dir="down" />
+              </button>
+            </span>
 
-        <FavoriteButton itemId={data.id} initial={data.isFavorited} />
+            <FavoriteButton itemId={data.id} initial={data.isFavorited} />
+          </span>
+        </div>
       </div>
     </article>
   );
