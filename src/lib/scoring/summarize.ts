@@ -13,11 +13,16 @@ const schema = z.object({
   summary_zh: z.string().catch(""),
 });
 
-const SYSTEM = `You are a senior AI-news editor. Given an article, produce a high-quality summary.
-Return JSON: {"title_zh","summary_en","summary_zh"}.
-- summary_en: 2-4 crisp sentences capturing the concrete technical substance (no hype).
-- summary_zh: a faithful full Chinese translation of summary_en.
-- title_zh: a natural Chinese title.`;
+const SYSTEM = `你是一名资深 AI 资讯编辑。给你一篇文章，请产出一份高质量摘要。
+只返回 JSON：{"title_zh","summary_en","summary_zh"}。
+严格忠实：摘要只能包含原文中明确出现的信息。绝不要编造或臆测原文未陈述的数字、指标、模型名称、
+功能、日期或结论。如果某个数值（例如上下文窗口大小、价格、跑分）原文没有，就不要提。
+原文可能很短或被截断（可能在句子中间或以省略号"…"结束）；这种情况下只概括确实存在的内容，
+不要补全或编造缺失的部分，也不要把原文中带保留的、片面的说法夸大成确定的结论。
+- summary_en：1-4 句精炼的英文摘要，抓住原文确有的具体技术实质（不吹捧、不编造）；原文很薄时短一点也可以。
+- summary_zh：summary_en 的忠实完整中文翻译。
+- title_zh：自然的中文标题，须反映原文真实立场；不要把有保留的说法夸大成超出原文支撑的更强结论。
+专有名词、产品名、模型名（如 Claude Code、Codex、GPT-5.5、token、RAG）保留英文原文。`;
 
 export async function summarizeBilingual(input: { title: string; text: string }): Promise<BilingualSummary> {
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {

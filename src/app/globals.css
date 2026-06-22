@@ -1132,6 +1132,11 @@ button {
 .kb-note li {
   margin: 2px 0;
 }
+.kb-note__en {
+  margin: var(--space-2) 0 0;
+  color: var(--text-faint);
+  font-size: 14px;
+}
 .kb-body {
   margin-top: var(--space-5);
 }

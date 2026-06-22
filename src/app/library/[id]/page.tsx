@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 interface DetailRow {
   id: number; title: string; titleZh: string; url: string | null; source: string;
   author: string | null; createdAt: string; isFavorited: boolean;
+  summaryZh: string | null; summaryEn: string | null;
   status: string | null; note: any; bodyMd: string | null; bodySource: string | null;
   bodyZhMd: string | null; commentsMd: string | null; commentsZhMd: string | null;
 }
@@ -19,6 +20,7 @@ async function getEntry(id: number): Promise<DetailRow | null> {
   const res = await db.execute(sql`
     SELECT i.id::int AS id, i.title, s.title_zh AS "titleZh", i.url, i.source, i.author AS "author",
            i.created_at AS "createdAt", i.is_favorited AS "isFavorited",
+           s.summary_zh AS "summaryZh", s.summary_en AS "summaryEn",
            k.status AS "status", k.note AS "note", k.body_md AS "bodyMd", k.body_source AS "bodySource",
            k.body_zh_md AS "bodyZhMd", k.comments_md AS "commentsMd", k.comments_zh_md AS "commentsZhMd"
     FROM items i
@@ -70,7 +72,16 @@ export default async function LibraryDetail({
     overview?: string; keypoints?: string[]; facts?: string[]; why?: string;
     terms?: { term: string; def: string }[];
   };
-  const hasNote = entry.status === "ready" && (note.overview || (note.keypoints?.length ?? 0) > 0);
+  // 概述优先用 KB 笔记的 overview；笔记被跳过（如推文等短内容）时回退到双语摘要的中文，
+  // 这样详情页始终有一段概述，不会出现"没有总结概要"的空白。
+  const overviewText = (note.overview || entry.summaryZh || "").trim();
+  const summaryEn = (entry.summaryEn ?? "").trim();
+  const hasStructured = entry.status === "ready" && (
+    (note.keypoints?.length ?? 0) > 0 ||
+    (note.facts?.length ?? 0) > 0 ||
+    Boolean(note.why) ||
+    (note.terms?.length ?? 0) > 0
+  );
 
   return (
     <main className="page kb-detail">
@@ -100,9 +111,14 @@ export default async function LibraryDetail({
         <div className="notice" role="status">整理失败。可取消 ⭐ 再重新收藏以重试。</div>
       ) : null}
 
-      {hasNote && (
+      {(overviewText || hasStructured) && (
         <div className="kb-note">
-          {note.overview && <Section title="概述"><p>{note.overview}</p></Section>}
+          {overviewText && (
+            <Section title="概述">
+              <p>{overviewText}</p>
+              {!note.overview && summaryEn && <p className="kb-note__en">{summaryEn}</p>}
+            </Section>
+          )}
           {note.keypoints && note.keypoints.length > 0 && (
             <Section title="核心要点">
               <ul>{note.keypoints.map((k, i) => <li key={i}>{k}</li>)}</ul>

@@ -22,11 +22,15 @@ const schema = z.object({
 
 const SYSTEM = `你是一名资深 AI 资讯编辑。给你一篇文章，请用简体中文整理成结构化知识库笔记。
 只返回 JSON：{"overview","keypoints","facts","why","terms"}。
-- overview：2-4 句概述，抓住具体技术实质，不要套话。
-- keypoints：3-6 条核心要点（字符串数组）。
-- facts：关键数据 / 可验证结论（字符串数组）；没有就空数组。
+严格忠实：笔记只能包含原文中明确出现的信息。绝不要编造或臆测原文未提及的数字、指标、模型名称、
+功能、日期或结论（例如上下文窗口大小、价格、跑分等，如果原文没有就不要写）。
+原文可能很短或被截断（可能在句子中间或以省略号"…"结束）；这种情况下只概括确实存在的内容，
+不要补全或推测缺失的部分，也不要把原文中带保留的、片面的说法夸大成确定的结论。
+- overview：1-4 句概述，抓住原文中确有的具体技术实质，不要套话；原文很薄时写短一点也可以。
+- keypoints：3-6 条核心要点（字符串数组），均须来自原文。
+- facts：原文中明确给出的关键数据 / 可验证结论（字符串数组）；没有就空数组，不要凑数。
 - why：为什么这篇值得记、与读者的相关性，1-2 句。
-- terms：出现的术语/人物/工具解释，元素为 {"term","def"}；没有就空数组。`;
+- terms：原文出现的术语/人物/工具解释，元素为 {"term","def"}；没有就空数组。`;
 
 export async function synthesizeNotes(input: { title: string; markdown: string }): Promise<KbNote> {
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
