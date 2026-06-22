@@ -8,60 +8,94 @@
    ─────────────────────────────────────────────────────────── */
 
 :root {
-  /* Action — the ONLY filled-action colour (white text on near-black).
-     The system has no chromatic CTA; --accent resolves here too, so the
-     existing accent call-sites read as monochrome ink. */
-  --action: #09090b;
-  --action-hover: #000000;
-  --action-weak: rgba(9, 9, 11, 0.06);
-  --accent: #09090b;
-  --accent-hover: #000000;
-  --accent-weak: rgba(9, 9, 11, 0.06);
-  --on-accent: #ffffff; /* text on a near-black fill */
-  /* Ember — the scarce spark. Badge-sized only: eyebrow, live pulse,
-     saved star, top rank, accepted tag. Never a UI state or hover.
-     --ember is the vivid fill/dot; --ember-ink is the AA-safe text on light. */
-  --ember: #ff5a00;
-  --ember-ink: #c2410c; /* ~5.2:1 on white — ember used as text/icon */
-  --ember-weak: rgba(255, 90, 0, 0.12);
-  /* Errors / destructive — the established crimson on light. */
-  --danger: #b4231f;
-  --danger-weak: rgba(180, 35, 31, 0.1);
+  color-scheme: dark;
 
-  /* Zinc neutral ladder (light) */
-  --ink: #18181b;
-  --graphite: #3f3f46;
-  --slate: #52525b;
-  --smoke: #71717a;
-  --ash: #a1a1aa;
-  --pebble: #d4d4d8;
-  --porcelain: #ffffff;
-  --obsidian: #09090b;
+  /* Action — the inverted, signature CTA: a Lunar-White fill with dark Void
+     text. The system has no chromatic CTA; filled actions, active pills and
+     the brand mark all share this white-on-dark inversion. */
+  --action: #f2f6fa;
+  --action-hover: #ffffff;
+  --action-weak: rgba(242, 246, 250, 0.1);
+  /* Accent — Ultraviolet, the violet link + text-accent + active-toggle hue.
+     Distinct from the filled action: --accent tints + text, --action fills. */
+  --accent: #acafff;
+  --accent-hover: #c7c9ff;
+  --accent-weak: rgba(172, 175, 255, 0.16);
+  --on-accent: #1f232e; /* dark Void text on a Lunar-White fill */
 
-  /* Surface steps — Mist → Snow → Fog. */
-  --mist: #ececee; /* fog / hairline */
-  --cloud: #f4f4f5; /* canvas + sunken tone */
-  /* Light remaps for the retired dark "glass" tokens so any stray
-     reference degrades to a sensible light surface / no-op shadow. */
-  --glass: #f4f4f5;
-  --glass-strong: #ffffff;
-  --glass-line: #ececee;
-  --glass-line-strong: #d4d4d8;
+  /* Astro chromatic accents — spent scarcely, each pixel doing real work. */
+  --aurora-mint: #4bf3c8;
+  --plasma-blue: #54b9ff;
+  --ultraviolet: #acafff;
+  --electric-cyan: #00daef;
+  --amber: #ffd493;
+  --signal-blue: #61dafb;
+  --nebula-gradient: linear-gradient(83.21deg, #3245ff, #b845ed);
+  /* A brightened nebula for fine detail — gradient strokes on selected/focused
+     controls and gradient text — so it stays legible/visible on the dark void.
+     The deep nebula stays for the scroll-progress bar. */
+  --nebula-bright: linear-gradient(83.21deg, #7c8cff, #d98bff);
+  /* Nebula glow — a twin-hue bloom (signal blue + ultraviolet) layered behind
+     lit edges, selected labels and the white CTA so the dark void reads as lit
+     from within. -soft is the resting/ambient tier for hovered cards; the
+     brighter one lights active / focused / selected moments. */
+  --glow-nebula: 0 0 18px -3px rgba(124, 140, 255, 0.55),
+    0 0 38px -10px rgba(217, 139, 255, 0.45);
+  --glow-nebula-soft: 0 0 12px -5px rgba(124, 140, 255, 0.42),
+    0 0 26px -12px rgba(217, 139, 255, 0.3);
+  --glow-white: 0 0 22px -8px rgba(242, 246, 250, 0.45);
+  --plasma-gradient: linear-gradient(66.77deg, #d83333, #f041ff);
+
+  /* Spark — the scarce status accent. Signal-blue carries the live pulse /
+     running dot; the saved star is amber and the accepted tag is mint (set on
+     their own rules), so each status reads in its own hue against the void. */
+  --ember: var(--signal-blue);
+  --ember-ink: var(--ultraviolet);
+  --ember-weak: rgba(97, 218, 251, 0.14);
+
+  /* Errors / destructive — a brighter crimson that survives the dark canvas. */
+  --danger: #ff6b6b;
+  --danger-weak: rgba(255, 107, 107, 0.14);
+
+  /* Neutral ladder (dark): strength reads as brightness (bright = strong,
+     dim = weak), so the signal dial and trend bars stay monochrome. */
+  --ink: #f2f6fa; /* brightest — strongest dial/bar, headings */
+  --graphite: #bfc1c9; /* mid-strength dial, downvote fill */
+  --slate: #858b98; /* steel — muted body */
+  --smoke: #6f7480;
+  --ash: #545864; /* gunmetal — faint dial, idle dots */
+  --pebble: #3a3e4a; /* strong hairline */
+  --porcelain: #1f232e; /* Void Canvas — primary surface */
+  --obsidian: #060913; /* Singularity — deepest */
+
+  /* Surface steps — Void → Abyss → Singularity. Depth goes darker, never by
+     drop shadow: an elevated well sits a step below the canvas. */
+  --mist: #2a2e39; /* hairline / track */
+  --cloud: #0c0f19; /* Abyss — sunken wells + chips */
+  /* Remaps for the retired "glass" tokens so any stray reference degrades to
+     a sensible dark surface / no-op shadow. */
+  --glass: #0c0f19;
+  --glass-strong: #1f232e;
+  --glass-line: #2a2e39;
+  --glass-line-strong: #3a3e4a;
   --inset-hi: 0 0 0 0 transparent;
   --glow-ember: 0 0 0 0 transparent;
 
-  /* Text roles — clear WCAG AA on white */
-  --text-strong: var(--ink);
-  --text: #27272a;
-  --text-muted: var(--slate); /* ~7:1 */
-  --text-faint: #6b6b73; /* ~4.9:1, lowest we let text go */
+  /* A subtle light wash for hover states — rows light up, never recede. */
+  --hover: rgba(255, 255, 255, 0.04);
+
+  /* Text roles — clear WCAG AA on the Void canvas */
+  --text-strong: var(--ink); /* #f2f6fa ~15:1 */
+  --text: #d4d8e0; /* body / reading ~11:1 */
+  --text-muted: #a2a8b4; /* summaries ~6.8:1 */
+  --text-faint: #888e9b; /* meta / captions ~4.6:1, lowest we let text go */
 
   /* Lines + surfaces */
   --border: var(--mist);
   --border-strong: var(--pebble);
-  --app-bg: var(--cloud); /* Mist tablecloth */
-  --surface: var(--porcelain); /* white cards */
-  --surface-sunken: var(--cloud);
+  --app-bg: var(--porcelain); /* Void floor */
+  --surface: var(--porcelain); /* Void main pane + cards + control fills */
+  --surface-sunken: var(--cloud); /* Abyss rails + tracks + wells */
 
   /* Radii — Awesomic's generous rounding */
   --radius-pill: 999px;
@@ -82,12 +116,17 @@
   --space-10: 40px;
   --space-16: 64px;
 
-  /* Type — a single family (Awesomic's rule: weight does the hierarchy, not
-     family-switching). Latin picks up Plus Jakarta Sans; CJK falls back to the
-     system Chinese face so 中文 stays crisp without shipping a CJK webfont. */
+  /* Type — body/UI in Plus Jakarta Sans; the display face is Space Grotesk (an
+     Obviously stand-in: wide apertures, retrofuturist swagger) for Latin
+     headlines, with the system Chinese face behind both so 中文 stays crisp.
+     Mono is JetBrains Mono for instrument-panel figures (dial, stats, badges). */
   --font-sans: var(--font-sans-latin), -apple-system, BlinkMacSystemFont,
     "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-  --font-display: var(--font-sans);
+  --font-display: var(--font-display-latin), var(--font-sans-latin),
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-mono: var(--font-mono-latin), ui-monospace, SFMono-Regular, Menlo,
+    Monaco, Consolas, monospace;
 
   /* Layout */
   --reading-width: 1160px;
@@ -190,9 +229,15 @@ button {
   height: 2px;
   transform: scaleX(0);
   transform-origin: 0 50%;
-  background: var(--ember);
+  background: var(--nebula-gradient);
   z-index: var(--z-tooltip);
   pointer-events: none;
+}
+
+/* Violet text selection — a faint nebula highlight on the void. */
+::selection {
+  background: rgba(172, 175, 255, 0.28);
+  color: #ffffff;
 }
 
 @supports (animation-timeline: scroll()) {
@@ -259,6 +304,7 @@ button {
   color: var(--on-accent);
   font-size: 15px;
   font-weight: 700;
+  box-shadow: var(--glow-white);
 }
 .sidebar__nav {
   display: flex;
@@ -282,10 +328,15 @@ button {
   background: var(--surface);
   text-decoration: none;
 }
+/* The selected nav item: a crisp Lunar-White label on a Void pill wrapped in a
+   bright 2px nebula-gradient ring (drawn by the shared ::before rule below) and
+   lit by a soft nebula glow. White text keeps it legible; the gradient lives in
+   the ring, not the type. */
 .sidebar__link[aria-current="page"] {
-  color: var(--on-accent);
-  background: var(--action);
-  font-weight: 600;
+  background: var(--surface);
+  color: var(--text-strong);
+  font-weight: 700;
+  box-shadow: var(--glow-nebula-soft);
 }
 
 /* Mobile top bar — replaces the sidebar below the breakpoint. */
@@ -403,10 +454,15 @@ button {
   filter: blur(0);
   transition-delay: calc(var(--i, 0) * 55ms + 80ms);
 }
-.navmodal__link:hover,
-.navmodal__link[aria-current="page"] {
+.navmodal__link:hover {
   color: var(--accent);
   text-decoration: none;
+}
+.navmodal__link[aria-current="page"] {
+  color: var(--text-strong);
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: var(--glow-nebula-soft);
 }
 
 @media (max-width: 860px) {
@@ -436,6 +492,10 @@ button {
   margin: 0;
   padding: var(--space-10) var(--space-8) var(--space-16);
 }
+
+/* No atmospheric background glow — the nebula lives only in the fine detail:
+   gradient strokes on selected/focused controls and the scroll-progress bar.
+   The canvas itself stays a clean, even void. */
 
 .page__head {
   display: flex;
@@ -533,7 +593,8 @@ button {
 .sort__btn[data-active="true"] {
   background: var(--surface);
   color: var(--text-strong);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  font-weight: 600;
+  box-shadow: var(--glow-nebula-soft);
   /* The active chip slides between options across navigation. */
   view-transition-name: sort-active;
 }
@@ -620,10 +681,10 @@ button {
   min-width: 0;
 }
 .item:hover {
-  background: var(--cloud);
-  border-color: var(--border);
+  background: var(--hover);
+  border-color: transparent;
   transform: translateY(-2px);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 16px 32px -24px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 12px 32px -22px rgba(0, 0, 0, 0.7), var(--glow-nebula-soft);
 }
 
 /* Scroll-reveal: items rise + sharpen as they enter view. Hidden from
@@ -695,6 +756,8 @@ button {
 }
 .signal[data-strength="high"] .signal__fill {
   stroke: var(--ink);
+  /* The strongest signals literally glow — a faint white bloom on the ring. */
+  filter: drop-shadow(0 0 4px rgba(242, 246, 250, 0.5));
 }
 .signal[data-strength="high"] .signal__num {
   fill: var(--ink);
@@ -706,7 +769,7 @@ button {
   fill: var(--graphite);
 }
 .signal[data-strength="low"] .signal__track {
-  stroke: #f1f1f2;
+  stroke: #20242f;
 }
 /* Strength shows in the ring's tone + thickness and in the number's colour, which
    tracks the ring (ink → graphite → faint). Size and weight stay uniform across
@@ -853,8 +916,8 @@ button {
 /* Triage outcome states (/raw + search): accepted into the feed, dropped by
    the quality gate, or not yet triaged. */
 .tag--accepted {
-  background: var(--ember-weak);
-  color: var(--ember-ink);
+  background: rgba(75, 243, 200, 0.12);
+  color: var(--aurora-mint);
 }
 .tag--dropped {
   color: var(--text-faint);
@@ -938,9 +1001,10 @@ button {
     background var(--dur-fast) var(--ease-out-quint),
     transform var(--dur-fast) var(--ease-out-quart);
 }
-.vote__btn:hover:not(:disabled) {
-  border-color: var(--accent);
+.vote__btn:hover:not(:disabled):not([data-active="true"]) {
+  border-color: transparent;
   color: var(--accent);
+  box-shadow: var(--glow-nebula-soft);
 }
 .vote__btn:active:not(:disabled) {
   transform: scale(0.9);
@@ -1027,7 +1091,7 @@ button {
   display: block;
 }
 .star[data-active="true"] {
-  color: var(--ember-ink);
+  color: var(--amber);
 }
 .star:disabled {
   opacity: 0.5;
@@ -1056,7 +1120,7 @@ button {
 @keyframes saved-ring {
   from {
     opacity: 0.5;
-    box-shadow: 0 0 0 0 var(--ember);
+    box-shadow: 0 0 0 0 var(--amber);
   }
   to {
     opacity: 0;
@@ -1234,7 +1298,7 @@ button {
     background var(--dur-fast) var(--ease-out-quint);
 }
 .feed-more:hover:not(:disabled) {
-  border-color: var(--accent);
+  border-color: transparent;
   color: var(--accent);
 }
 .feed-more:disabled {
@@ -1369,12 +1433,12 @@ button {
 .btn--primary {
   background: var(--action);
   color: var(--on-accent);
-  /* Awesomic's pressed-glass pill: inner highlight + ring + soft drop. */
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 0 0 1px rgba(9, 9, 11, 0.6),
-    0 4px 10px -4px rgba(0, 0, 0, 0.35);
+  /* The signature inverted CTA: a Lunar-White pill that glows on the void. */
+  box-shadow: var(--glow-white);
 }
 .btn--primary:hover:not(:disabled) {
   background: var(--action-hover);
+  box-shadow: 0 0 28px -6px rgba(242, 246, 250, 0.65);
 }
 .btn--ghost {
   background: var(--surface);
@@ -1382,8 +1446,9 @@ button {
   color: var(--text-strong);
 }
 .btn--ghost:hover:not(:disabled) {
-  border-color: var(--accent);
+  border-color: transparent;
   color: var(--accent);
+  box-shadow: var(--glow-nebula-soft);
 }
 
 /* Small destructive text button (keyword delete). */
@@ -1426,10 +1491,15 @@ button {
 .field:hover {
   border-color: var(--smoke);
 }
+/* Focus draws a nebula-gradient stroke (the input can't carry a pseudo-element,
+   so it uses the padding-box / border-box double-background trick — no size
+   shift, the border stays 1px). */
 .field:focus {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-weak);
+  border-color: transparent;
+  background: linear-gradient(var(--surface), var(--surface)) padding-box,
+    var(--nebula-bright) border-box;
+  box-shadow: 0 0 0 3px var(--accent-weak), var(--glow-nebula);
 }
 
 /* ─── Segmented control — radio variant of .sort (search mode) ─── */
@@ -1471,7 +1541,8 @@ button {
 .seg__input:checked + .seg__face {
   background: var(--surface);
   color: var(--text-strong);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  font-weight: 600;
+  box-shadow: var(--glow-nebula-soft);
 }
 .seg__input:focus-visible + .seg__face {
   outline: 2px solid var(--accent);
@@ -1616,7 +1687,7 @@ button {
   transition: background var(--dur-fast) var(--ease-out-quint);
 }
 .table tbody tr:hover {
-  background: var(--surface-sunken);
+  background: var(--hover);
 }
 .table .num {
   text-align: right;
@@ -1763,7 +1834,8 @@ button {
   transition: background var(--dur) var(--ease-out-quart);
 }
 .topic:hover {
-  background: var(--surface-sunken);
+  background: var(--hover);
+  box-shadow: var(--glow-nebula-soft);
 }
 .topic__rank {
   color: var(--text-faint);
@@ -1857,8 +1929,9 @@ button {
   transition: background var(--dur) var(--ease-out-quart);
 }
 .result:hover {
-  background: var(--surface-sunken);
+  background: var(--hover);
   text-decoration: none;
+  box-shadow: var(--glow-nebula-soft);
 }
 .result__title {
   color: var(--text-strong);
@@ -1896,6 +1969,77 @@ button {
 .kw-cell-term {
   color: var(--text-strong);
   font-weight: 600;
+}
+
+/* ─── Instrument-panel figures — mono for readout numbers + meta ─────
+   The dial score, stat values, badges, ranks and counters read like a
+   mission-control gauge: JetBrains Mono, already tabular elsewhere. */
+.signal__num,
+.stat__value,
+.stat__label,
+.page__count,
+.badge,
+.pipe__val,
+.item__triage,
+.topic__rank,
+.topic__meta,
+.result__sim,
+.feed-status,
+.feed-end {
+  font-family: var(--font-mono);
+}
+
+/* ─── Nebula stroke detailing — gradient on lit edges ─────────────────
+   The gradient rides borders: selected nav/filter pills, hovered ghost
+   buttons, hovered feed/topic/result cards and vote chips, plus an always-on
+   hairline on stat panels. Drawn as a 1px masked ring inside a pseudo-element
+   so it costs no layout (no box-model shift, rides view transitions). */
+.sidebar__link,
+.sort__btn,
+.seg__face,
+.btn,
+.feed-more,
+.item,
+.topic,
+.result,
+.stat {
+  position: relative;
+}
+.sidebar__link[aria-current="page"]::before,
+.sort__btn[data-active="true"]::before,
+.seg__input:checked + .seg__face::before,
+.btn--ghost:hover:not(:disabled)::before,
+.feed-more:hover:not(:disabled)::before,
+.item:hover::before,
+.topic:hover::before,
+.result:hover::before,
+.vote__btn:hover:not(:disabled):not([data-active="true"])::before,
+.stat::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--nebula-bright);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+/* Selected nav + active filter/segment pills carry a stronger 2px ring (vs the
+   1px hairline on cards/stat) so the selection edge reads clearly. */
+.sidebar__link[aria-current="page"]::before,
+.sort__btn[data-active="true"]::before,
+.seg__input:checked + .seg__face::before {
+  padding: 2px;
+}
+/* Stat panels wear the stroke at rest, so it stays a quiet hairline rather
+   than competing with the lit interactive states. */
+.stat::before {
+  background: var(--nebula-gradient);
+  opacity: 0.5;
 }
 
 /* ─── Responsive ────────────────────────────────────────── */

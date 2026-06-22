@@ -1,15 +1,31 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { Plus_Jakarta_Sans, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import { SiteHeader } from "./site-header.js";
 import "./globals.css";
 
-// One family across the whole system (Awesomic's single-typeface rule —
-// weight carries the hierarchy). CJK falls back to the system Chinese face,
-// so only Latin glyphs pick up Jakarta.
+// Body / UI text. CJK falls back to the system Chinese face, so only Latin
+// glyphs pick up Jakarta.
 const sans = Plus_Jakarta_Sans({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
   variable: "--font-sans-latin",
+  display: "swap",
+});
+
+// Display face for Latin headlines — an Obviously stand-in with wide apertures
+// and a retrofuturist swagger against the dark void.
+const display = Space_Grotesk({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-display-latin",
+  display: "swap",
+});
+
+// Instrument-panel figures: the signal dial, stat readouts, badges, meta.
+const mono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-mono-latin",
   display: "swap",
 });
 
@@ -20,7 +36,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="zh-CN" className={sans.variable}>
+    <html lang="zh-CN" className={`${sans.variable} ${display.variable} ${mono.variable}`}>
       <head>
         <noscript>
           {/* Scroll-reveal hides items until JS runs; keep them visible without it. */}
