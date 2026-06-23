@@ -321,12 +321,14 @@ button {
   font-size: 14px;
   font-weight: 500;
   transition: color var(--dur) var(--ease-island),
-    background var(--dur) var(--ease-island);
+    background var(--dur) var(--ease-island),
+    transform var(--dur) var(--ease-island);
 }
 .sidebar__link:hover {
   color: var(--text-strong);
   background: var(--surface);
   text-decoration: none;
+  transform: translateX(4px);
 }
 /* The selected nav item: a crisp Lunar-White label on a Void pill wrapped in a
    bright 2px nebula-gradient ring (drawn by the shared ::before rule below) and
@@ -337,6 +339,15 @@ button {
   color: var(--text-strong);
   font-weight: 700;
   box-shadow: var(--glow-nebula-soft);
+}
+/* Brand mark: a small lift + brighter bloom on hover. */
+.sidebar__mark {
+  transition: transform var(--dur) var(--ease-island),
+    box-shadow var(--dur) var(--ease-island);
+}
+.sidebar__brand:hover .sidebar__mark {
+  transform: scale(1.08);
+  box-shadow: 0 0 26px -4px rgba(242, 246, 250, 0.62);
 }
 
 /* Mobile top bar — replaces the sidebar below the breakpoint. */
@@ -505,9 +516,9 @@ button {
   margin-bottom: var(--space-6);
 }
 .page__title {
-  font-size: clamp(1.9rem, 4vw, 2.75rem);
-  line-height: 1.08;
-  letter-spacing: -0.02em;
+  font-size: clamp(1.5rem, 2.4vw, 1.75rem);
+  line-height: 1.2;
+  letter-spacing: -0.015em;
   animation: enter-rise 600ms var(--ease-out-expo) both;
 }
 .page__tools {
@@ -532,6 +543,29 @@ button {
   font-size: 14px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+/* Status header tools: the live count reads as a mono pill with a nebula edge
+   + soft glow, so the page__tools area isn't a bare line of text. */
+.is-live .page__count {
+  position: relative;
+  padding: 5px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  color: var(--text-strong);
+  box-shadow: var(--glow-nebula-soft);
+}
+.is-live .page__count::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--nebula-bright);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
 }
 
 /* Visually hidden but exposed to screen readers / SEO. */
@@ -737,6 +771,9 @@ button {
 }
 .signal__ring {
   display: block;
+  /* Let the high-strength dial's glow bloom past the 46×46 SVG box instead of
+     being clipped square by the SVG viewport. */
+  overflow: visible;
 }
 /* A monochrome dial: the arc length reads the 0–100 signal score on a tonal
    ladder (ink → graphite → ash) so the strongest dials dominate the scan and
@@ -1566,14 +1603,18 @@ button {
   cursor: pointer;
 }
 .switch__track {
+  position: relative;
   width: 38px;
   height: 22px;
   border-radius: var(--radius-pill);
   background: var(--ash);
-  transition: background var(--dur) var(--ease-out-quint);
+  transition: background var(--dur) var(--ease-out-quint),
+    box-shadow var(--dur) var(--ease-out-quint);
 }
 .switch__track::after {
   content: "";
+  position: relative;
+  z-index: 1;
   display: block;
   width: 18px;
   height: 18px;
@@ -1581,13 +1622,17 @@ button {
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
-  transition: transform var(--dur) var(--ease-out-quint);
+  transition: transform var(--dur) var(--ease-out-quint),
+    box-shadow var(--dur) var(--ease-out-quint);
 }
+/* On: the flat violet fill becomes a lit nebula track + a glowing knob. */
 .switch__input:checked + .switch__track {
-  background: var(--accent);
+  background: var(--nebula-bright);
+  box-shadow: var(--glow-nebula-soft);
 }
 .switch__input:checked + .switch__track::after {
   transform: translateX(16px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 9px rgba(168, 175, 255, 0.75);
 }
 .switch__input:focus-visible + .switch__track {
   outline: 2px solid var(--accent);
@@ -1614,16 +1659,81 @@ button {
   white-space: nowrap;
 }
 .badge__dot {
+  position: relative;
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: var(--ash);
 }
 .badge--on {
+  position: relative;
   color: var(--text-strong);
 }
+/* A faint nebula hairline rings the "ready" badge. */
+.badge--on::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--nebula-bright);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  opacity: 0.7;
+  pointer-events: none;
+}
+/* The dot is a lit nebula core that breathes... */
 .badge--on .badge__dot {
-  background: var(--ink);
+  background: #cdbcff;
+  box-shadow: 0 0 5px 0.5px rgba(168, 175, 255, 0.85),
+    0 0 10px rgba(217, 139, 255, 0.5);
+  animation: badge-core 2.4s ease-in-out infinite;
+}
+/* ...ringed by two tiny twinkling spark particles. */
+.badge--on .badge__dot::before,
+.badge--on .badge__dot::after {
+  content: "";
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: #e3d4ff;
+  opacity: 0;
+  pointer-events: none;
+}
+.badge--on .badge__dot::before {
+  top: -3px;
+  left: 4px;
+  animation: badge-twinkle 1.9s ease-in-out infinite;
+}
+.badge--on .badge__dot::after {
+  top: 4px;
+  left: -3px;
+  animation: badge-twinkle 1.9s ease-in-out 0.95s infinite;
+}
+@keyframes badge-core {
+  0%,
+  100% {
+    box-shadow: 0 0 5px 0.5px rgba(168, 175, 255, 0.8),
+      0 0 9px rgba(217, 139, 255, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 8px 1.5px rgba(168, 175, 255, 1),
+      0 0 14px rgba(217, 139, 255, 0.7);
+  }
+}
+@keyframes badge-twinkle {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 /* ─── Card + section scaffold ───────────────────────────── */
@@ -1785,24 +1895,60 @@ button {
 
 /* Running / idle status dot (status header — "status" use of ember). */
 .run-dot {
+  position: relative;
   display: inline-block;
   width: 9px;
   height: 9px;
   border-radius: 50%;
   background: var(--ash);
   vertical-align: middle;
+  /* Idle standby: even at rest the dot is lit — a soft neutral halo that
+     slowly breathes, so it reads as "online, waiting" rather than a dead pip. */
+  background: var(--graphite);
+  box-shadow: 0 0 7px -1px color-mix(in srgb, var(--graphite) 55%, transparent);
+  animation: run-idle 3.2s var(--ease-out-quint) infinite;
+}
+@keyframes run-idle {
+  0%,
+  100% {
+    box-shadow: 0 0 4px -1px color-mix(in srgb, var(--graphite) 35%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 10px 0 color-mix(in srgb, var(--graphite) 60%, transparent);
+  }
 }
 .run-dot[data-running="true"] {
   background: var(--ember);
-  animation: run-pulse 1.6s var(--ease-out-quint) infinite;
+  /* Running: a lit signal-blue core that breathes under the expanding ping. */
+  animation: run-core 1.8s var(--ease-out-quint) infinite;
 }
-@keyframes run-pulse {
+.run-dot[data-running="true"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  animation: run-ping 1.8s var(--ease-out-quint) infinite;
+}
+@keyframes run-core {
   0%,
   100% {
-    box-shadow: 0 0 0 0 var(--ember-weak);
+    box-shadow: 0 0 7px 0 var(--ember);
   }
   50% {
-    box-shadow: 0 0 0 5px transparent;
+    box-shadow: 0 0 13px 1px var(--ember);
+  }
+}
+@keyframes run-ping {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--ember) 60%, transparent);
+    opacity: 1;
+  }
+  70% {
+    opacity: 0;
+  }
+  100% {
+    box-shadow: 0 0 0 10px transparent;
+    opacity: 0;
   }
 }
 

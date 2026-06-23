@@ -23,10 +23,10 @@ These are the tokens implemented in `src/app/globals.css` (`:root`). Treat that 
 | Nebula glow | `--glow-nebula` / `--glow-nebula-soft` / `--glow-white` | twin-hue `box-shadow` bloom (signal-blue `#7c8cff` + ultraviolet `#d98bff`) | The lighting layer behind lit edges. `-soft` is the resting/ambient tier (hovered cards, active tabs, ghost-button hover); the brighter one lights focus rings. `--glow-white` is the Lunar-White bloom on the CTA and brand mark. A lighting accent, never an elevation shadow. |
 | Danger | `--danger` | `#ff6b6b` | Errors + destructive only (vote/feed errors, delete) |
 | Lunar White | `--ink` | `#f2f6fa` | Headings, strongest dial/bar, body emphasis. Brightest = strongest. |
-| Mist | `--graphite` | `#bfc1c9` | Mid-strength dial, downvote fill |
+| Mist | `--graphite` | `#bfc1c9` | Mid-strength dial, downvote fill, idle status-dot halo |
 | Steel | `--slate` | `#858b98` | Muted body text, subdued descriptions |
 | Smoke | `--smoke` | `#6f7480` | Tertiary text |
-| Gunmetal | `--ash` | `#545864` | Faint dial, idle dots, off-toggle track |
+| Gunmetal | `--ash` | `#545864` | Faint dial, off-toggle track |
 | Strong hairline | `--pebble` / `--border-strong` | `#3a3e4a` | Borders on inputs / ghost pills |
 | Hairline | `--mist` / `--border` | `#2a2e39` | Dividers + dial/bar tracks |
 | Void Canvas | `--porcelain` / `--surface` | `#1f232e` | Primary surface: main pane, cards, control fills, active chips |
@@ -64,7 +64,7 @@ The mission-control readout: the signal dial number, stat values + labels, badge
 
 | Role | Size | Line height | Notes |
 |------|------|-------------|-------|
-| page title | `clamp(1.9rem, 4vw, 2.75rem)` | 1.08 | Space Grotesk 700, `-0.02em` |
+| page title | `clamp(1.5rem, 2.4vw, 1.75rem)` | 1.2 | Space Grotesk 700, `-0.015em` |
 | section title | 18px | 1.2 | weight 700 |
 | item title | 18px | 1.3 | weight 700 |
 | body | 15-16px | 1.5 | weight 500 |
@@ -123,10 +123,13 @@ Active = amber (`--amber`), a scarce warm "saved" marker. Saving blooms an amber
 A pill track on the Abyss surface; the active chip is a Void pill that pops by tone, lit by a hairline inset, and slides between options via View Transitions.
 
 ### Toggle switch (`.switch`)
-Off = Gunmetal track; on = Ultraviolet (`--accent`) track with a white knob.
+Off = Gunmetal track. On = a lit nebula-gradient track (`--nebula-bright`) wearing a `--glow-nebula-soft` bloom, the white knob carrying its own soft nebula halo -- the on-state reads as energised, not a flat violet fill.
 
 ### Tag / badge (`.tag` / `.badge`)
-12px radius, Abyss fill, muted text, JetBrains Mono on badges. `--tag--accepted` = mint fill + mint text (scarce). Status badges carry a dot (Gunmetal idle, Lunar White on).
+12px radius, Abyss fill, muted text, JetBrains Mono on badges. `--tag--accepted` = mint fill + mint text (scarce). Status badges carry a dot (Gunmetal idle). The "ready" badge (`.badge--on`) lights up: a faint nebula hairline rings the pill and its dot becomes a breathing nebula core haloed by two tiny twinkling spark particles -- a contained "particle glow" reserved for the live/ready signal.
+
+### Status readout pill (`.is-live .page__count`)
+On the live status page the head's count chip is a JetBrains Mono pill on the Abyss surface, ringed by a masked nebula hairline and lit with `--glow-nebula-soft`, so the page-tools area reads as an instrument readout rather than a bare line of text.
 
 ### Data table (`.table`) + stat tile (`.stat`)
 Abyss header, hairline row borders, mono tabular figures, light-wash row hover. Stat tiles are Abyss wells with mono values + labels.
@@ -168,11 +171,13 @@ State-bearing and brief, built from transform / opacity / blur. The scroll-progr
 | Feed item reveal | Rise + sharpen as it enters view; per-batch stagger | transform + blur + opacity, expo, 560ms |
 | Signal dial | Arc sweeps 0 to score as the card reveals | `stroke-dashoffset` draw on `.is-in`, expo, 560ms |
 | Reading progress | Top nebula-gradient bar scrubbed by scroll | scroll-driven scaleX, `animation-timeline: scroll()` |
-| Live pulse | Running status dot pulses signal-blue | `box-shadow` ring, 1.6s loop |
+| Status dot | Idle: a neutral halo that slowly breathes (standby, not a dead pip). Running: a lit signal-blue core that breathes under an expanding ping ring | idle `run-idle` 3.2s · running `run-core` + `run-ping` 1.8s |
 | Navigation (sort / nav) | Soft crossfade + active sort chip slides | View Transitions API (MPA) |
+| Sidebar hover | Nudge right + a nebula indicator bar grows from the left edge | translateX(4px) + height/opacity, island ease |
+| Brand mark hover | Small lift + brighter white bloom | scale(1.08) + box-shadow, island ease |
 | Mobile takeover | Hamburger to X; links fade + rise, staggered | transform + blur + opacity, island ease |
 | Vote / save | Press scale, then a one-shot ring + icon pop | transform + box-shadow ring, expo |
-| Item hover | Subtle lift onto the light wash | translateY(-2px), slow |
+| Item hover | Subtle lift onto the wash + nebula ring & glow | translateY(-2px) + ring/glow, slow |
 
 Scroll-driven and View-Transition effects are progressive enhancements (Chromium-first); other engines fall back gracefully with no loss of function.
 
