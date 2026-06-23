@@ -1,9 +1,9 @@
 # AI Signal — Style Reference
-> Astro deep-space mission control: a clean Void near-black canvas, an inverted Lunar-White action colour, and colour almost absent from the UI. The one purple-magenta nebula gradient is spent only on edges (selected nav/filter strokes, focus rings, hovered cards, stat panels) and the scroll-progress bar, never as a background fill -- and those lit edges bloom with a soft twin-hue nebula glow so the void reads as lit from within. Each chromatic pixel does real work.
+> Astro deep-space mission control: a clean Void near-black canvas, an inverted Lunar-White action colour, and colour almost absent from the UI. The one purple-magenta nebula gradient is spent only on edges (selected sort/filter strokes, focus rings, hovered cards, stat panels) and the scroll-progress bar, never as a background fill -- and those lit edges bloom with a soft twin-hue nebula glow so the void reads as lit from within. Each chromatic pixel does real work.
 
 **Theme:** dark (single theme, locked)
 
-A quiet, overwhelmingly achromatic reading tool rebuilt as a cosmic command bridge. Content floats on a Void canvas (`#1f232e`, never pure black) with a cool-blue undertone; spatial depth comes from surface-tone steps that go *darker* (Void → Abyss → Singularity), never from elevation drop shadows. The system has **no chromatic CTA**: every filled action is the inverted Lunar-White `#f2f6fa` with dark Void text, the same pressed pill the whole UI shares. Colour is scarce and assigned by meaning: violet for links, signal-blue for the live pulse, amber for the saved star, mint for the accepted tag, and one purple-magenta nebula gradient spent only on edges (the selected nav/filter stroke, a focused input, a hovered ghost button, hovered feed/topic/result cards and vote chips, plus an always-on hairline on stat panels) and the scroll-progress bar. Those lit edges -- and the white CTA and brand mark -- carry a soft twin-hue nebula **glow** (signal-blue + ultraviolet bloom) so the void reads as lit from within; the strongest signal dials glow faint white. The glow is a lighting accent, never an elevation cue, and the canvas *behind* content stays a clean even void with no background fill. Hierarchy is weight-driven; figures read like a mission-control gauge in JetBrains Mono. The signal dial and trend bars stay monochrome: strength reads as brightness (bright = strong, dim = weak), not hue.
+A quiet, overwhelmingly achromatic reading tool rebuilt as a cosmic command bridge. Content floats on a Void canvas (`#1f232e`, never pure black) with a cool-blue undertone; spatial depth comes from surface-tone steps that go *darker* (Void → Abyss → Singularity), never from elevation drop shadows. The system has **no chromatic CTA**: every filled action is the inverted Lunar-White `#f2f6fa` with dark Void text, the same pressed pill the whole UI shares. Colour is scarce and assigned by meaning: violet for links, signal-blue for the live pulse, amber for the saved star, mint for the accepted tag, and one purple-magenta nebula gradient spent only on edges (the selected sort/filter stroke, a focused input, a hovered ghost button, hovered feed/topic/result cards and vote chips, plus an always-on hairline on stat panels) and the scroll-progress bar. Those lit edges -- and the white CTA -- carry a soft twin-hue nebula **glow** (signal-blue + ultraviolet bloom) so the void reads as lit from within; the brand mark is lit by an inset highlight instead, and the strongest signal dials glow faint white. The glow is a lighting accent, never an elevation cue, and the canvas *behind* content stays a clean even void with no background fill. Hierarchy is weight-driven; figures read like a mission-control gauge in JetBrains Mono. The signal dial and trend bars stay monochrome: strength reads as brightness (bright = strong, dim = weak), not hue.
 
 These are the tokens implemented in `src/app/globals.css` (`:root`). Treat that file as the source of truth.
 
@@ -11,15 +11,15 @@ These are the tokens implemented in `src/app/globals.css` (`:root`). Treat that 
 
 | Name | Token | Value | Role |
 |------|-------|-------|------|
-| Action | `--action` | `#f2f6fa` | The only filled-action colour: primary buttons, vote-active, toggle-on track, brand mark, active nav/sort pills. Dark Void text on it. The white-on-dark inversion is the system's signature action pattern. |
+| Action | `--action` | `#f2f6fa` | The only filled-action colour: primary buttons, vote-active, toggle-on track, active sort/filter pills. Dark Void text on it. The white-on-dark inversion is the system's signature action pattern. (The brand mark and selected nav pill no longer use this fill -- see App shell.) |
 | On-action | `--on-accent` | `#1f232e` | Dark Void text/icon on a Lunar-White fill |
-| Accent | `--accent` | `#acafff` | Ultraviolet: links, hover text, focus ring, active toggle track. `--accent` tints + text; `--action` fills. |
+| Accent | `--accent` | `#acafff` | Ultraviolet: links, hover text, focus ring, active toggle track, the selected nav item's accent point. `--accent` tints + text; `--action` fills. |
 | Signal blue (spark) | `--ember` / `--signal-blue` | `#61dafb` | The scarce status spark: live pulse / running dot. Also the scroll-progress and nebula belong to this cosmic family. |
 | Amber | `--amber` | `#ffd493` | The saved star (a scarce warm "kept" marker) |
 | Aurora mint | `--aurora-mint` | `#4bf3c8` | The accepted tag (a scarce "go" marker) |
 | Plasma blue | `--plasma-blue` | `#54b9ff` | Supporting decorative accent, low-frequency emphasis |
 | Electric cyan | `--electric-cyan` | `#00daef` | Reserved syntax / rare accent stroke |
-| Nebula gradient | `--nebula-gradient` / `--nebula-bright` | `linear-gradient(83.21deg, #3245ff, #b845ed)` | The one decorative gradient, spent only on edges: the gradient stroke on a selected nav/filter pill, a focused input, a hovered ghost button, hovered feed/topic/result cards and vote chips, an always-on hairline on stat panels, plus the scroll-progress bar. A brightened variant `--nebula-bright` (`#7c8cff -> #d98bff`) keeps the lit strokes legible on the void; selected nav/filter labels themselves stay crisp Lunar-White, so the gradient lives in the ring, not the type. Never a background fill; never on text. |
+| Nebula gradient | `--nebula-gradient` / `--nebula-bright` | `linear-gradient(83.21deg, #3245ff, #b845ed)` | The one decorative gradient, spent only on edges: the gradient stroke on a selected sort/filter pill, a focused input, a hovered ghost button, hovered feed/topic/result cards and vote chips, an always-on hairline on stat panels, plus the scroll-progress bar. A brightened variant `--nebula-bright` (`#7c8cff -> #d98bff`) keeps the lit strokes legible on the void; selected sort/filter labels themselves stay crisp Lunar-White, so the gradient lives in the ring, not the type. Never a background fill; never on text. |
 | Nebula glow | `--glow-nebula` / `--glow-nebula-soft` / `--glow-white` | twin-hue `box-shadow` bloom (signal-blue `#7c8cff` + ultraviolet `#d98bff`) | The lighting layer behind lit edges. `-soft` is the resting/ambient tier (hovered cards, active tabs, ghost-button hover); the brighter one lights focus rings. `--glow-white` is the Lunar-White bloom on the CTA and brand mark. A lighting accent, never an elevation shadow. |
 | Danger | `--danger` | `#ff6b6b` | Errors + destructive only (vote/feed errors, delete) |
 | Lunar White | `--ink` | `#f2f6fa` | Headings, strongest dial/bar, body emphasis. Brightest = strongest. |
@@ -77,7 +77,7 @@ The mission-control readout: the signal dial number, stat values + labels, badge
 - **Reading width:** 1160px (left-aligned in the main pane)
 - **Card padding:** 32-40px (`--space-8`/`--space-10`)
 - **Element gap:** 16-24px
-- **Sidebar rail:** 232px (Abyss), main pane Void, split by a hairline
+- **Sidebar:** 248px column holding a detached glass panel (double-bezel: hairline tray + deep glass core), main pane Void
 - **Shell height (mobile top bar):** 56px
 
 ### Border radius
@@ -94,12 +94,14 @@ The mission-control readout: the signal dial number, stat values + labels, badge
 ## Components
 
 ### App shell (`.app`)
-A two-tone split, no floating card: an Abyss sidebar rail (`--surface-sunken`) and a Void main pane (`--surface`), divided by a hairline. The mobile top bar is translucent Void glass with `backdrop-filter` blur. The brand mark is the inverted action pill: a Lunar-White rounded square with a dark "S".
+The main pane is a Void surface (`--surface`); the left rail is no longer a flush Abyss strip but a **detached glass panel** -- the one machined object in the chrome. It is built as a *double-bezel*: a barely-there hairline tray (`rgba(255,255,255,0.028)`, 28px radius) cradles a deep glass core (`#0b0d16 → #070912`, 22px radius) lit by a top inset highlight, so its edge reads as caught light rather than a flat fill, and one soft ambient shadow lets it sit just above the canvas. This panel is the deliberate exception to the "depth is tone + hairline, never drop shadow" rule -- it is treated as physical instrument hardware, while the canvas and reading content keep the shadowless tone-step depth. The mobile top bar stays translucent Void glass with `backdrop-filter` blur. The brand mark (and its mobile twin) is a **machined key**: a nested chip (`#1b1b22 → #0d0d12`) with a hairline edge, a top inset highlight and a soft drop, holding a Space Grotesk "S" -- no longer the white action pill.
+
+The desktop nav pairs each item with an ultra-light monoline Phosphor icon (dim at rest, lifting a hair on hover, a restrained violet-white `#cfd1ff` on the one selected item). It splits into two mono-captioned clusters: 浏览 then 管理. The selected item is **calm** -- no chromatic ring, no orbit: a faintly *raised glass pill* (a `rgba(255,255,255,0.05)` fill with a top inset highlight + soft drop) fronted by a single small ultraviolet accent point. The panel's base holds a nested **live-status pill** that doubles as the `/status` entry: a recessed orb with a breathing signal-blue core, a label stack (流水线运行中 / 实时抓取与排序), and a button-in-button trailing arrow flush to the right edge. The mobile takeover stays icon-free large display type.
 
 ### Nebula stroke + glow detailing
-The gradient is spent only on edges, never on the background, and never on the type -- selected labels stay crisp Lunar-White so the gradient reads in the ring. A selected sidebar item is a white label on a Void pill wrapped in a strong 2px nebula-gradient ring; a selected sort/filter tab and the search segmented control earn the same white label + 2px ring; a focused input and a hovered ghost button draw a 1px gradient stroke; hovered feed/topic/result cards and vote chips light up a 1px gradient ring; stat panels wear a quieter always-on gradient hairline. The selected/active rings are 2px (a clear selection edge); the rest are a 1px hairline. Strokes are a masked ring inside a pseudo-element (no layout shift, rides view transitions), or the padding-box / border-box double-background trick for inputs (which cannot carry a pseudo-element). The brightened `--nebula-bright` keeps the gradient legible on the void.
+The gradient is spent only on edges, never on the background, and never on the type -- selected labels stay crisp Lunar-White so the gradient reads in the ring. A selected sort/filter tab and the search segmented control wear a white label on a Void pill ringed by a strong 2px nebula-gradient stroke; a focused input and a hovered ghost button draw a 1px gradient stroke; hovered feed/topic/result cards and vote chips light up a 1px gradient ring; stat panels wear a quieter always-on gradient hairline. The active rings are 2px (a clear selection edge); the rest are a 1px hairline. Strokes are a masked ring inside a pseudo-element (no layout shift, rides view transitions), or the padding-box / border-box double-background trick for inputs (which cannot carry a pseudo-element). The brightened `--nebula-bright` keeps the gradient legible on the void. The sidebar opts out of this nebula detailing entirely -- its lift comes from inset highlights and tone, not from a gradient ring.
 
-Every lit edge also blooms: a soft twin-hue glow (`--glow-nebula-soft` on hovered cards and active tabs, `--glow-nebula` on focus rings) makes the void read as lit from within. The selected nav label and its pill ring share one `drop-shadow` so text and stroke glow together; the white CTA and brand mark carry `--glow-white`; and the strongest signal dials glow faint white. Glow is purely a lighting accent -- elevation still comes from tone + hairline, never from these blooms.
+Every lit edge also blooms: a soft twin-hue glow (`--glow-nebula-soft` on hovered cards and active tabs, `--glow-nebula` on focus rings) makes the void read as lit from within. The white CTA carries `--glow-white`; the brand mark and selected nav pill are lit by inset highlights instead; and the strongest signal dials glow faint white. Glow is purely a lighting accent -- elevation still comes from tone + hairline (or, for the one machined sidebar panel, from its inset highlight + ambient shadow), never from these blooms.
 
 ### Mobile nav takeover (`.navmodal`)
 Full-screen translucent Void glass (`backdrop-filter` blur). Large Space Grotesk links fade + rise in with a per-item stagger; the hamburger morphs to an X. Esc / backdrop / link-tap closes; body scroll locks while open.
@@ -142,8 +144,8 @@ Both monochrome: the #1 topic and active pipeline fill are Lunar White; lower ba
 ### Do
 - Use the inverted Lunar-White `#f2f6fa` for **every** filled action: buttons, vote-active, toggle-on, brand mark, active pills. It is the only filled-action colour, with dark Void text on it.
 - Spend chromatic colour scarcely and by meaning: violet links, signal-blue live pulse, amber saved star, mint accepted tag. Each chromatic pixel does real work.
-- Reserve the nebula gradient for edges: the selected nav/filter stroke (a strong 2px ring), a focused input, a hovered ghost button, hovered feed/topic/result cards and vote chips, the always-on stat-panel hairline, and the scroll-progress bar. Never a background fill; never on text.
-- Let lit edges bloom with the nebula glow (`--glow-nebula` / `--glow-nebula-soft`), the CTA and brand mark with `--glow-white`. Treat glow as lighting, not elevation.
+- Reserve the nebula gradient for edges: the selected sort/filter stroke (a strong 2px ring), a focused input, a hovered ghost button, hovered feed/topic/result cards and vote chips, the always-on stat-panel hairline, and the scroll-progress bar. Never a background fill; never on text.
+- Let lit edges bloom with the nebula glow (`--glow-nebula` / `--glow-nebula-soft`) and the CTA with `--glow-white`. Treat glow as lighting, not elevation.
 - Express *spatial depth* with surface steps that go darker (Void → Abyss → Singularity) and hairline borders, not elevation drop shadows.
 - Keep the signal dial and trend bars monochrome (bright = strong, dim = weak).
 - Carry hierarchy with weight; set readout figures in JetBrains Mono.
@@ -152,10 +154,10 @@ Both monochrome: the #1 topic and active pipeline fill are Lunar White; lower ba
 
 ### Don't
 - No chromatic CTA. Never colour a primary button or filled action.
-- Don't apply the nebula gradient to text: it destroys legibility. Selected nav/filter labels stay crisp Lunar-White; the gradient lives in their ring, not the type.
+- Don't apply the nebula gradient to text: it destroys legibility. Selected sort/filter labels stay crisp Lunar-White; the gradient lives in their ring, not the type.
 - Don't spread one accent into another's role; their power is scarcity and meaning.
 - Don't overuse the glow: it lights edges and the CTA only -- never floods backgrounds or large surfaces.
-- No drop shadows for *elevation*: spatial depth is tone + hairline (the nebula glow is lighting, not elevation).
+- No drop shadows for *elevation*: spatial depth is tone + hairline (the nebula glow is lighting, not elevation). The one sanctioned exception is the machined sidebar panel -- treated as physical instrument hardware (inset highlight + soft ambient shadow); the canvas and reading content stay shadowless.
 - Don't lighten elevated surfaces; elevation goes darker, not lighter.
 - No second light theme; the dark theme is locked.
 
@@ -173,8 +175,10 @@ State-bearing and brief, built from transform / opacity / blur. The scroll-progr
 | Reading progress | Top nebula-gradient bar scrubbed by scroll | scroll-driven scaleX, `animation-timeline: scroll()` |
 | Status dot | Idle: a neutral halo that slowly breathes (standby, not a dead pip). Running: a lit signal-blue core that breathes under an expanding ping ring | idle `run-idle` 3.2s · running `run-core` + `run-ping` 1.8s |
 | Navigation (sort / nav) | Soft crossfade + active sort chip slides | View Transitions API (MPA) |
-| Sidebar hover | Nudge right + a nebula indicator bar grows from the left edge | translateX(4px) + height/opacity, island ease |
-| Brand mark hover | Small lift + brighter white bloom | scale(1.08) + box-shadow, island ease |
+| Selected nav item | Static calm: a raised glass pill + one accent point -- no orbit, no breathing | inset highlight + soft ambient shadow (no animation) |
+| Sidebar hover | A soft light-wash fill + a slight icon nudge; pressing dips the pill | background + icon `translateX(1px)`, `:active` `scale(0.985)`, island ease |
+| Brand / status hover | Brand: a machined lift. Status pill: the arrow nudges out of its circle | `translateY(-1px)` + inset/shadow · arrow `translate(2px,-1px)`, island ease |
+| Sidebar status pulse | The signal-blue orb core breathes on a slow beat | `status-pulse` opacity + scale, 3.4s |
 | Mobile takeover | Hamburger to X; links fade + rise, staggered | transform + blur + opacity, island ease |
 | Vote / save | Press scale, then a one-shot ring + icon pop | transform + box-shadow ring, expo |
 | Item hover | Subtle lift onto the wash + nebula ring & glow | translateY(-2px) + ring/glow, slow |
@@ -184,7 +188,8 @@ Scroll-driven and View-Transition effects are progressive enhancements (Chromium
 ## Surfaces
 
 - **Void Canvas** (`#1f232e`, `--surface`) — main pane, cards, control fills, active chips
-- **Abyss** (`#0c0f19`, `--surface-sunken`) — sidebar rail, segmented tracks, wells, tags
+- **Abyss** (`#0c0f19`, `--surface-sunken`) — segmented tracks, wells, tags
+- **Sidebar glass** (`#0b0d16 → #070912`) — the detached rail core, a step below Abyss, lit by an inset highlight inside a hairline tray
 - **Singularity** (`#060913`, `--obsidian`) — deepest, highest-contrast containers
 - **Action** (`#f2f6fa`, `--action`) — inverted filled buttons + active states
 
@@ -194,7 +199,7 @@ No photography, illustration, or decorative graphics. The clean void canvas, wit
 
 ## Layout
 
-A full-width dark canvas: an Abyss sidebar rail (brand + nav) beside a Void main pane holding a left-aligned reading column (max-width 1160px, padded 32-40px). The canvas carries no background glow; the nebula gradient appears only on selected/focused edges. Sections flow vertically with no dividers between bands. Below 860px the sidebar collapses to a translucent top bar with a hamburger takeover; below 600px the reading column goes full-bleed.
+A full-width dark canvas: a detached glass sidebar panel (brand + nav + live status) beside a Void main pane holding a left-aligned reading column (max-width 1160px, padded 32-40px). The canvas carries no background glow; the nebula gradient appears only on selected/focused edges. Sections flow vertically with no dividers between bands. Below 860px the sidebar collapses to a translucent top bar with a hamburger takeover; below 600px the reading column goes full-bleed.
 
 ## Similar Brands
 

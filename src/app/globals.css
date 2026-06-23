@@ -131,7 +131,7 @@
   /* Layout */
   --reading-width: 1160px;
   --shell-height: 60px;
-  --sidebar-w: 232px;
+  --sidebar-w: 248px;
 
   /* Z-index scale (semantic, never arbitrary) */
   --z-sticky: 100;
@@ -265,176 +265,263 @@ button {
   min-width: 0;
 }
 
+/* ─── Sidebar — an "ethereal glass" rail: a deep glass core seated in a
+   hairline tray (double-bezel), lit by inset highlights and a soft ambient
+   shadow rather than chromatic glow. The selected item is a faintly raised
+   pill marked by one restrained accent point. ───────────────────────── */
 .sidebar {
   position: sticky;
   top: 0;
   align-self: start;
   height: 100dvh;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: var(--space-6) var(--space-4);
-  background: var(--surface-sunken);
-  border-right: 1px solid var(--border);
+  padding: var(--space-4) var(--space-3);
   /* Persist across view transitions so it never crossfades. */
   view-transition-name: sidebar;
+}
+/* Outer tray: a barely-there shell with a hairline edge and a soft ambient
+   shadow, holding the core like a glass plate in a machined frame. */
+.sidebar__shell {
+  flex: 1;
+  display: flex;
+  padding: 6px;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.028);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 40px 90px -52px rgba(0, 0, 0, 0.95),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+/* Inner core: the deep glass surface, carrying a top inset highlight so its
+   edge looks lit from within. */
+.sidebar__core {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-6) var(--space-3) var(--space-3);
+  border-radius: 22px;
+  background: linear-gradient(180deg, #0b0d16, #070912);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02);
 }
 .sidebar__brand {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  margin: var(--space-1) var(--space-2) var(--space-5);
+  gap: var(--space-3);
+  margin: var(--space-1) var(--space-2) var(--space-6);
   color: var(--text-strong);
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-weight: 600;
   letter-spacing: -0.01em;
   font-size: 16px;
 }
 .sidebar__brand:hover {
   text-decoration: none;
 }
+/* Brand / topbar mark — a machined key: a nested chip with a top inset
+   highlight and a soft drop, not a flat tinted square. */
 .sidebar__mark,
 .topbar__mark {
   display: grid;
   place-items: center;
+  flex: none;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #1b1b22, #0d0d12);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  color: var(--text-strong);
+  font-family: var(--font-display);
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 6px 14px -6px rgba(0, 0, 0, 0.8);
+}
+.topbar__mark {
   width: 28px;
   height: 28px;
-  flex: none;
-  border-radius: 9px;
-  background: var(--action);
-  color: var(--on-accent);
+  font-size: 13px;
+}
+.sidebar__mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
   font-size: 15px;
-  font-weight: 700;
-  box-shadow: var(--glow-white);
+  transition: transform var(--dur) var(--ease-island),
+    box-shadow var(--dur) var(--ease-island);
+}
+.sidebar__brand:hover .sidebar__mark {
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 8px 18px -6px rgba(0, 0, 0, 0.85);
 }
 .sidebar__nav {
   display: flex;
-  flex: 1;
   flex-direction: column;
   gap: 2px;
 }
 /* Group caption — a quiet mono micro-label that splits browse vs. manage. */
 .sidebar__group {
   margin: 0;
-  padding: var(--space-2) var(--space-3) var(--space-1);
+  padding: var(--space-2) var(--space-3);
   color: var(--text-faint);
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: 9.5px;
   font-weight: 600;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
 }
-/* The "manage" cluster sinks to the rail's base, so the column reads as
-   composed top-and-bottom instead of top-heavy with a dead lower half. */
 .sidebar__group--foot {
-  margin-top: auto;
+  margin-top: var(--space-5);
 }
 .sidebar__link {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  height: 38px;
+  height: 43px;
   padding: 0 var(--space-3);
-  border-radius: var(--radius-md);
+  border-radius: 13px;
   color: var(--text-muted);
   font-size: 14px;
   font-weight: 500;
-  transition: color var(--dur) var(--ease-island),
-    background var(--dur) var(--ease-island),
+  letter-spacing: -0.003em;
+  transition: color var(--dur-slow) var(--ease-island),
+    background var(--dur-slow) var(--ease-island),
+    box-shadow var(--dur-slow) var(--ease-island),
     transform var(--dur) var(--ease-island);
 }
 .sidebar__link:hover {
   color: var(--text-strong);
-  background: var(--surface);
+  background: rgba(255, 255, 255, 0.035);
   text-decoration: none;
-  transform: translateX(4px);
 }
-/* Nav icons: dim at rest, lift to white on hover, ultraviolet on the one current
-   item (the accent is already the link colour, so this stays a consistent hue). */
+.sidebar__link:active {
+  transform: scale(0.985);
+}
+/* Nav icons: ultra-light, dim at rest, gently lifting on hover and tinted a
+   restrained violet-white on the one current item. */
 .sidebar__icon {
   flex: none;
   color: var(--text-faint);
-  transition: color var(--dur) var(--ease-island),
-    transform var(--dur-slow) var(--ease-island),
-    filter var(--dur) var(--ease-island);
+  transition: color var(--dur-slow) var(--ease-island),
+    transform var(--dur-slow) var(--ease-island);
 }
 .sidebar__link:hover .sidebar__icon {
+  color: var(--text);
+  transform: translateX(1px);
+}
+/* The selected item: a faintly raised glass pill — a top inset highlight plus a
+   soft drop give it physical lift — fronted by one restrained accent point. No
+   chromatic ring, no breathing; the calm is the premium. */
+.sidebar__link[aria-current="page"] {
+  position: relative;
+  padding-left: calc(var(--space-3) + 8px);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--text-strong);
-  transform: scale(1.16) rotate(-4deg);
-  filter: drop-shadow(0 0 6px rgba(242, 246, 250, 0.55));
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 1px 1px rgba(0, 0, 0, 0.5), 0 14px 30px -20px rgba(0, 0, 0, 0.9);
 }
 .sidebar__link[aria-current="page"] .sidebar__icon {
-  color: var(--accent);
-  transform: scale(1.12);
-  animation: nav-icon-glow 3.4s var(--ease-island) infinite;
+  color: #cfd1ff;
 }
-/* The active glyph carries its own faint ultraviolet halo that pulses on the same
-   beat — the icon itself looks lit, not just tinted. */
-@keyframes nav-icon-glow {
-  0%,
-  100% {
-    filter: drop-shadow(0 0 2px rgba(172, 175, 255, 0.35));
-  }
-  50% {
-    filter: drop-shadow(0 0 7px rgba(172, 175, 255, 0.85));
-  }
-}
-/* Hover sheen: a soft highlight sweeps across the pill (light moving over glass,
-   not a draw-on line). Driven by background-position so it never overflows the
-   pill or clips the selected glow. */
-.sidebar__link::after {
+.sidebar__link[aria-current="page"]::after {
   content: "";
   position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(
-    105deg,
-    transparent 42%,
-    rgba(255, 255, 255, 0.1) 50%,
-    transparent 58%
-  );
-  background-size: 250% 100%;
-  background-position: 150% 0;
-  opacity: 0;
-  pointer-events: none;
+  left: var(--space-3);
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin-top: -2px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 9px 1px rgba(174, 175, 255, 0.85);
 }
-.sidebar__link:hover::after {
-  opacity: 1;
-  background-position: -60% 0;
-  transition: background-position 0.7s var(--ease-island), opacity 0.25s linear;
+/* Bottom status — a nested live indicator that doubles as the /status entry:
+   a recessed orb with a signal-blue pulse, a label stack, and a button-in-
+   button trailing arrow flush to the right edge. */
+.sidebar__status {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-2) 10px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.026);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  transition: background var(--dur-slow) var(--ease-island),
+    box-shadow var(--dur-slow) var(--ease-island);
 }
-/* The selected nav item: a crisp Lunar-White label on a Void pill wrapped in a
-   bright 2px nebula-gradient ring (drawn by the shared ::before rule below) and
-   lit by a soft nebula glow. White text keeps it legible; the gradient lives in
-   the ring, not the type. */
-.sidebar__link[aria-current="page"] {
-  background: var(--surface);
-  color: var(--text-strong);
-  font-weight: 700;
-  box-shadow: var(--glow-nebula-soft);
-  animation: nav-breathe 3.4s var(--ease-island) infinite;
+.sidebar__status:hover {
+  text-decoration: none;
+  background: rgba(255, 255, 255, 0.045);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
-/* The selected pill breathes in time with the orbiting comet: its nebula bloom
-   swells and settles on the same 3.4s beat, so the whole module reads as one
-   live, charged element rather than a static highlight with a moving edge. */
-@keyframes nav-breathe {
+.sidebar__status-orb {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 32%, #1d1d25, #0e0e13);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.sidebar__status-orb i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--signal-blue);
+  box-shadow: 0 0 8px 1px rgba(97, 218, 251, 0.75);
+  animation: status-pulse 3.4s var(--ease-island) infinite;
+}
+@keyframes status-pulse {
   0%,
   100% {
-    box-shadow: 0 0 12px -5px rgba(124, 140, 255, 0.42),
-      0 0 26px -12px rgba(217, 139, 255, 0.3);
+    opacity: 0.55;
+    transform: scale(0.82);
   }
   50% {
-    box-shadow: 0 0 20px -4px rgba(124, 140, 255, 0.6),
-      0 0 42px -9px rgba(217, 139, 255, 0.5);
+    opacity: 1;
+    transform: scale(1);
   }
 }
-/* Brand mark: a small lift + brighter bloom on hover. */
-.sidebar__mark {
-  transition: transform var(--dur) var(--ease-island),
-    box-shadow var(--dur) var(--ease-island);
+.sidebar__status-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
 }
-.sidebar__brand:hover .sidebar__mark {
-  transform: scale(1.08);
-  box-shadow: 0 0 26px -4px rgba(242, 246, 250, 0.62);
+.sidebar__status-title {
+  color: var(--text-strong);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.sidebar__status-meta {
+  color: var(--text-faint);
+  font-size: 10px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+}
+.sidebar__status-go {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  flex: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  transition: transform var(--dur-slow) var(--ease-island),
+    color var(--dur-slow) var(--ease-island);
+}
+.sidebar__status:hover .sidebar__status-go {
+  transform: translate(2px, -1px);
+  color: var(--text-strong);
 }
 
 /* Mobile top bar — replaces the sidebar below the breakpoint. */
@@ -2319,7 +2406,6 @@ button {
 .stat {
   position: relative;
 }
-.sidebar__link[aria-current="page"]::before,
 .sort__btn[data-active="true"]::before,
 .seg__input:checked + .seg__face::before,
 .btn--ghost:hover:not(:disabled)::before,
@@ -2342,9 +2428,8 @@ button {
   mask-composite: exclude;
   pointer-events: none;
 }
-/* Selected nav + active filter/segment pills carry a stronger 2px ring (vs the
-   1px hairline on cards/stat) so the selection edge reads clearly. */
-.sidebar__link[aria-current="page"]::before,
+/* Active filter/segment pills carry a stronger 2px ring (vs the 1px hairline on
+   cards/stat) so the selection edge reads clearly. */
 .sort__btn[data-active="true"]::before,
 .seg__input:checked + .seg__face::before {
   padding: 2px;
@@ -2354,35 +2439,6 @@ button {
 .stat::before {
   background: var(--nebula-gradient);
   opacity: 0.5;
-}
-
-/* The selected nav ring is alive: a bright nebula "comet" orbits its 2px stroke —
-   a single hot point of light circling the active item's edge (energy circulating
-   in mission control), riding a dim violet base ring. Continuous, not a one-shot
-   draw. mask + 2px padding stay inherited from the rule above; the conic fill and
-   its rotation are what change here. @property lets the angle tween smoothly. */
-@property --nav-orbit {
-  syntax: "<angle>";
-  inherits: false;
-  initial-value: 0deg;
-}
-.sidebar__link[aria-current="page"]::before {
-  background: conic-gradient(
-    from var(--nav-orbit),
-    rgba(124, 140, 255, 0.34) 0deg,
-    rgba(217, 139, 255, 0.34) 118deg,
-    rgba(124, 140, 255, 0.34) 232deg,
-    #c4caff 300deg,
-    #ffffff 324deg,
-    #e7c4ff 348deg,
-    rgba(124, 140, 255, 0.34) 360deg
-  );
-  animation: nav-orbit 3.4s linear infinite;
-}
-@keyframes nav-orbit {
-  to {
-    --nav-orbit: 360deg;
-  }
 }
 
 /* ─── Responsive ────────────────────────────────────────── */
