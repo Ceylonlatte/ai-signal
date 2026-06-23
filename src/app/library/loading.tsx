@@ -7,7 +7,7 @@ export default function Loading() {
       <p className="page__lead">
         点 ⭐ 存入的内容会在这里整理成知识库笔记，可点开看全文与结构化摘要。
       </p>
-      <div className="results">
+      <div className="results results--kb">
         {Array.from({ length: 5 }).map((_, i) => (
           <div key={i} className="skeleton-item">
             <span className="skeleton-line" style={{ width: `${72 - i * 5}%` }} />

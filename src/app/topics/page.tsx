@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import Link from "next/link";
 import { db } from "../../db/client.js";
 import { getTopTopics } from "./trend-queries.js";
 
@@ -42,7 +43,7 @@ export default async function Topics() {
         <div className="placeholder">
           <p className="placeholder__title">今天还没有话题</p>
           <p className="placeholder__body">
-            话题在条目入库并完成聚类后生成。<a href="/status">查看流水线状态 →</a>
+            话题在条目入库并完成聚类后生成。<Link href="/status">查看流水线状态 →</Link>
           </p>
         </div>
       ) : (
@@ -56,10 +57,10 @@ export default async function Topics() {
               <div className="stat__label">总热度</div>
               <div className="stat__value">{totalHeat.toFixed(1)}</div>
             </div>
-            <a className="stat stat--lead" href={`/topics/${leader.id}`}>
+            <Link className="stat stat--lead" href={`/topics/${leader.id}`}>
               <div className="stat__label">最热话题</div>
               <div className="stat__value">{leader.label}</div>
-            </a>
+            </Link>
           </div>
 
           <div className="lite-shell">
@@ -69,7 +70,7 @@ export default async function Topics() {
                 const score = Number(t.scoreSum) || 0;
                 return (
                   <li key={t.id}>
-                    <a
+                    <Link
                       className={`lite-row${rank <= 3 ? " lite-row--top" : ""}${rank === 1 ? " lite-row--lead" : ""}`}
                       href={`/topics/${t.id}`}
                       style={{ "--i": idx } as CSSProperties}
@@ -88,7 +89,7 @@ export default async function Topics() {
                         <span className="lite-row__score">{score.toFixed(1)}</span>
                         <span className="lite-row__count">{t.itemCount} 条</span>
                       </span>
-                    </a>
+                    </Link>
                   </li>
                 );
               })}

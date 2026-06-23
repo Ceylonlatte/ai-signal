@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { rssFeedLabel } from "../../lib/sources/rss-feeds.js";
 import { relativeTime } from "../format.js";
 import { hostOf } from "../feed-item-data.js";
@@ -25,7 +26,7 @@ export function RssView({ rows }: { rows: RssRow[] }) {
         <div className="placeholder">
           <p className="placeholder__title">还没有 RSS 内容</p>
           <p className="placeholder__body">
-            下一次每日抓取后，当天发布的官方文章会出现在这里。<a href="/status">查看采集状态 →</a>
+            下一次每日抓取后，当天发布的官方文章会出现在这里。<Link href="/status">查看采集状态 →</Link>
           </p>
         </div>
       ) : (
@@ -68,7 +69,7 @@ export function RssView({ rows }: { rows: RssRow[] }) {
                         </>
                       )}
                       <span className="meta-dot">·</span>
-                      <a className="item__detail" href={`/rss/${item.id}`}>详情 →</a>
+                      <Link className="item__detail" href={`/rss/${item.id}`}>详情 →</Link>
                     </div>
                   </article>
                 );

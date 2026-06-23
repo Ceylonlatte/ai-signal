@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { db } from "../../../db/client.js";
 import { getTopic } from "../trend-queries.js";
 import { getTopicFeed } from "../../feed-queries.js";
@@ -30,7 +31,7 @@ export default async function TopicDetail({
         </div>
       </div>
       <p className="page__lead">
-        归入「{topic.label}」话题的条目。<a href="/topics">← 返回话题趋势</a>
+        归入「{topic.label}」话题的条目。<Link href="/topics">← 返回话题趋势</Link>
       </p>
 
       {data.length === 0 ? (

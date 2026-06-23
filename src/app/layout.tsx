@@ -38,6 +38,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="zh-CN" className={`${sans.variable} ${display.variable} ${mono.variable}`}>
       <head>
+        {/* First-paint guard: paint the Void canvas before the app stylesheet
+            loads (in dev it's injected async) so route changes never flash the
+            browser's white base. Mirrors --app-bg / --porcelain. */}
+        <style>{`html{background:#1f232e}`}</style>
         <noscript>
           {/* Scroll-reveal hides items until JS runs; keep them visible without it. */}
           <style>{`.feed .item{opacity:1!important}`}</style>

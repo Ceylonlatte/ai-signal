@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { db } from "../../db/client.js";
 import { getRawFeed, normalizeRawSource, normalizeRawState, type RawSource, type RawState } from "./raw-queries.js";
 import { RawList } from "./raw-list.js";
@@ -43,26 +44,26 @@ export default async function RawPage({
         <div className="page__tools">
           <div className="sort" role="group" aria-label="平台过滤">
             {SOURCE_TABS.map((tab) => (
-              <a
+              <Link
                 key={tab.source}
                 className="sort__btn"
                 data-active={source === tab.source}
                 href={rawHref(tab.source, state)}
               >
                 {tab.label}
-              </a>
+              </Link>
             ))}
           </div>
           <div className="sort" role="group" aria-label="收录状态过滤">
             {STATE_TABS.map((tab) => (
-              <a
+              <Link
                 key={tab.state}
                 className="sort__btn"
                 data-active={state === tab.state}
                 href={rawHref(source, tab.state)}
               >
                 {tab.label}
-              </a>
+              </Link>
             ))}
           </div>
           {total > 0 && (
@@ -84,7 +85,7 @@ export default async function RawPage({
             {source === "all" && state === "all" ? "还没有原始内容" : "当前筛选条件下没有内容"}
           </p>
           <p className="placeholder__body">
-            采集管道可能还在运行。<a href="/status">查看流水线状态 →</a>
+            采集管道可能还在运行。<Link href="/status">查看流水线状态 →</Link>
           </p>
         </div>
       ) : (

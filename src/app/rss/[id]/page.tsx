@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { db } from "../../../db/client.js";
 import { getRssEntry } from "../rss-queries.js";
 import { rssFeedLabel } from "../../../lib/sources/rss-feeds.js";
@@ -27,7 +28,7 @@ export default async function RssDetail({ params }: { params: Promise<{ id: stri
       <main className="page">
         <div className="placeholder">
           <p className="placeholder__title">条目不存在</p>
-          <p className="placeholder__body"><a href="/?source=rss">← 返回 RSS</a></p>
+          <p className="placeholder__body"><Link href="/?source=rss">← 返回 RSS</Link></p>
         </div>
       </main>
     );
@@ -43,7 +44,7 @@ export default async function RssDetail({ params }: { params: Promise<{ id: stri
 
   return (
     <main className="page kb-detail">
-      <p className="kb-detail__back"><a href="/?source=rss">← RSS</a></p>
+      <p className="kb-detail__back"><Link href="/?source=rss">← RSS</Link></p>
 
       <div className="kb-detail__head">
         <h1 className="kb-detail__title">{title}</h1>
@@ -69,24 +70,26 @@ export default async function RssDetail({ params }: { params: Promise<{ id: stri
       ) : null}
 
       {hasNote && (
-        <div className="kb-note">
-          {note.overview && <Section title="概述"><p>{note.overview}</p></Section>}
-          {note.keypoints && note.keypoints.length > 0 && (
-            <Section title="核心要点">
-              <ul>{note.keypoints.map((k, i) => <li key={i}>{k}</li>)}</ul>
-            </Section>
-          )}
-          {note.facts && note.facts.length > 0 && (
-            <Section title="关键数据 · 结论">
-              <ul>{note.facts.map((f, i) => <li key={i}>{f}</li>)}</ul>
-            </Section>
-          )}
-          {note.why && <Section title="为什么值得记"><p>{note.why}</p></Section>}
-          {note.terms && note.terms.length > 0 && (
-            <Section title="术语">
-              <ul>{note.terms.map((t, i) => <li key={i}><strong>{t.term}</strong>：{t.def}</li>)}</ul>
-            </Section>
-          )}
+        <div className="kb-note-shell">
+          <div className="kb-note">
+            {note.overview && <Section title="概述"><p>{note.overview}</p></Section>}
+            {note.keypoints && note.keypoints.length > 0 && (
+              <Section title="核心要点">
+                <ul>{note.keypoints.map((k, i) => <li key={i}>{k}</li>)}</ul>
+              </Section>
+            )}
+            {note.facts && note.facts.length > 0 && (
+              <Section title="关键数据 · 结论">
+                <ul>{note.facts.map((f, i) => <li key={i}>{f}</li>)}</ul>
+              </Section>
+            )}
+            {note.why && <Section title="为什么值得记"><p>{note.why}</p></Section>}
+            {note.terms && note.terms.length > 0 && (
+              <Section title="术语">
+                <ul>{note.terms.map((t, i) => <li key={i}><strong>{t.term}</strong>：{t.def}</li>)}</ul>
+              </Section>
+            )}
+          </div>
         </div>
       )}
 

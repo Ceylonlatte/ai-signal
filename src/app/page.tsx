@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { db } from "../db/client.js";
 import { getFeed, normalizeFeedSource, type FeedSort, type FeedSource } from "./feed-queries.js";
 import { getSourceStatus } from "./source-status.js";
@@ -30,14 +31,14 @@ function SourceTabs({ active, sort }: { active: TabSource; sort: FeedSort }) {
   return (
     <div className="sort" role="group" aria-label="平台过滤">
       {SOURCE_TABS.map((tab) => (
-        <a
+        <Link
           key={tab.source}
           className="sort__btn"
           data-active={active === tab.source}
           href={tabHref(tab.source, sort)}
         >
           {tab.label}
-        </a>
+        </Link>
       ))}
     </div>
   );
@@ -92,12 +93,12 @@ export default async function Home({
           <SourceTabs active={source} sort={sort} />
           <div className="page__tools__right">
             <div className="sort" role="group" aria-label="排序方式">
-              <a className="sort__btn" data-active={sort === "time"} href={feedHref({ source, sort: "time" })}>
+              <Link className="sort__btn" data-active={sort === "time"} href={feedHref({ source, sort: "time" })}>
                 最新
-              </a>
-              <a className="sort__btn" data-active={sort === "score"} href={feedHref({ source, sort: "score" })}>
+              </Link>
+              <Link className="sort__btn" data-active={sort === "score"} href={feedHref({ source, sort: "score" })}>
                 按分数
-              </a>
+              </Link>
             </div>
             {total > 0 && <span className="page__count">共 {total} 条</span>}
           </div>
@@ -123,7 +124,7 @@ export default async function Home({
             {source === "all" ? "还没有信号" : "当前平台还没有信号"}
           </p>
           <p className="placeholder__body">
-            采集与打分管道可能还在运行。<a href="/status">查看流水线状态 →</a>
+            采集与打分管道可能还在运行。<Link href="/status">查看流水线状态 →</Link>
           </p>
         </div>
       ) : (

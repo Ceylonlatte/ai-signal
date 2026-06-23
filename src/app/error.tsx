@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 export default function Error({ reset }: { error: Error; reset: () => void }) {
   return (
     <main className="page">
@@ -12,7 +14,7 @@ export default function Error({ reset }: { error: Error; reset: () => void }) {
             重试
           </button>
           {"　"}
-          <a href="/status">查看流水线状态 →</a>
+          <Link href="/status">查看流水线状态 →</Link>
         </p>
       </div>
     </main>

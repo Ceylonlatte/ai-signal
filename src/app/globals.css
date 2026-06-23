@@ -161,6 +161,10 @@
 
 html {
   -webkit-text-size-adjust: 100%;
+  /* The Void canvas lives on the root too (not just body), so hard navigations
+     and cross-document view transitions never flash the UA's white base before
+     the page paints or under the transition snapshot. */
+  background: var(--app-bg);
 }
 
 body {
@@ -211,9 +215,22 @@ button {
    (reading progress) / action; pure atmosphere rides on light,
    blur and shadow so the cool-neutral discipline survives. */
 
-/* Soft crossfade between server navigations (sort / pagination /
-   nav). Kills the force-dynamic full-page skeleton flash. Chromium
-   MPA only; other engines fall back to instant nav. */
+/* In-app navigation is client-side (<Link>) — it swaps the page subtree in
+   place with no document reload, so route changes never flash the white base.
+   A brief fade-in on the page content keeps them smooth (auto-disabled by the
+   reduced-motion reset below). The cross-document @view-transition is kept only
+   as a no-op progressive enhancement for a rare full-document load. */
+.app__main > main {
+  animation: page-in var(--dur) var(--ease-out-quart);
+}
+@keyframes page-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
 @view-transition {
   navigation: auto;
 }
@@ -1338,14 +1355,63 @@ button {
     box-shadow: 0 0 0 8px transparent;
   }
 }
+/* Library shelf (/library): each saved item is a deep-glass note card — the
+   rail's glass language applied to a list. The shared .item is restyled only
+   under .results--kb, so the feed / search / rss lists keep their flat rows. */
+.results--kb {
+  gap: var(--space-3);
+}
+.results--kb .item {
+  padding: var(--space-4);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, #0c0e17, #080a12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 22px 48px -34px rgba(0, 0, 0, 0.9);
+}
+/* Calm glass hover — a light-wash + lift, no nebula ring/glow. */
+.results--kb .item:hover {
+  transform: translateY(-2px);
+  background: linear-gradient(180deg, #0e1019, #0a0c14);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 30px 62px -40px rgba(0, 0, 0, 0.95);
+}
+.results--kb .item:hover::before {
+  display: none;
+}
+.results--kb .skeleton-item {
+  padding: var(--space-4);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, #0c0e17, #080a12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 22px 48px -34px rgba(0, 0, 0, 0.9);
+}
+
 .kb-card__points {
   margin: var(--space-2) 0 0;
-  padding-left: 18px;
-  color: var(--text-muted);
-  font-size: 13px;
+  padding: 0;
+  list-style: none;
 }
 .kb-card__points li {
-  margin: 2px 0;
+  position: relative;
+  padding-left: 15px;
+  margin: 5px 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.kb-card__points li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 8px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.6;
 }
 .kb-status[data-status="failed"] {
   color: var(--danger);
@@ -1368,8 +1434,9 @@ button {
   border: 0;
   padding: 0;
   color: var(--accent);
-  font: inherit;
-  font-size: 13px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.02em;
   cursor: pointer;
 }
 .kb-detail__back-btn:hover {
@@ -1381,22 +1448,44 @@ button {
   margin: 0 0 var(--space-2);
   color: var(--text-strong);
 }
-.kb-note {
-  background: var(--surface-sunken);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-4);
+/* KB detail (D1): the structured note rides the rail's double-bezel glass — a
+   bright tray cradling a deep glass core — while the full body reads on the
+   void below it. Section heads become mono accent labels. */
+.kb-note-shell {
   margin: var(--space-4) 0;
+  padding: 6px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.028);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 40px 90px -56px rgba(0, 0, 0, 0.92),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+.kb-note {
+  margin: 0;
+  border: 0;
+  border-radius: 16px;
+  padding: var(--space-5);
+  background: linear-gradient(180deg, #0c0e17, #080a12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02);
 }
 .kb-note__sec {
-  margin: 0 0 var(--space-4);
+  margin: 0 0 var(--space-5);
 }
 .kb-note__sec:last-child {
   margin-bottom: 0;
 }
+/* Lead "概述" reads a touch brighter + larger than the rest of the note. */
+.kb-note__sec:first-child > p:first-of-type {
+  color: var(--text-strong);
+  font-size: 15px;
+  line-height: 1.7;
+}
 .kb-note__h {
-  font-size: 13px;
+  font-family: var(--font-mono);
+  font-size: 11px;
   font-weight: 600;
+  letter-spacing: 0.08em;
   color: var(--accent);
   margin: 0 0 var(--space-2);
 }

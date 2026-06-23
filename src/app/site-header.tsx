@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
@@ -34,7 +35,7 @@ export function SiteHeader() {
   const [open, setOpen] = useState(false);
 
   const navLink = (it: NavItem) => (
-    <a
+    <Link
       key={it.href}
       href={it.href}
       className="sidebar__link"
@@ -42,7 +43,7 @@ export function SiteHeader() {
     >
       <it.Icon className="sidebar__icon" size={18} weight="regular" aria-hidden="true" />
       {it.label}
-    </a>
+    </Link>
   );
 
   // Close the takeover whenever the route changes.
@@ -70,19 +71,19 @@ export function SiteHeader() {
       <aside className="sidebar">
         <div className="sidebar__shell">
           <div className="sidebar__core">
-            <a className="sidebar__brand" href="/">
+            <Link className="sidebar__brand" href="/">
               <span className="sidebar__mark" aria-hidden="true">
                 S
               </span>
               AI Signal
-            </a>
+            </Link>
             <nav className="sidebar__nav" aria-label="主导航">
               <p className="sidebar__group">浏览</p>
               {NAV.filter((it) => it.group === "browse").map(navLink)}
               <p className="sidebar__group sidebar__group--foot">管理</p>
               {NAV.filter((it) => it.group === "manage").map(navLink)}
             </nav>
-            <a className="sidebar__status" href="/status">
+            <Link className="sidebar__status" href="/status">
               <span className="sidebar__status-orb" aria-hidden="true">
                 <i />
               </span>
@@ -95,18 +96,18 @@ export function SiteHeader() {
                   <path d="M5 12h13M13 6l6 6-6 6" />
                 </svg>
               </span>
-            </a>
+            </Link>
           </div>
         </div>
       </aside>
 
       <header className="topbar">
-        <a className="topbar__brand" href="/">
+        <Link className="topbar__brand" href="/">
           <span className="topbar__mark" aria-hidden="true">
             S
           </span>
           AI Signal
-        </a>
+        </Link>
         <button
           type="button"
           className="topbar__burger"
@@ -133,7 +134,7 @@ export function SiteHeader() {
         </button>
         <nav className="navmodal__nav" aria-label="主导航">
           {NAV.map((it, i) => (
-            <a
+            <Link
               key={it.href}
               href={it.href}
               className="navmodal__link"
@@ -142,7 +143,7 @@ export function SiteHeader() {
               onClick={() => setOpen(false)}
             >
               {it.label}
-            </a>
+            </Link>
           ))}
         </nav>
       </div>

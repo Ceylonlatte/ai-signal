@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { strengthLabel, type Strength } from "./format.js";
 import type { FeedItemData } from "./feed-item-data.js";
@@ -293,9 +294,9 @@ function FeedItem({
     >
       <SignalBadge strength={data.strength} score={data.score} rText={data.rText} />
       <div className="item__body">
-        <a className="item__title" href={`/library/${data.id}?from=feed`}>
+        <Link className="item__title" href={`/library/${data.id}?from=feed`}>
           {data.title}
-        </a>
+        </Link>
         {data.host && (
           <a
             className="item__ext item__src"

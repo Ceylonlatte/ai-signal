@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import Link from "next/link";
 import { db } from "../../../db/client.js";
 import { sourceLabel, relativeTime } from "../../format.js";
 import { hostOf } from "../../feed-item-data.js";
@@ -60,7 +61,7 @@ export default async function LibraryDetail({
       <main className="page">
         <div className="placeholder">
           <p className="placeholder__title">条目不存在</p>
-          <p className="placeholder__body"><a href="/library">← 返回收藏</a></p>
+          <p className="placeholder__body"><Link href="/library">← 返回收藏</Link></p>
         </div>
       </main>
     );
@@ -112,29 +113,31 @@ export default async function LibraryDetail({
       ) : null}
 
       {(overviewText || hasStructured) && (
-        <div className="kb-note">
-          {overviewText && (
-            <Section title="概述">
-              <p>{overviewText}</p>
-              {!note.overview && summaryEn && <p className="kb-note__en">{summaryEn}</p>}
-            </Section>
-          )}
-          {note.keypoints && note.keypoints.length > 0 && (
-            <Section title="核心要点">
-              <ul>{note.keypoints.map((k, i) => <li key={i}>{k}</li>)}</ul>
-            </Section>
-          )}
-          {note.facts && note.facts.length > 0 && (
-            <Section title="关键数据 · 结论">
-              <ul>{note.facts.map((f, i) => <li key={i}>{f}</li>)}</ul>
-            </Section>
-          )}
-          {note.why && <Section title="为什么值得记"><p>{note.why}</p></Section>}
-          {note.terms && note.terms.length > 0 && (
-            <Section title="术语">
-              <ul>{note.terms.map((t, i) => <li key={i}><strong>{t.term}</strong>：{t.def}</li>)}</ul>
-            </Section>
-          )}
+        <div className="kb-note-shell">
+          <div className="kb-note">
+            {overviewText && (
+              <Section title="概述">
+                <p>{overviewText}</p>
+                {!note.overview && summaryEn && <p className="kb-note__en">{summaryEn}</p>}
+              </Section>
+            )}
+            {note.keypoints && note.keypoints.length > 0 && (
+              <Section title="核心要点">
+                <ul>{note.keypoints.map((k, i) => <li key={i}>{k}</li>)}</ul>
+              </Section>
+            )}
+            {note.facts && note.facts.length > 0 && (
+              <Section title="关键数据 · 结论">
+                <ul>{note.facts.map((f, i) => <li key={i}>{f}</li>)}</ul>
+              </Section>
+            )}
+            {note.why && <Section title="为什么值得记"><p>{note.why}</p></Section>}
+            {note.terms && note.terms.length > 0 && (
+              <Section title="术语">
+                <ul>{note.terms.map((t, i) => <li key={i}><strong>{t.term}</strong>：{t.def}</li>)}</ul>
+              </Section>
+            )}
+          </div>
         </div>
       )}
 

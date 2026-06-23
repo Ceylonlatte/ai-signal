@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { db } from "../../db/client.js";
 import { getFavorites } from "../feed-queries.js";
 import { FavoriteButton } from "../favorite-button.js";
@@ -35,7 +36,7 @@ export default async function Library() {
           <p className="placeholder__body">在信号流里点 ⭐ 把值得留存的内容存进来。</p>
         </div>
       ) : (
-        <div className="results">
+        <div className="results results--kb">
           {rows.map((item) => {
             const title = item.titleZh || item.title || "(无标题)";
             const host = hostOf(item.url ?? null);
@@ -45,10 +46,10 @@ export default async function Library() {
             return (
               <article key={item.id} className="item">
                 <div className="item__top">
-                  <a className="item__title" href={`/library/${item.id}`}>
+                  <Link className="item__title" href={`/library/${item.id}`}>
                     {title}
                     {host && <span className="item__ext">{host}</span>}
-                  </a>
+                  </Link>
                 </div>
                 {note.overview && <p className="item__summary">{note.overview}</p>}
                 {!note.overview && item.summaryZh && <p className="item__summary">{item.summaryZh}</p>}
