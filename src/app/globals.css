@@ -1988,6 +1988,28 @@ button {
   font-weight: 700;
   border-top: 1px solid var(--border-strong);
 }
+/* On /status the tables ride the rail's glass: a deep glass panel with hairline
+   dividers and a barely-there header. Scoped to .is-live so the keywords table
+   keeps its bordered sunken card. */
+.is-live .table-wrap {
+  border-color: rgba(255, 255, 255, 0.07);
+  background: linear-gradient(180deg, #0c0e17, #080a12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 30px 70px -50px rgba(0, 0, 0, 0.9);
+}
+.is-live .table th {
+  background: rgba(255, 255, 255, 0.018);
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+.is-live .table td {
+  border-bottom-color: rgba(255, 255, 255, 0.05);
+}
+.is-live .table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+.is-live .table__total td {
+  border-top-color: rgba(255, 255, 255, 0.12);
+}
 
 /* ─── Stat tiles ────────────────────────────────────────── */
 
@@ -1996,11 +2018,15 @@ button {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: var(--space-3);
 }
+/* Stat tiles wear the rail's glass: a deep glass face lit by an inset highlight
+   and held by a soft ambient shadow (used on /topics + /status). */
 .stat {
   padding: var(--space-4);
-  background: var(--surface-sunken);
-  border: 1px solid var(--border);
+  background: linear-gradient(180deg, #0c0e17, #080a12);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: var(--radius-md);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 22px 48px -34px rgba(0, 0, 0, 0.9);
 }
 .stat__label {
   color: var(--text-faint);
@@ -2024,25 +2050,105 @@ button {
 
 /* ─── Pipeline progress (status) — monochrome, like the dial ─── */
 
+/* The pipeline is a stepped flow: a spine threads through the stages, each a
+   glass capsule. Completed nodes go solid, the live bottleneck pulses, and the
+   connector between nodes lights by completion. Cradled in the rail's glass. */
+.pipe-shell {
+  padding: 6px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.028);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 36px 80px -52px rgba(0, 0, 0, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
 .pipe {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) var(--space-4) var(--space-3);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #0c0e17, #080a12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02);
 }
-.pipe__row {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+.pipe__step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: var(--space-3);
+}
+.pipe__spine {
+  position: relative;
+}
+/* Nodes + connectors are positioned, so they don't care about capsule height. */
+.pipe__node {
+  position: absolute;
+  top: 15px;
+  left: 50%;
+  width: 11px;
+  height: 11px;
+  margin-left: -5.5px;
+  border-radius: 50%;
+  background: #12141d;
+  box-shadow: inset 0 0 0 2px var(--ash), 0 0 0 4px rgba(0, 0, 0, 0.35);
+  z-index: 1;
+}
+.pipe__seg {
+  position: absolute;
+  top: 26px;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  bottom: calc(-1 * var(--space-3) - 15px);
+  background: rgba(255, 255, 255, 0.08);
+}
+.pipe__step.is-done .pipe__node {
+  background: var(--ink);
+  box-shadow: inset 0 0 0 2px var(--ink), 0 0 0 4px rgba(0, 0, 0, 0.35);
+}
+.pipe__step.is-done .pipe__seg {
+  background: linear-gradient(180deg, var(--ink), var(--ash));
+}
+.pipe__step.is-active .pipe__node {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px rgba(174, 175, 255, 0.22),
+    0 0 11px 1px rgba(174, 175, 255, 0.8);
+  animation: pipe-node 1.9s var(--ease-out-quint) infinite;
+}
+@keyframes pipe-node {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px rgba(174, 175, 255, 0.18),
+      0 0 8px 0 rgba(174, 175, 255, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(174, 175, 255, 0.26),
+      0 0 14px 2px rgba(174, 175, 255, 0.9);
+  }
+}
+.pipe__cap {
+  padding: var(--space-3) var(--space-4);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.022);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.pipe__step.is-active .pipe__cap {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    0 14px 30px -20px rgba(0, 0, 0, 0.9);
 }
 .pipe__head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-3);
+  margin-bottom: var(--space-2);
 }
 .pipe__label {
   color: var(--text);
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 600;
 }
 .pipe__val {
@@ -2054,17 +2160,24 @@ button {
 .pipe__pending {
   color: var(--text-muted);
 }
+.pipe__step.is-active .pipe__pending {
+  color: var(--accent);
+}
 .bar {
-  height: 8px;
+  height: 6px;
   border-radius: var(--radius-pill);
-  background: var(--mist);
+  background: rgba(0, 0, 0, 0.42);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.7);
   overflow: hidden;
 }
 .bar__fill {
   height: 100%;
   border-radius: inherit;
-  background: var(--ink);
+  background: var(--ash);
   transition: width var(--dur-slow) var(--ease-out-expo);
+}
+.pipe__step.is-done .bar__fill {
+  background: var(--ink);
 }
 
 /* Running / idle status dot (status header — "status" use of ember). */
@@ -2175,30 +2288,71 @@ button {
 
 /* Compact leaderboard — one line per topic, heat bars aligned in a fixed
    column so they're directly comparable down the list. */
+/* The leaderboard sits in a machined glass panel (double-bezel): a hairline
+   tray cradling a deep glass core, matching the rail. */
+.lite-shell {
+  padding: 6px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.028);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 36px 80px -52px rgba(0, 0, 0, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
 .lite {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: var(--space-2);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #0c0e17, #080a12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02);
 }
 .lite-row {
+  position: relative;
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr) 150px auto;
   grid-template-areas: "rank label bar score";
   align-items: center;
   gap: var(--space-4);
   padding: var(--space-3);
-  border-bottom: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
   animation: topic-rise var(--dur-reveal) var(--ease-out-expo) backwards;
   animation-delay: calc(var(--i, 0) * 34ms);
-  transition: background var(--dur) var(--ease-out-quart),
-    transform var(--dur) var(--ease-out-quart);
+  transition: background var(--dur-slow) var(--ease-island),
+    box-shadow var(--dur-slow) var(--ease-island);
+}
+.lite li:last-child .lite-row {
+  border-bottom: none;
 }
 .lite-row:hover {
-  background: var(--hover);
+  background: rgba(255, 255, 255, 0.035);
   text-decoration: none;
-  transform: translateX(3px);
-  box-shadow: var(--glow-nebula-soft);
+}
+/* Leaderboard #1: a faintly raised glass pill marked by one accent point,
+   echoing the rail's selected item. */
+.lite-row--lead {
+  border-bottom: none;
+  margin-bottom: var(--space-1);
+  padding-left: calc(var(--space-3) + 10px);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    0 1px 1px rgba(0, 0, 0, 0.45), 0 14px 30px -20px rgba(0, 0, 0, 0.9);
+}
+.lite-row--lead::after {
+  content: "";
+  position: absolute;
+  left: var(--space-3);
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin-top: -2px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 9px 1px rgba(174, 175, 255, 0.85);
+}
+.lite-row--lead:hover {
+  background: rgba(255, 255, 255, 0.07);
 }
 .lite-row__rank {
   grid-area: rank;
@@ -2401,9 +2555,7 @@ button {
 .btn,
 .feed-more,
 .item,
-.lite-row,
-.result,
-.stat {
+.result {
   position: relative;
 }
 .sort__btn[data-active="true"]::before,
@@ -2411,10 +2563,8 @@ button {
 .btn--ghost:hover:not(:disabled)::before,
 .feed-more:hover:not(:disabled)::before,
 .item:hover::before,
-.lite-row:hover::before,
 .result:hover::before,
-.vote__btn:hover:not(:disabled):not([data-active="true"])::before,
-.stat::before {
+.vote__btn:hover:not(:disabled):not([data-active="true"])::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -2433,12 +2583,6 @@ button {
 .sort__btn[data-active="true"]::before,
 .seg__input:checked + .seg__face::before {
   padding: 2px;
-}
-/* Stat panels wear the stroke at rest, so it stays a quiet hairline rather
-   than competing with the lit interactive states. */
-.stat::before {
-  background: var(--nebula-gradient);
-  opacity: 0.5;
 }
 
 /* ─── Responsive ────────────────────────────────────────── */

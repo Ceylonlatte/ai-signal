@@ -13,19 +13,44 @@ const fmtCost = (n: number) => `$${n < 1 ? n.toFixed(4) : n.toFixed(2)}`;
 const fmtDate = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString("zh-CN", { hour12: false }) : "—";
 
-function Pipe({ label, done, total, extra }: { label: string; done: number; total: number; extra?: string }) {
-  const pct = total > 0 ? Math.round((done / total) * 100) : 100;
+type Stage = { label: string; done: number; total: number; extra?: string };
+
+function Pipeline({ stages }: { stages: Stage[] }) {
+  // The flow is sequential; the first stage that isn't fully drained is the
+  // live bottleneck — it gets the pulsing node, completed stages go solid.
+  const activeIdx = stages.findIndex((st) => st.total > 0 && st.done < st.total);
   return (
-    <div className="pipe__row">
-      <div className="pipe__head">
-        <span className="pipe__label">{label}</span>
-        <span className="pipe__val">
-          {fmtInt(done)} / {fmtInt(total)}
-          {extra ? <span className="pipe__pending"> · {extra}</span> : null}
-        </span>
-      </div>
-      <div className="bar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={label}>
-        <div className="bar__fill" style={{ width: `${pct}%` }} />
+    <div className="pipe-shell">
+      <div className="pipe">
+        {stages.map((st, i) => {
+          const pct = st.total > 0 ? Math.round((st.done / st.total) * 100) : 100;
+          const complete = pct >= 100;
+          const active = i === activeIdx;
+          const last = i === stages.length - 1;
+          return (
+            <div
+              className={`pipe__step${complete ? " is-done" : ""}${active ? " is-active" : ""}`}
+              key={st.label}
+            >
+              <div className="pipe__spine" aria-hidden="true">
+                <span className="pipe__node" />
+                {!last && <span className="pipe__seg" />}
+              </div>
+              <div className="pipe__cap">
+                <div className="pipe__head">
+                  <span className="pipe__label">{st.label}</span>
+                  <span className="pipe__val">
+                    {fmtInt(st.done)} / {fmtInt(st.total)}
+                    {st.extra ? <span className="pipe__pending"> · {st.extra}</span> : null}
+                  </span>
+                </div>
+                <div className="bar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={st.label}>
+                  <div className="bar__fill" style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -80,14 +105,16 @@ export default async function Status() {
       </p>
 
       <section className="section" style={{ marginTop: 0 }}>
-        <div className="pipe">
-          <Pipe label="采集 raw_items（已 triage）" done={s.rawTotal - s.rawPending} total={s.rawTotal} extra={s.rawPending > 0 ? `${fmtInt(s.rawPending)} 待处理` : undefined} />
-          <Pipe label="入库 items（过门槛 Q）" done={s.items} total={s.items} />
-          <Pipe label="打分 scores" done={s.scored} total={s.items} />
-          <Pipe label="向量 embedding" done={s.embeddings} total={s.items} extra={s.embedPending > 0 ? `${fmtInt(s.embedPending)} 待补` : undefined} />
-          <Pipe label="双语摘要 summary" done={s.summarized} total={s.items} extra={[s.summaryPending > 0 ? `${fmtInt(s.summaryPending)} 待摘要` : null, s.summaryFailed > 0 ? `${fmtInt(s.summaryFailed)} 死信` : null].filter(Boolean).join(" · ") || undefined} />
-          <Pipe label="话题聚类（已归类条目）" done={s.items - s.unclustered} total={s.items} extra={`${fmtInt(s.topics)} 个话题`} />
-        </div>
+        <Pipeline
+          stages={[
+            { label: "采集 raw_items（已 triage）", done: s.rawTotal - s.rawPending, total: s.rawTotal, extra: s.rawPending > 0 ? `${fmtInt(s.rawPending)} 待处理` : undefined },
+            { label: "入库 items（过门槛 Q）", done: s.items, total: s.items },
+            { label: "打分 scores", done: s.scored, total: s.items },
+            { label: "向量 embedding", done: s.embeddings, total: s.items, extra: s.embedPending > 0 ? `${fmtInt(s.embedPending)} 待补` : undefined },
+            { label: "双语摘要 summary", done: s.summarized, total: s.items, extra: [s.summaryPending > 0 ? `${fmtInt(s.summaryPending)} 待摘要` : null, s.summaryFailed > 0 ? `${fmtInt(s.summaryFailed)} 死信` : null].filter(Boolean).join(" · ") || undefined },
+            { label: "话题聚类（已归类条目）", done: s.items - s.unclustered, total: s.items, extra: `${fmtInt(s.topics)} 个话题` },
+          ]}
+        />
         {s.summaryFailed > 0 && (
           <div className="notice notice--alert" role="alert" style={{ marginTop: "var(--space-5)" }}>
             <span className="notice__dot" aria-hidden="true" />

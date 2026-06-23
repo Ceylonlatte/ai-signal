@@ -62,36 +62,38 @@ export default async function Topics() {
             </a>
           </div>
 
-          <ol className="lite">
-            {top.map((t: any, idx: number) => {
-              const rank = idx + 1;
-              const score = Number(t.scoreSum) || 0;
-              return (
-                <li key={t.id}>
-                  <a
-                    className={`lite-row${rank <= 3 ? " lite-row--top" : ""}`}
-                    href={`/topics/${t.id}`}
-                    style={{ "--i": idx } as CSSProperties}
-                  >
-                    <span className="lite-row__rank">
-                      {String(rank).padStart(2, "0")}
-                    </span>
-                    <span className="lite-row__label">{t.label}</span>
-                    <span className="lite-row__bar" aria-hidden="true">
-                      <span
-                        className="lite-row__bar-fill"
-                        style={{ "--w": `${pctOf(score)}%` } as CSSProperties}
-                      />
-                    </span>
-                    <span className="lite-row__metrics">
-                      <span className="lite-row__score">{score.toFixed(1)}</span>
-                      <span className="lite-row__count">{t.itemCount} 条</span>
-                    </span>
-                  </a>
-                </li>
-              );
-            })}
-          </ol>
+          <div className="lite-shell">
+            <ol className="lite">
+              {top.map((t: any, idx: number) => {
+                const rank = idx + 1;
+                const score = Number(t.scoreSum) || 0;
+                return (
+                  <li key={t.id}>
+                    <a
+                      className={`lite-row${rank <= 3 ? " lite-row--top" : ""}${rank === 1 ? " lite-row--lead" : ""}`}
+                      href={`/topics/${t.id}`}
+                      style={{ "--i": idx } as CSSProperties}
+                    >
+                      <span className="lite-row__rank">
+                        {String(rank).padStart(2, "0")}
+                      </span>
+                      <span className="lite-row__label">{t.label}</span>
+                      <span className="lite-row__bar" aria-hidden="true">
+                        <span
+                          className="lite-row__bar-fill"
+                          style={{ "--w": `${pctOf(score)}%` } as CSSProperties}
+                        />
+                      </span>
+                      <span className="lite-row__metrics">
+                        <span className="lite-row__score">{score.toFixed(1)}</span>
+                        <span className="lite-row__count">{t.itemCount} 条</span>
+                      </span>
+                    </a>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
         </>
       )}
     </main>

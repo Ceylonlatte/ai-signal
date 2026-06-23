@@ -19,25 +19,27 @@ export default function Loading() {
           <span className="skeleton-line" style={{ width: "70%", height: 16, marginTop: 8 }} />
         </div>
       </div>
-      <ol className="lite">
-        {Array.from({ length: 10 }).map((_, i) => (
-          <li key={i}>
-            <div className="lite-row">
-              <span className="lite-row__rank">{String(i + 1).padStart(2, "0")}</span>
-              <span className="lite-row__label">
-                <span
-                  className="skeleton-line"
-                  style={{ width: `${64 - i * 3}%`, maxWidth: 320 }}
-                />
-              </span>
-              <span className="lite-row__bar" aria-hidden="true" />
-              <span className="lite-row__metrics">
-                <span className="skeleton-line" style={{ width: 30, height: 13 }} />
-              </span>
-            </div>
-          </li>
-        ))}
-      </ol>
+      <div className="lite-shell">
+        <ol className="lite">
+          {Array.from({ length: 10 }).map((_, i) => (
+            <li key={i}>
+              <div className={`lite-row${i === 0 ? " lite-row--lead" : ""}`}>
+                <span className="lite-row__rank">{String(i + 1).padStart(2, "0")}</span>
+                <span className="lite-row__label">
+                  <span
+                    className="skeleton-line"
+                    style={{ width: `${64 - i * 3}%`, maxWidth: 320 }}
+                  />
+                </span>
+                <span className="lite-row__bar" aria-hidden="true" />
+                <span className="lite-row__metrics">
+                  <span className="skeleton-line" style={{ width: 30, height: 13 }} />
+                </span>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
     </main>
   );
 }
