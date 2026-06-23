@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { db } from "../../db/client.js";
 import { getTopTopics } from "./trend-queries.js";
 
@@ -14,7 +15,16 @@ function formatDate(iso: string): string {
 export default async function Topics() {
   const today = new Date().toISOString().slice(0, 10);
   const top = await getTopTopics(db, { date: today });
-  const maxScore = top.length > 0 ? Math.max(...top.map((t: any) => Number(t.scoreSum) || 0)) : 0;
+  const maxScore =
+    top.length > 0 ? Math.max(...top.map((t: any) => Number(t.scoreSum) || 0)) : 0;
+  const totalHeat = top.reduce(
+    (sum: number, t: any) => sum + (Number(t.scoreSum) || 0),
+    0,
+  );
+  const pctOf = (score: number) =>
+    maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+
+  const leader = top[0];
 
   return (
     <main className="page">
@@ -25,10 +35,10 @@ export default async function Topics() {
         </div>
       </div>
       <p className="page__lead">
-        {formatDate(today)}，AI 圈正在聊的话题，按合成分排序。条形长度代表当日热度，点击任一话题查看归入的条目。
+        {formatDate(today)} · AI 圈正在讨论的话题，按当日热度排序。点击任一话题，查看归入的条目。
       </p>
 
-      {top.length === 0 ? (
+      {!leader ? (
         <div className="placeholder">
           <p className="placeholder__title">今天还没有话题</p>
           <p className="placeholder__body">
@@ -36,31 +46,53 @@ export default async function Topics() {
           </p>
         </div>
       ) : (
-        <div className="topics">
-          {top.map((t: any, i: number) => {
-            const score = Number(t.scoreSum) || 0;
-            const pct = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
-            return (
-              <a
-                key={t.id}
-                className={`topic${i < 3 ? " topic--top" : ""}`}
-                href={`/topics/${t.id}`}
-              >
-                <span className="topic__rank">{i + 1}</span>
-                <span className="topic__body">
-                  <span className="topic__label">{t.label}</span>
-                  {t.topTitle && <span className="topic__hint">{t.topTitle}</span>}
-                  <span className="topic__bar" aria-hidden="true">
-                    <span className="topic__bar-fill" style={{ width: `${pct}%` }} />
-                  </span>
-                </span>
-                <span className="topic__meta">
-                  今日 {t.itemCount} 条 · {score.toFixed(1)}
-                </span>
-              </a>
-            );
-          })}
-        </div>
+        <>
+          <div className="dash">
+            <div className="stat">
+              <div className="stat__label">今日话题</div>
+              <div className="stat__value">{top.length}</div>
+            </div>
+            <div className="stat">
+              <div className="stat__label">总热度</div>
+              <div className="stat__value">{totalHeat.toFixed(1)}</div>
+            </div>
+            <a className="stat stat--lead" href={`/topics/${leader.id}`}>
+              <div className="stat__label">最热话题</div>
+              <div className="stat__value">{leader.label}</div>
+            </a>
+          </div>
+
+          <ol className="lite">
+            {top.map((t: any, idx: number) => {
+              const rank = idx + 1;
+              const score = Number(t.scoreSum) || 0;
+              return (
+                <li key={t.id}>
+                  <a
+                    className={`lite-row${rank <= 3 ? " lite-row--top" : ""}`}
+                    href={`/topics/${t.id}`}
+                    style={{ "--i": idx } as CSSProperties}
+                  >
+                    <span className="lite-row__rank">
+                      {String(rank).padStart(2, "0")}
+                    </span>
+                    <span className="lite-row__label">{t.label}</span>
+                    <span className="lite-row__bar" aria-hidden="true">
+                      <span
+                        className="lite-row__bar-fill"
+                        style={{ "--w": `${pctOf(score)}%` } as CSSProperties}
+                      />
+                    </span>
+                    <span className="lite-row__metrics">
+                      <span className="lite-row__score">{score.toFixed(1)}</span>
+                      <span className="lite-row__count">{t.itemCount} 条</span>
+                    </span>
+                  </a>
+                </li>
+              );
+            })}
+          </ol>
+        </>
       )}
     </main>
   );

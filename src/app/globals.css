@@ -308,12 +308,30 @@ button {
 }
 .sidebar__nav {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 2px;
+}
+/* Group caption — a quiet mono micro-label that splits browse vs. manage. */
+.sidebar__group {
+  margin: 0;
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+/* The "manage" cluster sinks to the rail's base, so the column reads as
+   composed top-and-bottom instead of top-heavy with a dead lower half. */
+.sidebar__group--foot {
+  margin-top: auto;
 }
 .sidebar__link {
   display: flex;
   align-items: center;
+  gap: var(--space-3);
   height: 38px;
   padding: 0 var(--space-3);
   border-radius: var(--radius-md);
@@ -330,6 +348,60 @@ button {
   text-decoration: none;
   transform: translateX(4px);
 }
+/* Nav icons: dim at rest, lift to white on hover, ultraviolet on the one current
+   item (the accent is already the link colour, so this stays a consistent hue). */
+.sidebar__icon {
+  flex: none;
+  color: var(--text-faint);
+  transition: color var(--dur) var(--ease-island),
+    transform var(--dur-slow) var(--ease-island),
+    filter var(--dur) var(--ease-island);
+}
+.sidebar__link:hover .sidebar__icon {
+  color: var(--text-strong);
+  transform: scale(1.16) rotate(-4deg);
+  filter: drop-shadow(0 0 6px rgba(242, 246, 250, 0.55));
+}
+.sidebar__link[aria-current="page"] .sidebar__icon {
+  color: var(--accent);
+  transform: scale(1.12);
+  animation: nav-icon-glow 3.4s var(--ease-island) infinite;
+}
+/* The active glyph carries its own faint ultraviolet halo that pulses on the same
+   beat — the icon itself looks lit, not just tinted. */
+@keyframes nav-icon-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 2px rgba(172, 175, 255, 0.35));
+  }
+  50% {
+    filter: drop-shadow(0 0 7px rgba(172, 175, 255, 0.85));
+  }
+}
+/* Hover sheen: a soft highlight sweeps across the pill (light moving over glass,
+   not a draw-on line). Driven by background-position so it never overflows the
+   pill or clips the selected glow. */
+.sidebar__link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    105deg,
+    transparent 42%,
+    rgba(255, 255, 255, 0.1) 50%,
+    transparent 58%
+  );
+  background-size: 250% 100%;
+  background-position: 150% 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.sidebar__link:hover::after {
+  opacity: 1;
+  background-position: -60% 0;
+  transition: background-position 0.7s var(--ease-island), opacity 0.25s linear;
+}
 /* The selected nav item: a crisp Lunar-White label on a Void pill wrapped in a
    bright 2px nebula-gradient ring (drawn by the shared ::before rule below) and
    lit by a soft nebula glow. White text keeps it legible; the gradient lives in
@@ -339,6 +411,21 @@ button {
   color: var(--text-strong);
   font-weight: 700;
   box-shadow: var(--glow-nebula-soft);
+  animation: nav-breathe 3.4s var(--ease-island) infinite;
+}
+/* The selected pill breathes in time with the orbiting comet: its nebula bloom
+   swells and settles on the same 3.4s beat, so the whole module reads as one
+   live, charged element rather than a static highlight with a moving edge. */
+@keyframes nav-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 12px -5px rgba(124, 140, 255, 0.42),
+      0 0 26px -12px rgba(217, 139, 255, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px -4px rgba(124, 140, 255, 0.6),
+      0 0 42px -9px rgba(217, 139, 255, 0.5);
+  }
 }
 /* Brand mark: a small lift + brighter bloom on hover. */
 .sidebar__mark {
@@ -1963,85 +2050,168 @@ button {
   background: var(--danger);
 }
 
-/* ─── Topics — a ranked board of "what AI is talking about" ─── */
+/* ─── Topics — a mission-control board: a dashboard summary sitting over a
+   dense, scannable leaderboard. Three readout tiles (count / total heat /
+   hottest) set the day's shape; the list below packs every topic onto a
+   single mono line with its heat bar held in a fixed column, so the whole
+   board reads top-to-bottom at a glance. Heat stays monochrome (ink → ash)
+   and grows on arrival; the nebula glow is scarce — a resting hairline on
+   the tiles, a soft bloom on row hover, the top-three ranks the lone tint. */
 
-.topics {
-  display: flex;
-  flex-direction: column;
-}
-.topic {
+/* Dashboard head — three readout tiles reusing the .stat panel; the third
+   (hottest topic) runs wider and links into that topic. */
+.dash {
   display: grid;
-  grid-template-columns: 30px 1fr auto;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-4) var(--space-2);
-  border-bottom: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  transition: background var(--dur) var(--ease-out-quart);
+  grid-template-columns: 1fr 1fr 1.7fr;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
 }
-.topic:hover {
-  background: var(--hover);
-  box-shadow: var(--glow-nebula-soft);
-}
-.topic__rank {
-  color: var(--text-faint);
-  font-size: 15px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-.topic--top .topic__rank {
-  color: var(--ink);
-}
-.topic__body {
-  min-width: 0;
-}
-.topic__label {
-  display: block;
-  color: var(--text-strong);
+/* The hottest-topic tile carries text, not a figure — single-line, lit as a
+   link rather than a mono readout. */
+.stat--lead .stat__value {
+  font-family: var(--font-display);
   font-size: 16px;
-  font-weight: 600;
-  line-height: 1.35;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--accent);
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  transition: color var(--dur) var(--ease-out-quart);
 }
-.topic:hover .topic__label {
-  color: var(--accent);
+.stat--lead:hover {
+  text-decoration: none;
 }
-.topic__hint {
-  display: block;
-  margin-top: 2px;
+.stat--lead:hover .stat__value {
+  color: var(--accent-hover);
+}
+
+/* Compact leaderboard — one line per topic, heat bars aligned in a fixed
+   column so they're directly comparable down the list. */
+.lite {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.lite-row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 150px auto;
+  grid-template-areas: "rank label bar score";
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  animation: topic-rise var(--dur-reveal) var(--ease-out-expo) backwards;
+  animation-delay: calc(var(--i, 0) * 34ms);
+  transition: background var(--dur) var(--ease-out-quart),
+    transform var(--dur) var(--ease-out-quart);
+}
+.lite-row:hover {
+  background: var(--hover);
+  text-decoration: none;
+  transform: translateX(3px);
+  box-shadow: var(--glow-nebula-soft);
+}
+.lite-row__rank {
+  grid-area: rank;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   color: var(--text-faint);
-  font-size: 13px;
+  text-align: right;
+}
+/* Top three ranks wear the nebula gradient — the only colour in the column. */
+.lite-row--top .lite-row__rank {
+  background: var(--nebula-bright);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.lite-row__label {
+  grid-area: label;
+  min-width: 0;
+  color: var(--text-strong);
+  font-size: 15px;
+  font-weight: 600;
   line-height: 1.4;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: color var(--dur) var(--ease-out-quart);
 }
-.topic__bar {
-  display: block;
-  margin-top: 8px;
+.lite-row:hover .lite-row__label {
+  color: var(--accent);
+}
+.lite-row__bar {
+  grid-area: bar;
   height: 6px;
   border-radius: var(--radius-pill);
   background: var(--mist);
   overflow: hidden;
 }
-.topic__bar-fill {
+.lite-row__bar-fill {
   display: block;
   height: 100%;
+  width: var(--w, 0%);
   border-radius: inherit;
   background: var(--ash);
+  animation: bar-grow var(--dur-reveal) var(--ease-out-expo) backwards;
+  animation-delay: calc(var(--i, 0) * 34ms + 90ms);
 }
-.topic--top .topic__bar-fill {
+.lite-row--top .lite-row__bar-fill {
   background: var(--ink);
 }
-.topic__meta {
-  color: var(--text-faint);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
+.lite-row__metrics {
+  grid-area: score;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
   white-space: nowrap;
-  text-align: right;
+}
+.lite-row__score {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.lite-row--top .lite-row__score {
+  color: var(--text-strong);
+}
+.lite-row__count {
+  font-family: var(--font-mono);
+  color: var(--text-faint);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Arrival: rows rise + sharpen, then their bars fill from empty, so the
+   day's heat reads as data landing rather than a static render. */
+@keyframes topic-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+@keyframes bar-grow {
+  from {
+    width: 0;
+  }
+}
+
+/* The loading skeleton reuses these classes, so pin it to rest — no rise,
+   no bar grow — to avoid a skeleton arrival handing off to a second one. */
+.is-static .lite-row,
+.is-static .lite-row__bar-fill {
+  animation: none;
 }
 
 /* ─── Search ────────────────────────────────────────────── */
@@ -2127,8 +2297,6 @@ button {
 .badge,
 .pipe__val,
 .item__triage,
-.topic__rank,
-.topic__meta,
 .result__sim,
 .feed-status,
 .feed-end {
@@ -2146,7 +2314,7 @@ button {
 .btn,
 .feed-more,
 .item,
-.topic,
+.lite-row,
 .result,
 .stat {
   position: relative;
@@ -2157,7 +2325,7 @@ button {
 .btn--ghost:hover:not(:disabled)::before,
 .feed-more:hover:not(:disabled)::before,
 .item:hover::before,
-.topic:hover::before,
+.lite-row:hover::before,
 .result:hover::before,
 .vote__btn:hover:not(:disabled):not([data-active="true"])::before,
 .stat::before {
@@ -2188,16 +2356,54 @@ button {
   opacity: 0.5;
 }
 
+/* The selected nav ring is alive: a bright nebula "comet" orbits its 2px stroke —
+   a single hot point of light circling the active item's edge (energy circulating
+   in mission control), riding a dim violet base ring. Continuous, not a one-shot
+   draw. mask + 2px padding stay inherited from the rule above; the conic fill and
+   its rotation are what change here. @property lets the angle tween smoothly. */
+@property --nav-orbit {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+.sidebar__link[aria-current="page"]::before {
+  background: conic-gradient(
+    from var(--nav-orbit),
+    rgba(124, 140, 255, 0.34) 0deg,
+    rgba(217, 139, 255, 0.34) 118deg,
+    rgba(124, 140, 255, 0.34) 232deg,
+    #c4caff 300deg,
+    #ffffff 324deg,
+    #e7c4ff 348deg,
+    rgba(124, 140, 255, 0.34) 360deg
+  );
+  animation: nav-orbit 3.4s linear infinite;
+}
+@keyframes nav-orbit {
+  to {
+    --nav-orbit: 360deg;
+  }
+}
+
 /* ─── Responsive ────────────────────────────────────────── */
 
 @media (max-width: 600px) {
-  .topic {
-    grid-template-columns: 24px 1fr;
-    gap: var(--space-3);
+  /* Two numeric tiles abreast, the hottest-topic tile spanning under them. */
+  .dash {
+    grid-template-columns: 1fr 1fr;
   }
-  .topic__meta {
-    grid-column: 2;
-    text-align: left;
+  .stat--lead {
+    grid-column: 1 / -1;
+  }
+  /* The bar drops to its own full-width line under the label so it still
+     reads at phone widths. */
+  .lite-row {
+    grid-template-columns: 26px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "rank label score"
+      ".    bar   bar";
+    row-gap: 7px;
+    column-gap: var(--space-3);
   }
   .section {
     margin-top: var(--space-8);
@@ -2234,6 +2440,11 @@ button {
   /* Reduced motion: skip the reveal entirely, show everything at rest. */
   .feed .item {
     opacity: 1;
+    animation: none;
+  }
+  /* Topics: no rise / stagger, and bars rest at their full width. */
+  .lite-row,
+  .lite-row__bar-fill {
     animation: none;
   }
 }
