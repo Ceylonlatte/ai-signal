@@ -4,7 +4,9 @@ import { db } from "../../../db/client.js";
 import { sourceLabel, relativeTime } from "../../format.js";
 import { hostOf } from "../../feed-item-data.js";
 import { FavoriteButton } from "../../favorite-button.js";
-import { TranslatedBlock } from "../../kb-markdown.js";
+import { Markdown } from "../../kb-markdown.js";
+import { CommentList, parseComments, countComments } from "../../comments.js";
+import { BilingualBody, BilingualDiscussion } from "../../bilingual-reader.js";
 import { BackLink } from "../../back-link.js";
 
 export const dynamic = "force-dynamic";
@@ -84,26 +86,33 @@ export default async function LibraryDetail({
     (note.terms?.length ?? 0) > 0
   );
 
+  const hasBodyZh = Boolean(entry.bodyZhMd?.trim());
+  const hasCommentsZh = Boolean(entry.commentsZhMd?.trim());
+  const zhComments = parseComments(entry.commentsZhMd);
+  const enComments = parseComments(entry.commentsMd);
+
   return (
     <main className="page kb-detail">
       <p className="kb-detail__back"><BackLink from={from} /></p>
 
       <div className="kb-detail__head">
-        <h1 className="kb-detail__title">{title}</h1>
-        <div className="item__meta">
-          <span className="item__source">{sourceLabel(entry.source)}</span>
-          {entry.author && entry.source === "twitter" && (
-            <><span className="meta-dot">·</span><span>@{entry.author}</span></>
-          )}
-          {entry.createdAt && (
-            <><span className="meta-dot">·</span><span>{relativeTime(entry.createdAt, now)}</span></>
-          )}
-          {entry.url && (
-            <><span className="meta-dot">·</span>
-            <a href={entry.url} target="_blank" rel="noreferrer">原文{host ? `（${host}）` : ""} ↗</a></>
-          )}
-          <FavoriteButton itemId={entry.id} initial={entry.isFavorited} />
+        <div className="kb-detail__headmain">
+          <h1 className="kb-detail__title">{title}</h1>
+          <div className="item__meta">
+            <span className="item__source">{sourceLabel(entry.source)}</span>
+            {entry.author && entry.source === "twitter" && (
+              <><span className="meta-dot">·</span><span>@{entry.author}</span></>
+            )}
+            {entry.createdAt && (
+              <><span className="meta-dot">·</span><span>{relativeTime(entry.createdAt, now)}</span></>
+            )}
+            {entry.url && (
+              <><span className="meta-dot">·</span>
+              <a href={entry.url} target="_blank" rel="noreferrer">原文{host ? `（${host}）` : ""} ↗</a></>
+            )}
+          </div>
         </div>
+        <FavoriteButton itemId={entry.id} initial={entry.isFavorited} variant="action" />
       </div>
 
       {entry.status === "pending" || entry.status === null ? (
@@ -142,17 +151,20 @@ export default async function LibraryDetail({
       )}
 
       {entry.bodyMd && (
-        <div className="kb-body">
-          <h2 className="kb-body__h">全文</h2>
-          <TranslatedBlock zh={entry.bodyZhMd} original={entry.bodyMd} />
-        </div>
+        <BilingualBody
+          hasZh={hasBodyZh}
+          zh={<div className="markdown"><Markdown>{entry.bodyZhMd ?? ""}</Markdown></div>}
+          original={<div className="markdown"><Markdown>{entry.bodyMd}</Markdown></div>}
+        />
       )}
 
       {entry.commentsMd && (
-        <div className="kb-body kb-comments">
-          <h2 className="kb-body__h">讨论</h2>
-          <TranslatedBlock zh={entry.commentsZhMd} original={entry.commentsMd} />
-        </div>
+        <BilingualDiscussion
+          count={countComments(hasCommentsZh ? zhComments : enComments)}
+          hasZh={hasCommentsZh}
+          zh={<CommentList nodes={hasCommentsZh ? zhComments : enComments} />}
+          original={<CommentList nodes={enComments} />}
+        />
       )}
     </main>
   );

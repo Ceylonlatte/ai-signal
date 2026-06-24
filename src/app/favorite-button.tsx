@@ -30,7 +30,17 @@ function StarIcon({ filled }: { filled: boolean }) {
   );
 }
 
-export function FavoriteButton({ itemId, initial = false }: { itemId: number; initial?: boolean }) {
+export function FavoriteButton({
+  itemId,
+  initial = false,
+  variant = "icon",
+}: {
+  itemId: number;
+  initial?: boolean;
+  // "icon" = the bare feed/list star; "action" = the labeled pill on the reader,
+  // where saving is a primary action and deserves a real, thumb-sized target.
+  variant?: "icon" | "action";
+}) {
   const [on, setOn] = useState(initial);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(false);
@@ -50,6 +60,26 @@ export function FavoriteButton({ itemId, initial = false }: { itemId: number; in
     } finally {
       setPending(false);
     }
+  }
+
+  if (variant === "action") {
+    return (
+      <div className="kb-save-wrap">
+        {error && <span className="vote__err">未保存</span>}
+        <button
+          type="button"
+          className="kb-save"
+          data-active={on}
+          aria-pressed={on}
+          aria-label={on ? "已存入知识库，点击移除" : "存入知识库"}
+          disabled={pending}
+          onClick={toggle}
+        >
+          <StarIcon filled={on} />
+          <span>{on ? "已收藏" : "收藏"}</span>
+        </button>
+      </div>
+    );
   }
 
   return (

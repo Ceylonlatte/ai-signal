@@ -1425,6 +1425,12 @@ button {
 
 /* ─── Knowledge base: detail (reader) view ──────────────── */
 
+/* One shared reading measure for the whole reader column — the note, full
+   text and discussion all wrap at the same comfortable line length (~72ch,
+   matching the feed's prose cap) instead of running the full 1160px pane. */
+.kb-detail {
+  --kb-measure: 60ch;
+}
 .kb-detail__back {
   margin: 0 0 var(--space-3);
   font-size: 13px;
@@ -1442,17 +1448,91 @@ button {
 .kb-detail__back-btn:hover {
   text-decoration: underline;
 }
+.kb-detail__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  max-width: var(--kb-measure);
+}
+.kb-detail__headmain {
+  flex: 1;
+  min-width: 0;
+}
 .kb-detail__title {
   font-size: 22px;
   line-height: 1.3;
   margin: 0 0 var(--space-2);
   color: var(--text-strong);
 }
+
+/* Reader save action — the product's headline "keep this" gesture, promoted
+   from the tail of the meta line to a labeled pill beside the title. A ghost
+   pill at rest (nebula on hover), amber once kept (the scarce "saved" home),
+   with a hit area padded out to a comfortable thumb target. */
+.kb-save-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+.kb-save {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 40px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease-out-quint),
+    border-color var(--dur-fast) var(--ease-out-quint),
+    color var(--dur-fast) var(--ease-out-quint),
+    box-shadow var(--dur-fast) var(--ease-out-quint),
+    transform var(--dur-fast) var(--ease-out-quart);
+}
+/* Expand the tap target to ≥44px without bloating the visual pill. */
+.kb-save::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+}
+.kb-save .star__icon {
+  display: block;
+}
+.kb-save:not([data-active="true"]):hover:not(:disabled) {
+  border-color: transparent;
+  color: var(--accent);
+  box-shadow: var(--glow-nebula-soft);
+}
+.kb-save[data-active="true"] {
+  border-color: color-mix(in srgb, var(--amber) 55%, var(--border-strong));
+  color: var(--amber);
+}
+.kb-save[data-active="true"]:hover:not(:disabled) {
+  border-color: var(--amber);
+}
+.kb-save[data-active="true"] .star__icon {
+  animation: icon-pop 380ms var(--ease-out-expo);
+}
+.kb-save:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.kb-save:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 /* KB detail (D1): the structured note rides the rail's double-bezel glass — a
    bright tray cradling a deep glass core — while the full body reads on the
    void below it. Section heads become mono accent labels. */
 .kb-note-shell {
   margin: var(--space-4) 0;
+  max-width: var(--kb-measure);
   padding: 6px;
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.028);
@@ -1513,6 +1593,11 @@ button {
   line-height: 1.7;
   color: var(--text);
 }
+/* Cap the long-form body at the reader's shared measure so prose doesn't run
+   the full pane width. (Used by the rss detail body / summary.) */
+.kb-body .markdown {
+  max-width: var(--kb-measure);
+}
 .markdown img {
   max-width: 100%;
   height: auto;
@@ -1559,13 +1644,180 @@ button {
   border-left: 2px solid var(--border);
   color: var(--text-faint);
 }
-/* Full reddit discussion: tighter nested list so deep threads stay readable. */
-.kb-comments .markdown ul {
-  margin: var(--space-2) 0;
-  padding-left: var(--space-4);
+/* ─── KB reader (library detail): bilingual 全文 + 讨论 ──────
+   Each zone opens with a mono accent label + hairline rule and a segmented
+   译文 / 原文 (/ 对照) switch. 对照 widens past the reading measure into two
+   columns; everything else stays capped at the shared measure. */
+.kb-read {
+  margin-top: var(--space-6);
+  max-width: var(--kb-measure);
 }
-.kb-comments .markdown li {
-  margin: var(--space-1) 0;
+.kb-read[data-mode="compare"] {
+  max-width: min(960px, 100%);
+}
+.kb-read__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.kb-sec-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.kb-sec-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* Segmented language switch — a quiet pill of tabs, active segment lifted. */
+.kb-seg {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+}
+.kb-seg button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  color: var(--text-faint);
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease-out-quint),
+    color var(--dur-fast) var(--ease-out-quint);
+}
+.kb-seg button:hover {
+  color: var(--text-muted);
+}
+.kb-seg button[data-on="true"] {
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+/* 对照: translation | source, source recessed behind a divider. */
+.kb-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-6);
+}
+.kb-compare__label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  margin-bottom: var(--space-2);
+}
+.kb-compare__col--orig {
+  padding-left: var(--space-6);
+  border-left: 1px solid var(--border);
+}
+.kb-compare__col--orig .markdown {
+  color: var(--text-muted);
+}
+
+/* Discussion comment rows: gradient monogram + byline + flame score (pinned
+   right), body below. The standout comment's score glows amber. Replies indent
+   under the parent behind a hairline thread guide. */
+.kb-c {
+  display: flex;
+  gap: var(--space-3);
+  padding: 0 0 var(--space-5);
+}
+.kb-thread > .kb-c:last-child {
+  padding-bottom: 0;
+}
+.kb-c__mono {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  background: radial-gradient(120% 120% at 30% 20%, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.kb-c__main {
+  flex: 1;
+  min-width: 0;
+}
+.kb-c__by {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.kb-c__name {
+  color: var(--text-strong);
+  font-weight: 600;
+  font-size: 14px;
+}
+.kb-c__score {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.kb-c__score-i {
+  display: block;
+  opacity: 0.85;
+}
+.kb-c__score[data-top="true"] {
+  color: var(--amber);
+}
+.kb-c__body {
+  margin-top: var(--space-1);
+}
+.kb-c__body p:first-child {
+  margin-top: 0;
+}
+.kb-c__body p:last-child {
+  margin-bottom: 0;
+}
+.kb-thread--reply {
+  margin-top: var(--space-3);
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--border-strong);
+}
+.kb-thread--reply > .kb-c {
+  padding: 0 0 var(--space-4);
+}
+.kb-thread--reply > .kb-c:last-child {
+  padding-bottom: 0;
+}
+
+@media (max-width: 760px) {
+  .kb-read[data-mode="compare"] {
+    max-width: var(--kb-measure);
+  }
+  .kb-compare {
+    grid-template-columns: 1fr;
+    gap: var(--space-5);
+  }
+  .kb-compare__col--orig {
+    padding-left: 0;
+    padding-top: var(--space-4);
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
 }
 
 /* ─── Infinite scroll footer ────────────────────────────── */
@@ -2542,6 +2794,88 @@ button {
 .is-static .lite-row,
 .is-static .lite-row__bar-fill {
   animation: none;
+}
+
+/* ─── Topic detail — subject header + vitals readout ────────
+   The detail page opens with a clear subject: a back link to the trend board,
+   the topic name as the page title, then one horizontal instrument readout of
+   the topic's vitals (size, freshness, sources) on the content glass. This
+   orients the reader before the list, replacing the old one-line description
+   that only restated the title and buried the back link at its end. */
+.topic-head {
+  margin-bottom: var(--space-6);
+}
+.topic-head__title {
+  font-size: clamp(1.5rem, 1.15rem + 1.7vw, 1.9rem);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  margin-bottom: var(--space-4);
+  animation: enter-rise 600ms var(--ease-out-expo) both;
+}
+.topic-readout {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  flex-wrap: wrap;
+  gap: var(--space-4) 0;
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, #0c0e17, #080a12);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 22px 48px -34px rgba(0, 0, 0, 0.9);
+  animation: enter-rise 600ms var(--ease-out-expo) 90ms both;
+}
+/* Cells divide by a hairline (the instrument-panel idiom used across the
+   leaderboard + pipeline), not a colored stripe; the first cell has none. */
+.topic-readout__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 0 var(--space-5);
+  border-left: 1px solid rgba(255, 255, 255, 0.07);
+}
+.topic-readout__cell:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+.topic-readout__val {
+  font-family: var(--font-mono);
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+/* The source cell carries short labels, not a figure — set it in the UI sans
+   so it doesn't read as a malformed number in the mono readout. */
+.topic-readout__val--text {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topic-readout__lab {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+/* Narrow: drop the dividers and let the cells wrap on a row gap so a wrapped
+   cell never starts with an orphan hairline. */
+@media (max-width: 560px) {
+  .topic-readout {
+    gap: var(--space-4) var(--space-6);
+    padding: var(--space-4);
+  }
+  .topic-readout__cell {
+    padding: 0;
+    border-left: 0;
+  }
 }
 
 /* ─── Search ────────────────────────────────────────────── */
