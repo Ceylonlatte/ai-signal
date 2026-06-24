@@ -1,5 +1,6 @@
 import { db } from "../../db/client.js";
 import { getPipelineStatus, getDataStats, getModelUsage, getIngestStats } from "../status-queries.js";
+import { StatusAutoRefresh } from "./auto-refresh.js";
 
 export const dynamic = "force-dynamic";
 
@@ -89,8 +90,8 @@ export default async function Status() {
 
   return (
     <main className="page is-wide is-live">
-      {/* React 19 hoists this to <head>: client-side meta refresh every 5s */}
-      <meta httpEquiv="refresh" content="5" />
+      {/* Soft auto-refresh scoped to this page (see auto-refresh.tsx). */}
+      <StatusAutoRefresh />
 
       <div className="page__head">
         <h1 className="page__title">
