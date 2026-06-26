@@ -31,15 +31,15 @@ export function parseComments(md: string | null | undefined): Comment[] {
     const m = raw.match(BULLET);
     if (m) {
       flush();
-      const indent = m[1].length;
+      const indent = m[1]?.length ?? 0;
       const node: Comment = {
-        author: m[2],
+        author: m[2] ?? "",
         score: m[3] != null ? Number(m[3]) : null,
         body: "",
         children: [],
       };
-      while (stack.length > 1 && stack[stack.length - 1].indent >= indent) stack.pop();
-      stack[stack.length - 1].children.push(node);
+      while (stack.length > 1 && stack[stack.length - 1]!.indent >= indent) stack.pop();
+      stack[stack.length - 1]!.children.push(node);
       stack.push({ indent, children: node.children });
       current = node;
     } else if (current) {
@@ -74,8 +74,9 @@ function FlameIcon() {
 // when the top scores tie, nothing is singled out.
 function leadScore(nodes: Comment[]): number | null {
   const scores = nodes.map((n) => n.score ?? 0).sort((a, b) => b - a);
-  if (scores.length === 0 || scores[0] <= 0) return null;
-  return scores[0] > (scores[1] ?? -1) ? scores[0] : null;
+  const top = scores[0] ?? 0;
+  if (top <= 0) return null;
+  return top > (scores[1] ?? -1) ? top : null;
 }
 
 export function CommentList({ nodes, depth = 0 }: { nodes: Comment[]; depth?: number }) {

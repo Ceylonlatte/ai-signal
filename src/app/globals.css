@@ -775,6 +775,7 @@ button {
 /* Bare head (home feed): no visible title — the toolbar IS the page head.
    The <h1> stays for a11y/SEO via .sr-only. */
 .page__head--bare {
+  display: block;
   margin-bottom: var(--space-5);
 }
 /* Toolbar head splits into two groups: platform filter on the left,
@@ -833,6 +834,131 @@ button {
   }
 }
 
+/* ─── Signal console — the feed's page head ──────────────────
+   One slim glass row: platform filter on the left, live count + sort on the
+   right. Server-rendered — every control is a <Link>, so filtering is a plain
+   navigation. Wraps to a second line only at narrow widths. */
+.console {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.02);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  animation: enter-rise 600ms var(--ease-out-expo) 90ms both;
+}
+.console__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.console__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.console__stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.console__stat i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--aurora-mint);
+  box-shadow: 0 0 9px 0 rgba(75, 243, 200, 0.85);
+}
+.console__stat b {
+  color: var(--text-strong);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.platform {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease-out-quint),
+    border-color var(--dur-fast) var(--ease-out-quint),
+    transform var(--dur-fast) var(--ease-out-quart);
+}
+.platform:hover {
+  color: var(--text-strong);
+  text-decoration: none;
+  transform: translateY(-1px);
+}
+.platform__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ash);
+}
+.platform__n {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+.platform[data-active="true"] {
+  color: var(--text-strong);
+  border-color: transparent;
+  background: linear-gradient(180deg, #15171f, #0d0f17);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.platform[data-active="true"] .platform__n {
+  color: var(--accent);
+}
+.platform[data-active="true"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--nebula-bright);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+/* Brand source dots — each platform reads in its own hue. */
+.platform[data-src="all"] .platform__dot {
+  background: var(--nebula-bright);
+}
+.platform[data-src="hn"] .platform__dot {
+  background: #ff6a00;
+  box-shadow: 0 0 7px rgba(255, 106, 0, 0.55);
+}
+.platform[data-src="reddit"] .platform__dot {
+  background: #ff4500;
+  box-shadow: 0 0 7px rgba(255, 69, 0, 0.55);
+}
+.platform[data-src="twitter"] .platform__dot {
+  background: #e8eaed;
+  box-shadow: 0 0 7px rgba(232, 234, 237, 0.5);
+}
+.platform[data-src="rss"] .platform__dot {
+  background: #ff8a3d;
+  box-shadow: 0 0 7px rgba(255, 138, 61, 0.5);
+}
+
 /* ─── Notice (stale sources / inline status) ────────────── */
 
 .notice {
@@ -880,6 +1006,7 @@ button {
 .feed {
   display: flex;
   flex-direction: column;
+  gap: var(--space-4);
 }
 
 .item {
@@ -892,18 +1019,311 @@ button {
     box-shadow var(--dur-slow) var(--ease-island),
     transform var(--dur-slow) var(--ease-island);
 }
-/* Home feed items carry a signal dial in a left gutter + a content column so
-   title, reason, summary and meta align. Other lists (raw / library / rss /
-   suppressed) reuse .item without a dial, so this scopes to the dialed layout. */
+/* Home + topic feed cards — machined "double-bezel" glass plates: a recessed
+   dial well in the metric gutter, a content column, and a right-hand action
+   rail. A spotlight bloom + the shared .item:hover::before nebula edge light
+   the card on hover. Other lists (raw / library / rss / suppressed) reuse the
+   flat .item, so all the card styling scopes to .item--feed. */
 .item--feed {
+  position: relative;
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: start;
-  column-gap: var(--space-3);
+  column-gap: var(--space-6);
+  padding: var(--space-5) var(--space-6);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, #0c0e17, #080a12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 30px 70px -50px rgba(0, 0, 0, 0.95);
+  overflow: hidden;
   cursor: pointer;
 }
+.item--feed:hover {
+  background: linear-gradient(180deg, #0e111b, #0a0c15);
+  border-color: transparent;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 24px 60px -34px rgba(0, 0, 0, 0.95), var(--glow-nebula-soft);
+}
+/* Spotlight — a soft nebula bloom fades in behind the card on hover. */
+.item__glow {
+  position: absolute;
+  left: -40px;
+  top: -120px;
+  width: 420px;
+  height: 420px;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(circle, rgba(124, 140, 255, 0.14), transparent 60%);
+  transition: opacity var(--dur-slow) var(--ease-island);
+}
+.item--feed:hover .item__glow {
+  opacity: 1;
+}
+
+/* Metric gutter: dial in a recessed well, with strength tier + R on one line
+   beneath it (compact, so the card height is set by the content, not the dial). */
+.item__metric {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+.item__well {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 34%, #16181f, #0a0c12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.03), 0 14px 30px -18px #000;
+}
+.item__well .signal__ring {
+  width: 46px;
+  height: 46px;
+}
+/* Strength tier + R readout, stacked under the dial like an instrument label. */
+.item__gauge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+.item__tier {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--text-faint);
+}
+.item--feed[data-strength="high"] .item__tier {
+  color: var(--ink);
+}
+.item--feed[data-strength="mid"] .item__tier {
+  color: var(--graphite);
+}
+.item__r {
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: var(--text-faint);
+}
+
 .item__body {
+  position: relative;
   min-width: 0;
+}
+/* Kicker line above the title: source · author · time · host, in mono. */
+.item__kicker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px var(--space-2);
+  margin-bottom: 8px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.item__kicker .item__src {
+  font-family: var(--font-mono);
+}
+
+/* Right-hand action rail: EN toggle, up/down vote, then the save star set apart
+   below a hairline. The buttons are uniform machined circles. */
+.item__rail {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+.item__vote {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.item__act {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  transition: color var(--dur-fast) var(--ease-out-quint),
+    border-color var(--dur-fast) var(--ease-out-quint),
+    box-shadow var(--dur-fast) var(--ease-out-quint),
+    transform var(--dur-fast) var(--ease-out-quart);
+}
+.item__act:hover:not(:disabled):not([data-active="true"]) {
+  color: var(--accent);
+  border-color: transparent;
+  box-shadow: var(--glow-nebula-soft);
+  transform: translateY(-1px);
+}
+.item__act:active:not(:disabled) {
+  transform: scale(0.9);
+}
+.item__act:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.item__act[data-active="true"] {
+  background: var(--action);
+  border-color: var(--action);
+  color: var(--on-accent);
+}
+.item__act[data-kind="down"][data-active="true"] {
+  background: var(--graphite);
+  border-color: var(--graphite);
+}
+.item__act .vote__icon {
+  display: block;
+}
+/* The signal lands: a one-shot ring blooms + the icon pops on activation. */
+.item__act::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+}
+.item__act[data-active="true"]::after {
+  animation: vote-ring var(--dur-reveal) var(--ease-out-expo);
+}
+.item__act[data-active="true"] .vote__icon {
+  animation: icon-pop 380ms var(--ease-out-expo);
+}
+/* EN + save sit in their own group below the vote pair, set off by a short
+   hairline so "calibrate ranking" (up/down) reads apart from "read / keep". */
+.item__rail-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  width: 34px;
+  margin-top: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+/* Save star → same machined circle as the vote/EN buttons. */
+.item__rail-group .star {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  line-height: 0;
+}
+.item__rail-group .star:hover:not([data-active="true"]) {
+  color: var(--accent);
+  border-color: transparent;
+  box-shadow: var(--glow-nebula-soft);
+}
+.item__rail-group .star[data-active="true"] {
+  color: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 55%, var(--border-strong));
+}
+.item__rail .vote__err {
+  text-align: center;
+}
+
+/* Tags as mono # chips, kept to a single non-wrapping row so they add one
+   compact line at most (feed only — other lists keep the flat .tag). */
+.item__tags {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  margin-top: var(--space-3);
+  overflow: hidden;
+}
+.item--feed .tag {
+  flex: none;
+  height: 21px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+}
+.item--feed .tag::before {
+  content: "#";
+  margin-right: 1px;
+  color: var(--text-faint);
+}
+
+/* Compact card: title + summary each clamp to 2 lines so more signals fit per
+   screen. Full text lives on the detail page (the whole card is a link). */
+.item--feed .item__title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 17px;
+  line-height: 1.4;
+}
+.item--feed .item__summary {
+  margin-top: 8px;
+  max-width: 80ch;
+  font-size: 14px;
+  line-height: 1.65;
+}
+/* EN summary reads as its own labelled glass block in the card. */
+.item--feed .item__summary-en {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+}
+.item__en-label {
+  display: block;
+  margin-bottom: 5px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+@media (max-width: 600px) {
+  .feed .item--feed {
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: var(--space-3);
+    padding: var(--space-4);
+  }
+  .feed .item__rail {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    margin-top: var(--space-4);
+  }
+  .feed .item__vote {
+    flex-direction: row;
+  }
+  .feed .item__rail-group {
+    flex-direction: row;
+    width: auto;
+    margin: 0;
+    padding: 0 0 0 var(--space-3);
+    border-top: 0;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+  }
 }
 .item:hover {
   background: var(--hover);
@@ -1423,13 +1843,201 @@ button {
   color: var(--text-muted);
 }
 
+/* ─── Library (收藏): glass panel + reading list ─────────────
+   The saved knowledge base is one machined-glass panel (double-bezel, matching
+   the rail + topics leaderboard) holding a date-grouped reading list. Each row
+   reads like a note: a status orb in the gutter, a display-type title, the
+   overview as a left-ruled pull-quote, key points as a dash list, and a mono
+   meta line — calm glass wash on hover, no nebula ring. */
+.lib-shell {
+  padding: 6px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.028);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 36px 80px -52px rgba(0, 0, 0, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+.lib-panel {
+  padding: var(--space-2);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #0c0e17, #080a12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+.lib-group + .lib-group {
+  margin-top: var(--space-4);
+}
+/* Date caption — a quiet mono micro-label with a hairline rule + count. */
+.lib-group__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-1);
+}
+.lib-group__label b {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.lib-group__rule {
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.lib-group__n {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.lib-row {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-4) var(--space-3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 13px;
+  transition: background var(--dur-slow) var(--ease-island),
+    box-shadow var(--dur-slow) var(--ease-island);
+}
+.lib-group .lib-row:last-child {
+  border-bottom: 0;
+}
+.lib-row:hover {
+  background: rgba(255, 255, 255, 0.035);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+/* Status orb — a recessed glass pip whose core hue reads the note state. */
+.lib-row__orb {
+  margin-top: 3px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 32%, #1d1d25, #0e0e13);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.lib-row__orb i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ash);
+}
+.lib-row__orb[data-st="ready"] i {
+  background: var(--aurora-mint);
+  box-shadow: 0 0 8px 1px rgba(75, 243, 200, 0.55);
+}
+.lib-row__orb[data-st="pending"] i {
+  background: var(--signal-blue);
+  box-shadow: 0 0 8px 1px rgba(97, 218, 251, 0.55);
+  animation: status-pulse 3.4s var(--ease-island) infinite;
+}
+.lib-row__orb[data-st="failed"] i {
+  background: var(--danger);
+  box-shadow: 0 0 8px 1px rgba(255, 107, 107, 0.55);
+}
+.lib-row__orb[data-st="skipped"] i {
+  background: var(--ash);
+}
+.lib-row__body {
+  min-width: 0;
+}
+.lib-row__title {
+  color: var(--text-strong);
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.32;
+  letter-spacing: -0.01em;
+}
+.lib-row__title:hover {
+  color: var(--accent);
+  text-decoration: none;
+}
+.lib-row__ext {
+  margin-left: 6px;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+.lib-row__quote {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--accent-weak);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.6;
+  max-width: 74ch;
+  text-wrap: pretty;
+}
+.lib-row__pending {
+  margin: var(--space-2) 0 0;
+  color: var(--text-faint);
+  font-size: 13.5px;
+}
+.lib-row__pts {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.lib-row__pts li {
+  position: relative;
+  padding-left: 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.lib-row__pts li::before {
+  content: "–";
+  position: absolute;
+  left: 2px;
+  color: var(--text-faint);
+}
+.lib-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-3);
+  color: var(--text-faint);
+  font-size: 12.5px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.lib-row__src {
+  color: var(--text-muted);
+  font-weight: 700;
+}
+.lib-row__aside {
+  align-self: center;
+  display: flex;
+  align-items: center;
+}
+
+@media (max-width: 600px) {
+  .lib-row {
+    padding: var(--space-3) var(--space-2);
+    gap: var(--space-2) var(--space-3);
+  }
+}
+
 /* ─── Knowledge base: detail (reader) view ──────────────── */
 
-/* One shared reading measure for the whole reader column — the note, full
-   text and discussion all wrap at the same comfortable line length (~72ch,
-   matching the feed's prose cap) instead of running the full 1160px pane. */
+/* The reader column tiles the full content pane: note, full text and discussion
+   all run the pane's width (no line-length cap). Every section below caps to
+   this shared token, so 100% keeps them edge-to-edge. */
 .kb-detail {
-  --kb-measure: 60ch;
+  --kb-measure: 100%;
 }
 .kb-detail__back {
   margin: 0 0 var(--space-3);
@@ -1593,8 +2201,6 @@ button {
   line-height: 1.7;
   color: var(--text);
 }
-/* Cap the long-form body at the reader's shared measure so prose doesn't run
-   the full pane width. (Used by the rss detail body / summary.) */
 .kb-body .markdown {
   max-width: var(--kb-measure);
 }
@@ -1646,14 +2252,11 @@ button {
 }
 /* ─── KB reader (library detail): bilingual 全文 + 讨论 ──────
    Each zone opens with a mono accent label + hairline rule and a segmented
-   译文 / 原文 (/ 对照) switch. 对照 widens past the reading measure into two
-   columns; everything else stays capped at the shared measure. */
+   译文 / 原文 (/ 对照) switch. The reader tiles the full pane; 对照 splits that
+   width into two columns. */
 .kb-read {
   margin-top: var(--space-6);
   max-width: var(--kb-measure);
-}
-.kb-read[data-mode="compare"] {
-  max-width: min(960px, 100%);
 }
 .kb-read__head {
   display: flex;
@@ -1712,6 +2315,15 @@ button {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-6);
+}
+/* Grid items default to min-width:auto, so a long token / code block would push
+   a 1fr track past its share and overflow the page. Let the tracks shrink and
+   wrap long words; pre blocks keep their own horizontal scroll. */
+.kb-compare__col {
+  min-width: 0;
+}
+.kb-compare__col .markdown {
+  overflow-wrap: break-word;
 }
 .kb-compare__label {
   font-family: var(--font-mono);
@@ -1805,9 +2417,6 @@ button {
 }
 
 @media (max-width: 760px) {
-  .kb-read[data-mode="compare"] {
-    max-width: var(--kb-measure);
-  }
   .kb-compare {
     grid-template-columns: 1fr;
     gap: var(--space-5);

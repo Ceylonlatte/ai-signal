@@ -3,20 +3,36 @@ import { config } from "../config.js";
 import { platformHeat, hoursSince } from "../lib/scoring/platform-heat.js";
 import { sourceTrust } from "../lib/sources/trust.js";
 import { computeRanking } from "../lib/scoring/ranking.js";
-import { likeAffinity, dislikeAffinity, isSuppressed } from "../lib/feedback/profile.js";
+import {
+  likeAffinity,
+  dislikeAffinity,
+  isSuppressed,
+} from "../lib/feedback/profile.js";
 
 type Db = any;
 
 interface Row {
-  id: number; title: string; titleZh: string; url: string | null; source: string;
+  id: number;
+  title: string;
+  titleZh: string;
+  url: string | null;
+  source: string;
   externalId: string | null;
   author: string | null;
-  createdAt: string; metrics: Record<string, number>;
-  q: number; novelty: number; summaryZh: string; summaryEn: string;
-  topicTags: unknown; reason: string;
+  createdAt: string;
+  metrics: Record<string, number>;
+  q: number;
+  novelty: number;
+  summaryZh: string;
+  summaryEn: string;
+  topicTags: unknown;
+  reason: string;
   signal: "up" | "down" | null;
   isFavorited: boolean;
-  maxLikeSim: number | null; maxDislikeSim: number | null; nUp: number; nDown: number;
+  maxLikeSim: number | null;
+  maxDislikeSim: number | null;
+  nUp: number;
+  nDown: number;
 }
 
 // Personal-scale safety cap: rank at most this many rows in-app before paging.
@@ -28,8 +44,12 @@ const MAIN_FEED_SOURCES = ["hn", "reddit", "twitter"] as const;
 export type FeedSort = "time" | "score";
 export type FeedSource = "all" | (typeof MAIN_FEED_SOURCES)[number];
 
-export function normalizeFeedSource(source: string | null | undefined): FeedSource {
-  return source === "hn" || source === "reddit" || source === "twitter" ? source : "all";
+export function normalizeFeedSource(
+  source: string | null | undefined,
+): FeedSource {
+  return source === "hn" || source === "reddit" || source === "twitter"
+    ? source
+    : "all";
 }
 
 function sourceFilter(source: FeedSource) {
@@ -83,13 +103,19 @@ function withRanking(rows: Row[]): Ranked[] {
   return rows.map((row) => {
     const hours = hoursSince(new Date(row.createdAt), now);
     const heat = platformHeat({
-      source: row.source, metrics: row.metrics ?? {}, hours, trust: sourceTrust(row.source, row.url),
+      source: row.source,
+      metrics: row.metrics ?? {},
+      hours,
+      trust: sourceTrust(row.source, row.url),
     });
     const aff = likeAffinity(row.maxLikeSim, Number(row.nUp ?? 0));
     const disaff = dislikeAffinity(row.maxDislikeSim, Number(row.nDown ?? 0));
     const r = computeRanking({
-      q: row.q ?? 0, platformHeat: heat, novelty: row.novelty ?? 0,
-      likeAffinity: aff, dislikeAffinity: disaff,
+      q: row.q ?? 0,
+      platformHeat: heat,
+      novelty: row.novelty ?? 0,
+      likeAffinity: aff,
+      dislikeAffinity: disaff,
     });
     return { ...row, r };
   });
@@ -136,7 +162,41 @@ export async function getFeed(
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const page = Math.min(Math.max(1, opts.page ?? 1), totalPages);
   const start = (page - 1) * pageSize;
-  return { items: all.slice(start, start + pageSize), total, page, pageSize, totalPages, sort, source, rMin, rMax };
+  return {
+    items: all.slice(start, start + pageSize),
+    total,
+    page,
+    pageSize,
+    totalPages,
+    sort,
+    source,
+    rMin,
+    rMax,
+  };
+}
+
+// Per-platform item volumes for the feed toolbar's filter chips. A light
+// grouped count over scored items (pre-suppression — these are headline volumes,
+// not the exact post-filter total the feed renders), with `all` as the sum of
+// the three main sources. RSS lives on its own surface and isn't counted here.
+export async function getSourceCounts(
+  db: Db,
+): Promise<Record<FeedSource, number>> {
+  const res = await db.execute(sql`
+    SELECT i.source AS source, count(*)::int AS n
+    FROM items i JOIN scores s ON s.item_id = i.id
+    WHERE i.source IN ('hn', 'reddit', 'twitter')
+    GROUP BY i.source
+  `);
+  const rows = (res.rows ?? res) as { source: string; n: number }[];
+  const counts: Record<FeedSource, number> = { all: 0, hn: 0, reddit: 0, twitter: 0 };
+  for (const row of rows) {
+    if (row.source === "hn" || row.source === "reddit" || row.source === "twitter") {
+      counts[row.source] = Number(row.n);
+    }
+  }
+  counts.all = counts.hn + counts.reddit + counts.twitter;
+  return counts;
 }
 
 // Items clustered into a topic, ranked like the main feed so the topic page can
@@ -159,20 +219,35 @@ export async function getTopicFeed(
 }
 
 export async function getSuppressed(db: Db, opts: { limit: number }) {
-  const rows = await candidates(db, Math.max(opts.limit * 6, 300), sourceFilter("all"));
+  const rows = await candidates(
+    db,
+    Math.max(opts.limit * 6, 300),
+    sourceFilter("all"),
+  );
   const hidden = rows.filter((row) => isSuppressed(row.maxDislikeSim));
   return ranked(hidden).slice(0, opts.limit);
 }
 
 export interface FavoriteRow {
-  id: number; title: string; titleZh: string; url: string | null; source: string;
-  author: string | null; createdAt: string; favoritedAt: string | null;
-  summaryZh: string; status: string | null; note: unknown;
+  id: number;
+  title: string;
+  titleZh: string;
+  url: string | null;
+  source: string;
+  author: string | null;
+  createdAt: string;
+  favoritedAt: string | null;
+  summaryZh: string;
+  status: string | null;
+  note: unknown;
 }
 
 // Items the user ⭐ saved to the knowledge base, newest-favorite first. Joins the
 // kb_entry (may be null while the worker is still processing) for card preview.
-export async function getFavorites(db: Db, opts: { limit: number }): Promise<FavoriteRow[]> {
+export async function getFavorites(
+  db: Db,
+  opts: { limit: number },
+): Promise<FavoriteRow[]> {
   const res = await db.execute(sql`
     SELECT i.id::int AS id, i.title, s.title_zh AS "titleZh", i.url, i.source, i.author AS "author",
            i.created_at AS "createdAt", i.favorited_at AS "favoritedAt",

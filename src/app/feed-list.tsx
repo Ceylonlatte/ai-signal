@@ -292,33 +292,19 @@ function FeedItem({
       data-strength={data.strength}
       onClick={openDetail}
     >
-      <SignalBadge strength={data.strength} score={data.score} rText={data.rText} />
+      <span className="item__glow" aria-hidden="true" />
+      <div className="item__metric">
+        <span className="item__well">
+          <SignalBadge strength={data.strength} score={data.score} rText={data.rText} />
+        </span>
+        <span className="item__gauge">
+          <span className="item__tier">{strengthLabel(data.strength)}</span>
+          {data.rText !== "—" && <span className="item__r">R {data.rText}</span>}
+        </span>
+      </div>
+
       <div className="item__body">
-        <Link className="item__title" href={`/library/${data.id}?from=feed`}>
-          {data.title}
-        </Link>
-        {data.host && (
-          <a
-            className="item__ext item__src"
-            href={data.url ?? "#"}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {data.host} ↗
-          </a>
-        )}
-
-        {data.reason && <p className="item__reason">{data.reason}</p>}
-        {data.summaryZh && <p className="item__summary">{data.summaryZh}</p>}
-        {data.summaryEn && (
-          <div className="item__en" data-open={showEn} aria-hidden={!showEn}>
-            <div className="item__en-inner">
-              <p className="item__summary-en">{data.summaryEn}</p>
-            </div>
-          </div>
-        )}
-
-        <div className="item__meta">
+        <div className="item__kicker">
           <span className="item__source">{data.sourceLabel}</span>
           {data.author && (
             <>
@@ -332,52 +318,93 @@ function FeedItem({
               <span>{data.timeText}</span>
             </>
           )}
-          {data.tags.length > 0 && (
-            <span className="tags">
-              {data.tags.map((t) => (
-                <span key={t} className="tag">
-                  {t}
-                </span>
-              ))}
-            </span>
+          {data.host && (
+            <>
+              <span className="meta-dot">·</span>
+              <a
+                className="item__src"
+                href={data.url ?? "#"}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {data.host} ↗
+              </a>
+            </>
           )}
-          <span className="item__actions">
-            {data.summaryEn && (
-              <button type="button" className="linkish" onClick={() => setShowEn((v) => !v)}>
-                {showEn ? "隐藏 EN" : "EN"}
-              </button>
-            )}
-            <span className="vote">
-              {vote?.error && <span className="vote__err">未保存，重试</span>}
-              <button
-                type="button"
-                className="vote__btn"
-                data-kind="up"
-                data-active={active === "up"}
-                aria-pressed={active === "up"}
-                aria-label="点赞，提升类似内容排序"
-                disabled={vote?.pending}
-                onClick={() => onVote("up")}
-              >
-                <ThumbIcon dir="up" />
-              </button>
-              <button
-                type="button"
-                className="vote__btn"
-                data-kind="down"
-                data-active={active === "down"}
-                aria-pressed={active === "down"}
-                aria-label="点踩，降低类似内容排序"
-                disabled={vote?.pending}
-                onClick={() => onVote("down")}
-              >
-                <ThumbIcon dir="down" />
-              </button>
-            </span>
-
-            <FavoriteButton itemId={data.id} initial={data.isFavorited} />
-          </span>
         </div>
+
+        <Link className="item__title" href={`/library/${data.id}?from=feed`}>
+          {data.title}
+        </Link>
+
+        {(data.summaryZh || data.reason) && (
+          <p className="item__summary">{data.summaryZh || data.reason}</p>
+        )}
+        {data.summaryEn && (
+          <div className="item__en" data-open={showEn} aria-hidden={!showEn}>
+            <div className="item__en-inner">
+              <p className="item__summary-en">
+                <b className="item__en-label">English summary</b>
+                {data.summaryEn}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {data.tags.length > 0 && (
+          <div className="item__tags">
+            {data.tags.map((t) => (
+              <span key={t} className="tag">
+                {t}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="item__rail">
+        <span className="item__vote">
+          <button
+            type="button"
+            className="item__act"
+            data-kind="up"
+            data-active={active === "up"}
+            aria-pressed={active === "up"}
+            aria-label="点赞，提升类似内容排序"
+            disabled={vote?.pending}
+            onClick={() => onVote("up")}
+          >
+            <ThumbIcon dir="up" />
+          </button>
+          <button
+            type="button"
+            className="item__act"
+            data-kind="down"
+            data-active={active === "down"}
+            aria-pressed={active === "down"}
+            aria-label="点踩，降低类似内容排序"
+            disabled={vote?.pending}
+            onClick={() => onVote("down")}
+          >
+            <ThumbIcon dir="down" />
+          </button>
+        </span>
+        <span className="item__rail-group">
+          {data.summaryEn && (
+            <button
+              type="button"
+              className="item__act"
+              data-active={showEn}
+              aria-pressed={showEn}
+              aria-label={showEn ? "隐藏英文摘要" : "显示英文摘要"}
+              onClick={() => setShowEn((v) => !v)}
+            >
+              EN
+            </button>
+          )}
+          <FavoriteButton itemId={data.id} initial={data.isFavorited} />
+        </span>
+        {vote?.error && <span className="vote__err">未保存</span>}
       </div>
     </article>
   );
