@@ -77,18 +77,6 @@ export function FeedbackButtons({
       <button
         type="button"
         className="vote__btn"
-        data-kind="up"
-        data-active={active === "up"}
-        aria-pressed={active === "up"}
-        aria-label="点赞，提升类似内容排序"
-        disabled={pending}
-        onClick={() => vote("up")}
-      >
-        <ThumbIcon dir="up" />
-      </button>
-      <button
-        type="button"
-        className="vote__btn"
         data-kind="down"
         data-active={active === "down"}
         aria-pressed={active === "down"}

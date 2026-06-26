@@ -44,7 +44,7 @@ export interface DataStats {
   bySource: { source: string; count: number }[];
   earliest: string | null; latest: string | null;
   favorited: number;
-  feedbackUp: number; feedbackDown: number; keywords: number;
+  feedbackDown: number; keywords: number;
 }
 
 // Dataset-level snapshot (distinct from pipeline progress): how much content
@@ -57,7 +57,6 @@ export async function getDataStats(db: Db): Promise<DataStats> {
       (SELECT min(created_at) FROM items) AS "earliest",
       (SELECT max(created_at) FROM items) AS "latest",
       (SELECT count(*) FROM items WHERE is_favorited) AS "favorited",
-      (SELECT count(*) FROM feedback WHERE signal = 'up') AS "feedbackUp",
       (SELECT count(*) FROM feedback WHERE signal = 'down') AS "feedbackDown",
       (SELECT count(*) FROM keywords) AS "keywords"
   `);
@@ -76,7 +75,7 @@ export async function getDataStats(db: Db): Promise<DataStats> {
     bySource,
     earliest: iso(row.earliest), latest: iso(row.latest),
     favorited: n(row.favorited),
-    feedbackUp: n(row.feedbackUp), feedbackDown: n(row.feedbackDown), keywords: n(row.keywords),
+    feedbackDown: n(row.feedbackDown), keywords: n(row.keywords),
   };
 }
 

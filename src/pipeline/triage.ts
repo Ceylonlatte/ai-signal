@@ -40,13 +40,14 @@ async function embedCandidates(texts: string[]): Promise<Map<number, number[]>> 
   return out;
 }
 
-// Highest cosine similarity between `vec` and any recently up-voted item's
-// embedding (null when there are no liked embeddings in the window).
+// Highest cosine similarity between `vec` and any recently ⭐ favorited item's
+// embedding (null when there are no favorited embeddings in the window). The
+// positive rescue signal moved from up-votes to favorites.
 async function maxLikeSimForVector(db: Db, vec: number[]): Promise<number | null> {
   const res = await db.execute(dsql`
     SELECT 1 - MIN(le.embedding <=> ${JSON.stringify(vec)}::vector) AS sim
-    FROM item_embeddings le JOIN feedback f ON f.item_id = le.item_id
-    WHERE f.signal = 'up' AND f.created_at > now() - (${config.PROFILE_WINDOW_DAYS} || ' days')::interval
+    FROM item_embeddings le JOIN items fi ON fi.id = le.item_id
+    WHERE fi.is_favorited = true AND fi.favorited_at > now() - (${config.PROFILE_WINDOW_DAYS} || ' days')::interval
   `);
   const row = (res.rows ?? res)[0] as { sim: number | null } | undefined;
   return row?.sim ?? null;

@@ -134,7 +134,7 @@ export default async function Status() {
           <Stat label="话题" value={fmtInt(s.topics)} />
           <Stat label="关键词" value={fmtInt(data.keywords)} />
           <Stat label="收藏" value={fmtInt(data.favorited)} />
-          <Stat label="反馈 ↑ / ↓" value={`${fmtInt(data.feedbackUp)} / ${fmtInt(data.feedbackDown)}`} />
+          <Stat label="点踩" value={fmtInt(data.feedbackDown)} />
         </div>
         <p className="section__note" style={{ marginTop: "var(--space-3)", marginBottom: 0 }}>
           数据覆盖区间：{fmtDate(data.earliest)} → {fmtDate(data.latest)}

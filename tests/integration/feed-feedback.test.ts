@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeEach, expect, it } from "vitest";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { items, scores, feedback } from "../../src/db/schema.js";
 import { db, pool, truncateAll } from "../setup/db.js";
 import { getFeed, getSuppressed } from "../../src/app/feed-queries.js";
@@ -27,9 +27,10 @@ beforeEach(async () => {
   await mk("simdown", e(1), true);
   await mk("neutral", e(2), true);
 
-  // reference items that received feedback (no scores -> not in feed themselves)
-  const upRef = await mk("upref", e(0), false);
-  await db.insert(feedback).values({ itemId: upRef, signal: "up" });
+  // reference items (no scores -> not in feed themselves): one ⭐ favorited
+  // (the positive signal that drives like-affinity), one down-voted (negative).
+  const favRef = await mk("favref", e(0), false);
+  await db.update(items).set({ isFavorited: true, favoritedAt: now }).where(eq(items.id, favRef));
   const downRef = await mk("downref", e(1), false);
   await db.insert(feedback).values({ itemId: downRef, signal: "down" });
 });

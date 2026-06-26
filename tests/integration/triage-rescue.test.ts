@@ -1,17 +1,19 @@
 import { afterAll, afterEach, beforeEach, expect, it, vi } from "vitest";
 import { sql } from "drizzle-orm";
-import { rawItems, items, scores, itemEmbeddings, feedback } from "../../src/db/schema.js";
+import { rawItems, items, scores, itemEmbeddings } from "../../src/db/schema.js";
 import { db, pool, truncateAll } from "../setup/db.js";
 
 // embeddings are vector(2048); orthogonal basis vector with 1 at index i.
 const e = (i: number) => Array.from({ length: 2048 }, (_, k) => (k === i ? 1 : 0));
 
-// Borderline LLM value (53/100 -> llmValue 0.53). With one keyword hit ("Agent"
-// -> relevance 0.333), Q_WEIGHT_REL=0.30 and trust 0.5, Q ≈ 0.48 -> below the
-// 0.55 gate but inside the rescue band [0.45, 0.55).
+// Borderline LLM value chosen so Q lands in the rescue band. HN items get
+// qualityRelevance 0 (relevance is zeroed for hn in triage) and trust 0.5, so
+// Q = llmValue + 0.30*(0 - 0.5) + 0.15*(0.5 - 0.5) = llmValue - 0.15.
+// value 65 -> llmValue 0.65 -> Q = 0.50: below the 0.55 gate, inside the
+// rescue band [0.45, 0.55).
 vi.mock("../../src/lib/scoring/llm.js", () => ({
   scoreBatch: vi.fn(async (cands: { id: number }[]) =>
-    new Map(cands.map((c) => [c.id, { id: c.id, value: 53, topics: [], reason: "r" }]))),
+    new Map(cands.map((c) => [c.id, { id: c.id, value: 65, topics: [], reason: "r" }]))),
 }));
 // The borderline candidate embeds identical to the liked reference (e(0)).
 vi.mock("../../src/lib/embeddings.js", () => ({
@@ -20,12 +22,13 @@ vi.mock("../../src/lib/embeddings.js", () => ({
 
 beforeEach(async () => {
   await truncateAll();
-  // an already-liked item with embedding e(0) + an up vote
+  // an already-⭐-favorited item with embedding e(0) — favorites replaced
+  // up-votes as the positive signal that drives the rescue.
   const [liked] = await db.insert(items).values({
     rawItemId: 1, source: "hn", title: "liked", text: "", createdAt: new Date(), metrics: {}, contentHash: "liked",
+    isFavorited: true, favoritedAt: new Date(),
   }).returning();
   await db.execute(sql`INSERT INTO item_embeddings (item_id, embedding) VALUES (${liked!.id}, ${JSON.stringify(e(0))}::vector)`);
-  await db.insert(feedback).values({ itemId: liked!.id, signal: "up" });
 
   // a borderline candidate raw_item: "Agent" + "agentic" => 2 keyword hits => relevance ~0.667
   await db.insert(rawItems).values({

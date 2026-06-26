@@ -27,8 +27,11 @@ interface Row {
   summaryEn: string;
   topicTags: unknown;
   reason: string;
+  // Feed only shows the down-vote now; the positive signal moved to ⭐ favorites.
   signal: "up" | "down" | null;
   isFavorited: boolean;
+  // Positive affinity (formerly from up-votes) now derives from ⭐ favorites:
+  // maxLikeSim = similarity to recently favorited items, nUp = their count.
   maxLikeSim: number | null;
   maxDislikeSim: number | null;
   nUp: number;
@@ -60,10 +63,14 @@ function sourceFilter(source: FeedSource) {
 
 async function candidates(db: Db, cap: number, where: SQL): Promise<Row[]> {
   const win = `${config.PROFILE_WINDOW_DAYS} days`;
+  // The positive signal is now carried by ⭐ favorites (a save means the same
+  // intent an up-vote used to): `fav` counts recently-saved items for the
+  // cold-start factor, and maxLikeSim measures similarity to them. Down-votes
+  // still drive the negative side unchanged.
   const res = await db.execute(sql`
-    WITH up AS (
-      SELECT count(*)::int AS n FROM feedback
-      WHERE signal = 'up' AND created_at > now() - ${win}::interval
+    WITH fav AS (
+      SELECT count(*)::int AS n FROM items
+      WHERE is_favorited = true AND favorited_at > now() - ${win}::interval
     ), down AS (
       SELECT count(*)::int AS n FROM feedback
       WHERE signal = 'down' AND created_at > now() - ${win}::interval
@@ -74,15 +81,15 @@ async function candidates(db: Db, cap: number, where: SQL): Promise<Row[]> {
            i.created_at AS "createdAt", i.metrics,
            s.composite AS q, s.novelty, s.summary_zh AS "summaryZh", s.summary_en AS "summaryEn",
            s.topic_tags AS "topicTags", s.reason,
-           (SELECT f.signal FROM feedback f WHERE f.item_id = i.id
+           (SELECT f.signal FROM feedback f WHERE f.item_id = i.id AND f.signal = 'down'
               ORDER BY f.created_at DESC LIMIT 1) AS "signal",
            (SELECT 1 - MIN(le.embedding <=> e.embedding)
-              FROM item_embeddings le JOIN feedback f ON f.item_id = le.item_id
-              WHERE f.signal = 'up' AND f.created_at > now() - ${win}::interval) AS "maxLikeSim",
+              FROM item_embeddings le JOIN items fi ON fi.id = le.item_id
+              WHERE fi.is_favorited = true AND fi.favorited_at > now() - ${win}::interval) AS "maxLikeSim",
            (SELECT 1 - MIN(de.embedding <=> e.embedding)
               FROM item_embeddings de JOIN feedback f ON f.item_id = de.item_id
               WHERE f.signal = 'down' AND f.created_at > now() - ${win}::interval) AS "maxDislikeSim",
-           (SELECT n FROM up) AS "nUp",
+           (SELECT n FROM fav) AS "nUp",
            (SELECT n FROM down) AS "nDown"
     FROM items i
     JOIN scores s ON s.item_id = i.id

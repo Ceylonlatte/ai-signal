@@ -367,18 +367,6 @@ function FeedItem({
           <button
             type="button"
             className="item__act"
-            data-kind="up"
-            data-active={active === "up"}
-            aria-pressed={active === "up"}
-            aria-label="点赞，提升类似内容排序"
-            disabled={vote?.pending}
-            onClick={() => onVote("up")}
-          >
-            <ThumbIcon dir="up" />
-          </button>
-          <button
-            type="button"
-            className="item__act"
             data-kind="down"
             data-active={active === "down"}
             aria-pressed={active === "down"}
