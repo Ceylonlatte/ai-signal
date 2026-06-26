@@ -6,11 +6,9 @@ import {
   normalizeFeedSource,
   type FeedSort,
 } from "./feed-queries.js";
-import { getSourceStatus } from "./source-status.js";
 import { FeedList } from "./feed-list.js";
 import { FeedConsole } from "./feed-console.js";
 import { toFeedData } from "./feed-item-data.js";
-import { sourceLabel } from "./format.js";
 import { getRssItems } from "./rss/rss-queries.js";
 import { RssView } from "./rss/rss-view.js";
 
@@ -62,8 +60,6 @@ export default async function Home({
     sort,
     source,
   });
-  const status = await getSourceStatus(db);
-  const stale = status.filter((s: any) => s.stale);
   const now = new Date();
   const data = feed.map((item: any) => toFeedData(item, now, rMin, rMax));
 
@@ -73,22 +69,6 @@ export default async function Home({
         <h1 className="sr-only">信号流</h1>
         <FeedConsole active={source} sort={sort} total={total} counts={counts} />
       </div>
-
-      {stale.length > 0 && (
-        <div className="notice notice--soft" role="status">
-          <span className="notice__dot" aria-hidden="true" />
-          <span>
-            部分源数据已过期：
-            {stale
-              .map(
-                (s: any) =>
-                  `${sourceLabel(s.kind)}（${s.lastRunAt ? new Date(s.lastRunAt).toLocaleString("zh-CN") : "从未"}）`,
-              )
-              .join("、")}
-            。其余源照常更新。
-          </span>
-        </div>
-      )}
 
       {data.length === 0 ? (
         <div className="placeholder">

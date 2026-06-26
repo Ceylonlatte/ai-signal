@@ -62,7 +62,9 @@ export default async function Library() {
       <div className="page__head">
         <h1 className="page__title">收藏</h1>
         <div className="page__tools">
-          {rows.length > 0 && <span className="page__count">{rows.length} 条</span>}
+          {rows.length > 0 && (
+            <span className="page__count">{rows.length} 条</span>
+          )}
         </div>
       </div>
       <p className="page__lead">
@@ -72,7 +74,9 @@ export default async function Library() {
       {rows.length === 0 ? (
         <div className="placeholder">
           <p className="placeholder__title">知识库还是空的</p>
-          <p className="placeholder__body">在信号流里点 ⭐ 把值得留存的内容存进来。</p>
+          <p className="placeholder__body">
+            在信号流里点 ⭐ 把值得留存的内容存进来。
+          </p>
         </div>
       ) : (
         <div className="lib-shell">
@@ -93,7 +97,7 @@ export default async function Library() {
                   };
                   const st = orbStatus(item.status);
                   const statusText = item.status
-                    ? STATUS_LABEL[item.status] ?? ""
+                    ? (STATUS_LABEL[item.status] ?? "")
                     : "整理中…";
                   const keypoints = Array.isArray(note.keypoints)
                     ? note.keypoints.slice(0, 3)
@@ -101,11 +105,18 @@ export default async function Library() {
                   const overview = note.overview || item.summaryZh || "";
                   return (
                     <article key={item.id} className="lib-row">
-                      <span className="lib-row__orb" data-st={st} aria-hidden="true">
+                      <span
+                        className="lib-row__orb"
+                        data-st={st}
+                        aria-hidden="true"
+                      >
                         <i />
                       </span>
                       <div className="lib-row__body">
-                        <Link className="lib-row__title" href={`/library/${item.id}`}>
+                        <Link
+                          className="lib-row__title"
+                          href={`/library/${item.id}`}
+                        >
                           {title}
                           {host && <span className="lib-row__ext">{host}</span>}
                         </Link>
@@ -113,7 +124,9 @@ export default async function Library() {
                           <p className="lib-row__quote">{overview}</p>
                         ) : (
                           st === "pending" && (
-                            <p className="lib-row__pending">整理中，稍后生成笔记…</p>
+                            <p className="lib-row__pending">
+                              整理中，稍后生成笔记…
+                            </p>
                           )
                         )}
                         {keypoints.length > 0 && (
@@ -124,12 +137,17 @@ export default async function Library() {
                           </ul>
                         )}
                         <div className="lib-row__meta">
-                          <span className="lib-row__src">{sourceLabel(item.source)}</span>
+                          <span className="lib-row__src">
+                            {sourceLabel(item.source)}
+                          </span>
                           {(item.favoritedAt || item.createdAt) && (
                             <>
                               <span className="meta-dot">·</span>
                               <span>
-                                {relativeTime(item.favoritedAt ?? item.createdAt, now)}
+                                {relativeTime(
+                                  item.favoritedAt ?? item.createdAt,
+                                  now,
+                                )}
                               </span>
                             </>
                           )}
