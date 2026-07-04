@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>信号流 · 玻璃卡片方案 · AI Signal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+:root{
+  color-scheme:dark;
+  --action:#f2f6fa; --action-hover:#fff;
+  --accent:#acafff; --accent-hover:#c7c9ff; --accent-weak:rgba(172,175,255,.16);
+  --on-accent:#1f232e;
+  --aurora-mint:#4bf3c8; --plasma-blue:#54b9ff; --ultraviolet:#acafff; --amber:#ffd493; --signal-blue:#61dafb;
+  --nebula-bright:linear-gradient(83.21deg,#7c8cff,#d98bff);
+  --glow-nebula:0 0 18px -3px rgba(124,140,255,.55),0 0 38px -10px rgba(217,139,255,.45);
+  --glow-nebula-soft:0 0 12px -5px rgba(124,140,255,.42),0 0 26px -12px rgba(217,139,255,.3);
+  --glow-white:0 0 22px -8px rgba(242,246,250,.45);
+  --danger:#ff6b6b;
+  --ink:#f2f6fa; --graphite:#bfc1c9; --slate:#858b98; --smoke:#6f7480; --ash:#545864; --pebble:#3a3e4a;
+  --porcelain:#1f232e; --mist:#2a2e39; --cloud:#0c0f19;
+  --hover:rgba(255,255,255,.04);
+  --text-strong:var(--ink); --text:#d4d8e0; --text-muted:#a2a8b4; --text-faint:#888e9b;
+  --border:var(--mist); --border-strong:var(--pebble);
+  --surface:var(--porcelain); --surface-sunken:var(--cloud);
+  --radius-pill:999px; --radius-md:16px; --radius-sm:10px; --radius-badge:12px;
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:20px; --s6:24px;
+  --font-sans:"Plus Jakarta Sans",-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  --font-display:"Space Grotesk",var(--font-sans);
+  --font-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  --ease-island:cubic-bezier(.32,.72,0,1); --ease-out-expo:cubic-bezier(.16,1,.3,1);
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--porcelain);color:var(--text);font-family:var(--font-sans);font-weight:500;font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:var(--font-display);color:var(--text-strong);letter-spacing:-.01em;margin:0}
+a{color:var(--accent);text-decoration:none}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:0}
+
+/* preview chrome */
+.pv-top{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:14px clamp(16px,4vw,40px);
+  background:color-mix(in srgb,var(--porcelain) 86%,transparent);backdrop-filter:saturate(160%) blur(14px);border-bottom:1px solid var(--border)}
+.pv-brand{display:inline-flex;align-items:center;gap:10px;font-family:var(--font-display);font-weight:700;color:var(--text-strong);font-size:15px}
+.pv-mark{width:30px;height:30px;display:grid;place-items:center;border-radius:9px;background:linear-gradient(180deg,#1b1b22,#0d0d12);border:1px solid rgba(255,255,255,.09);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 6px 14px -6px rgba(0,0,0,.8);font-size:13px}
+.pv-tabs{display:inline-flex;gap:2px;padding:3px;border:1px solid var(--border);border-radius:var(--radius-pill);background:var(--surface-sunken)}
+.pv-tab{padding:7px 16px;border-radius:var(--radius-pill);color:var(--text-muted);font-size:13.5px;font-weight:600;white-space:nowrap;transition:.15s}
+.pv-tab[aria-selected="true"]{background:var(--surface);color:var(--text-strong);box-shadow:var(--glow-nebula-soft)}
+.pv-tab:hover{color:var(--text-strong)}
+.pv-hint{margin-left:auto;color:var(--text-faint);font-size:12px;font-family:var(--font-mono)}
+.pv-wrap{max-width:1240px;margin:0 auto;padding:clamp(20px,4vw,44px) clamp(16px,4vw,40px) 120px}
+.pv-page{display:none}
+.pv-page[data-active="true"]{display:block;animation:pv-in .4s var(--ease-out-expo)}
+@keyframes pv-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.pv-block{margin:0 0 52px}
+.pv-cap{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:0 0 6px}
+.pv-cap__tag{font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--on-accent);background:var(--action);padding:3px 9px;border-radius:6px}
+.pv-cap__name{font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--text-strong)}
+.pv-cap__desc{margin:0 0 16px;color:var(--text-muted);font-size:13.5px;line-height:1.6;max-width:84ch}
+.pv-cap__desc b{color:var(--text);font-weight:600}
+.pv-screen{position:relative;border:1px solid var(--border);border-radius:20px;background:var(--surface);padding:clamp(18px,3vw,28px);overflow:hidden}
+
+/* shared bits */
+.glass{background:linear-gradient(180deg,#0c0e17,#080a12);border:1px solid rgba(255,255,255,.06);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 22px 48px -34px rgba(0,0,0,.9)}
+.dial{flex:none;display:inline-flex}
+.dial svg{display:block;overflow:visible}
+.dial .trk{stroke:var(--mist)} .dial .fil{stroke:var(--ash)}
+.dial .num{font-family:var(--font-mono);font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.02em;fill:var(--text-faint)}
+.dial[data-s="high"] .fil{stroke:var(--ink);filter:drop-shadow(0 0 4px rgba(242,246,250,.5))}
+.dial[data-s="high"] .num{fill:var(--ink)}
+.dial[data-s="mid"] .fil{stroke:var(--graphite)} .dial[data-s="mid"] .num{fill:var(--graphite)}
+.dial[data-s="low"] .trk{stroke:#20242f}
+.meta-dot{color:var(--ash)}
+.metaline{display:flex;flex-wrap:wrap;align-items:center;gap:7px 11px;color:var(--text-faint);font-size:12.5px;font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.metaline .src{color:var(--text-muted);font-weight:700}
+.tag--mint{display:inline-flex;align-items:center;height:21px;padding:0 8px;border-radius:var(--radius-badge);background:rgba(75,243,200,.12);color:var(--aurora-mint);font-size:11.5px;font-weight:600}
+.ico{display:inline-grid;place-items:center;width:32px;height:30px;border:1px solid var(--border-strong);border-radius:99px;color:var(--text-muted);font-size:13px;transition:.15s}
+.ico:hover{color:var(--accent);border-color:transparent;box-shadow:var(--glow-nebula-soft)}
+.ico--star[data-on="true"]{color:var(--amber);border-color:color-mix(in srgb,var(--amber) 55%,var(--border-strong))}
+.cardact{display:inline-flex;align-items:center;gap:6px}
+
+/* ══════════ TOOLBAR / TAB designs ══════════ */
+/* T1 — glass control deck */
+.tb1{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:8px;border-radius:18px;
+  background:linear-gradient(180deg,#0c0e17,#080a12);border:1px solid rgba(255,255,255,.07);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 22px 48px -36px rgba(0,0,0,.9)}
+.tb1__filters{display:inline-flex;gap:3px;flex-wrap:wrap}
+.tb1__pill{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:13px;color:var(--text-muted);font-size:13.5px;font-weight:600;transition:.18s var(--ease-island)}
+.tb1__pill:hover{color:var(--text-strong);background:rgba(255,255,255,.035)}
+.tb1__pill[data-on="true"]{position:relative;background:rgba(255,255,255,.05);color:var(--text-strong);box-shadow:inset 0 1px 0 rgba(255,255,255,.1),0 1px 1px rgba(0,0,0,.5),0 14px 30px -20px rgba(0,0,0,.9)}
+.tb1__pill[data-on="true"]::after{content:"";position:absolute;left:9px;top:50%;width:4px;height:4px;margin-top:-2px;border-radius:50%;background:var(--accent);box-shadow:0 0 9px 1px rgba(174,175,255,.85)}
+.tb1__pill[data-on="true"]{padding-left:22px}
+.tb1__n{font-family:var(--font-mono);font-size:11px;color:var(--text-faint)}
+.tb1__pill[data-on="true"] .tb1__n{color:var(--accent)}
+.tb1__right{margin-left:auto;display:inline-flex;align-items:center;gap:12px}
+.miniseg{display:inline-flex;padding:2px;border:1px solid var(--border-strong);border-radius:99px}
+.miniseg button{padding:5px 12px;border-radius:99px;color:var(--text-muted);font-size:12.5px;font-weight:600;position:relative}
+.miniseg button[data-on="true"]{background:rgba(255,255,255,.07);color:var(--text-strong)}
+.count{font-family:var(--font-mono);font-size:12px;color:var(--text-faint)}
+
+/* T2 — underline tabs + counts */
+.tb2{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:2px}
+.tb2__tabs{display:inline-flex;gap:24px}
+.tb2__tab{position:relative;display:inline-flex;align-items:baseline;gap:7px;padding:6px 0 12px;color:var(--text-muted);font-size:14.5px;font-weight:600;transition:.15s}
+.tb2__tab:hover{color:var(--text-strong)}
+.tb2__tab[data-on="true"]{color:var(--text-strong)}
+.tb2__tab[data-on="true"]::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;border-radius:2px;background:var(--nebula-bright);box-shadow:var(--glow-nebula-soft)}
+.tb2__c{font-family:var(--font-mono);font-size:11px;color:var(--text-faint);font-variant-numeric:tabular-nums}
+.tb2__right{display:inline-flex;align-items:center;gap:12px;padding-bottom:8px}
+
+/* T3 — count-badge pills (nebula ring on active) */
+.tb3{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.tb3__filters{display:inline-flex;gap:8px;flex-wrap:wrap}
+.tb3__pill{position:relative;display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:99px;border:1px solid var(--border-strong);color:var(--text-muted);font-size:13.5px;font-weight:600;transition:.16s}
+.tb3__pill:hover{color:var(--text-strong);border-color:var(--smoke)}
+.tb3__badge{font-family:var(--font-mono);font-size:10.5px;color:var(--text-faint);background:var(--cloud);padding:1px 7px;border-radius:99px}
+.tb3__pill[data-on="true"]{color:var(--text-strong);border-color:transparent;background:var(--surface);box-shadow:var(--glow-nebula-soft)}
+.tb3__pill[data-on="true"]::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1.5px;background:var(--nebula-bright);
+  -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);mask-composite:exclude;pointer-events:none}
+.tb3__pill[data-on="true"] .tb3__badge{color:var(--accent);background:var(--accent-weak)}
+.tb3__right{margin-left:auto;display:inline-flex;align-items:center;gap:12px}
+
+/* ══════════ CARD layouts ══════════ */
+/* C1 — asymmetric 2-col masonry */
+.c1{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+.c1__card{position:relative;border-radius:var(--radius-md);padding:18px;cursor:pointer;transition:.25s var(--ease-island)}
+.c1__card:hover{transform:translateY(-3px);border-color:rgba(255,255,255,.1);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 30px 62px -40px rgba(0,0,0,.95)}
+.c1__top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.c1__title{color:var(--text-strong);font-size:17px;font-weight:700;line-height:1.32;letter-spacing:-.01em}
+.c1__host{margin-top:6px;color:var(--text-faint);font-size:12px;font-family:var(--font-mono)}
+.c1__reason{margin:12px 0 0;color:var(--text);font-size:14px;line-height:1.55}
+.c1__sum{margin:8px 0 0;color:var(--text-muted);font-size:13px;line-height:1.55}
+.c1__foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.06)}
+
+/* C2 — hero + compact grid */
+.c2__hero{position:relative;display:grid;grid-template-columns:auto 1fr;gap:20px;border-radius:var(--radius-md);padding:24px;margin-bottom:14px;cursor:pointer;transition:.25s var(--ease-island)}
+.c2__hero:hover{transform:translateY(-2px)}
+.c2__hk{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin:0 0 8px}
+.c2__htitle{color:var(--text-strong);font-family:var(--font-display);font-size:23px;font-weight:700;line-height:1.22;letter-spacing:-.02em;max-width:24ch}
+.c2__hreason{margin:12px 0 0;color:var(--text);font-size:15px;line-height:1.6;max-width:62ch}
+.c2__hfoot{margin-top:16px}
+.c2__grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.c2__c{position:relative;border-radius:var(--radius-md);padding:16px;cursor:pointer;transition:.22s var(--ease-island)}
+.c2__c:hover{transform:translateY(-3px)}
+.c2__ctop{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.c2__ctitle{color:var(--text-strong);font-size:14.5px;font-weight:700;line-height:1.34;letter-spacing:-.01em}
+.c2__cfoot{margin-top:12px;color:var(--text-faint);font-size:11.5px;font-family:var(--font-mono)}
+
+/* C3 — full-width glass row-cards */
+.c3{display:flex;flex-direction:column;gap:12px}
+.c3__card{position:relative;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:20px;
+  border-radius:var(--radius-md);padding:18px 20px;cursor:pointer;transition:.25s var(--ease-island)}
+.c3__card:hover{transform:translateY(-2px);border-color:rgba(255,255,255,.1);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 30px 62px -40px rgba(0,0,0,.95)}
+.c3__left{display:flex;flex-direction:column;align-items:center;gap:6px;padding-right:20px;border-right:1px solid rgba(255,255,255,.06)}
+.c3__strength{font-family:var(--font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-faint)}
+.c3__body{min-width:0}
+.c3__title{color:var(--text-strong);font-size:16.5px;font-weight:700;line-height:1.3;letter-spacing:-.01em}
+.c3__host{margin-left:7px;color:var(--text-faint);font-size:12px;font-family:var(--font-mono);font-weight:500}
+.c3__reason{margin:6px 0 0;color:var(--text-muted);font-size:13.5px;line-height:1.5;max-width:82ch}
+.c3__foot{margin-top:9px}
+.c3__rail{display:flex;flex-direction:column;gap:8px;align-items:center}
+
+/* T4 — floating glass capsule (sticky on scroll in real impl) */
+.tb4{display:flex;justify-content:center}
+.tb4__cap{display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 9px;border-radius:999px;
+  background:linear-gradient(180deg,#0c0e17,#080a12);border:1px solid rgba(255,255,255,.08);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 30px 60px -34px rgba(0,0,0,.95)}
+.tb4__seg{display:inline-flex;gap:2px}
+.tb4__b{padding:8px 14px;border-radius:999px;color:var(--text-muted);font-size:13px;font-weight:600;transition:.15s}
+.tb4__b:hover{color:var(--text-strong)}
+.tb4__b[data-on="true"]{background:rgba(255,255,255,.06);color:var(--text-strong);box-shadow:inset 0 1px 0 rgba(255,255,255,.09)}
+.tb4__n{font-family:var(--font-mono);font-size:10.5px;color:var(--text-faint);margin-left:5px}
+.tb4__b[data-on="true"] .tb4__n{color:var(--accent)}
+.tb4__div{width:1px;height:20px;background:rgba(255,255,255,.08)}
+
+/* C4 — horizontal tier rails */
+.c4__tier{margin:0 0 22px}
+.c4__tlabel{display:flex;align-items:center;gap:12px;margin:0 0 12px}
+.c4__tlabel b{font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--accent)}
+.c4__tline{flex:1;height:1px;background:var(--border)}
+.c4__rail{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px}
+.c4__card{flex:0 0 300px;border-radius:var(--radius-md);padding:16px;transition:.22s var(--ease-island)}
+.c4__card:hover{transform:translateY(-3px)}
+.c4__top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.c4__title{color:var(--text-strong);font-size:15px;font-weight:700;line-height:1.32;letter-spacing:-.01em}
+.c4__reason{margin:10px 0 0;color:var(--text-muted);font-size:13px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.c4__foot{margin-top:12px;color:var(--text-faint);font-size:11.5px;font-family:var(--font-mono)}
+
+/* C5 — compact 3-up uniform grid */
+.c5{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.c5__c{border-radius:var(--radius-md);padding:15px;transition:.2s var(--ease-island)}
+.c5__c:hover{transform:translateY(-3px)}
+.c5__h{display:flex;align-items:baseline;gap:8px}
+.c5__score{font-family:var(--font-mono);font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--on-accent);background:var(--action);padding:1px 7px;border-radius:6px;align-self:flex-start}
+.c5__c[data-s="mid"] .c5__score{background:var(--graphite)}
+.c5__c[data-s="low"] .c5__score{background:transparent;color:var(--text-faint);border:1px solid var(--border-strong)}
+.c5__title{color:var(--text-strong);font-size:14px;font-weight:700;line-height:1.34;letter-spacing:-.01em}
+.c5__foot{margin-top:10px;color:var(--text-faint);font-size:11px;font-family:var(--font-mono)}
+
+/* C6 — feed + sticky side rail */
+.c6{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:18px;align-items:start}
+.c6__main{display:flex;flex-direction:column;gap:12px}
+.c6__row{display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center;border-radius:var(--radius-md);padding:16px;transition:.2s var(--ease-island)}
+.c6__row:hover{transform:translateY(-2px)}
+.c6__title{color:var(--text-strong);font-size:15.5px;font-weight:700;line-height:1.3;letter-spacing:-.01em}
+.c6__reason{margin:6px 0 0;color:var(--text-muted);font-size:13px;line-height:1.5}
+.c6__foot{margin-top:8px;color:var(--text-faint);font-size:11.5px;font-family:var(--font-mono)}
+.c6__aside{position:sticky;top:16px;display:flex;flex-direction:column;gap:12px}
+.c6__panel{border-radius:var(--radius-md);padding:16px}
+.c6__ph{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-faint);margin:0 0 12px}
+.c6__trow{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.c6__trow:last-child{border-bottom:0}
+.c6__trank{font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--text-faint);width:16px}
+.c6__tname{color:var(--text);font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.c6__tscore{margin-left:auto;font-family:var(--font-mono);font-size:11.5px;color:var(--text-faint)}
+
+/* C7 — timeline glass cards */
+.c7{position:relative;padding-left:30px}
+.c7::before{content:"";position:absolute;left:9px;top:6px;bottom:6px;width:2px;background:linear-gradient(180deg,rgba(255,255,255,.12),rgba(255,255,255,.03))}
+.c7__group{position:relative;margin:0 0 16px}
+.c7__node{position:absolute;left:-29px;top:3px;width:14px;height:14px;border-radius:50%;background:#12141d;box-shadow:inset 0 0 0 2px var(--ash),0 0 0 4px rgba(0,0,0,.35)}
+.c7__time{font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-faint);margin:0 0 10px}
+.c7__card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:16px;border-radius:var(--radius-md);padding:15px 18px;margin:0 0 10px;transition:.2s var(--ease-island)}
+.c7__card:hover{transform:translateY(-2px)}
+.c7__title{color:var(--text-strong);font-size:15px;font-weight:700;line-height:1.3;letter-spacing:-.01em}
+.c7__meta{margin-top:5px;color:var(--text-faint);font-size:11.5px;font-family:var(--font-mono)}
+
+@media(max-width:820px){
+  .c1,.c2__grid,.c5{grid-template-columns:1fr}
+  .c2__hero{grid-template-columns:1fr}
+  .c3__card{grid-template-columns:auto 1fr;gap:14px}
+  .c3__rail{display:none}
+  .c6{grid-template-columns:1fr}
+  .c6__aside{position:static;flex-direction:row;flex-wrap:wrap}
+  .c6__panel{flex:1 1 240px}
+  .pv-hint{display:none}
+}
+</style>
+</head>
+<body>
+<header class="pv-top">
+  <span class="pv-brand"><span class="pv-mark">S</span>信号流 · 玻璃卡片方案</span>
+  <nav class="pv-tabs" role="tablist">
+    <button class="pv-tab" role="tab" aria-selected="true" data-target="toolbar">工具栏 / Tab</button>
+    <button class="pv-tab" role="tab" aria-selected="false" data-target="cards">卡片布局</button>
+  </nav>
+  <span class="pv-hint">玻璃卡风格 · 工具栏 4 方案 · 卡片 7 方案</span>
+</header>
+
+<div class="pv-wrap">
+
+<!-- ════════ TOOLBAR ════════ -->
+<section class="pv-page" data-page="toolbar" data-active="true">
+
+  <div class="pv-block">
+    <div class="pv-cap"><span class="pv-cap__tag">Tab T1</span><span class="pv-cap__name">玻璃控制台条</span></div>
+    <p class="pv-cap__desc">把平台筛选 + 排序 + 计数收进<b>一条深玻璃机箱</b>（与侧栏/面板同语言）。选中平台是"<b>微抬玻璃药丸 + 单点星云锚点</b>"，和侧栏当前项一致。整条像一块仪表面板。</p>
+    <div class="pv-screen">
+      <div class="tb1">
+        <div class="tb1__filters">
+          <button class="tb1__pill" data-on="true">全部 <span class="tb1__n">262</span></button>
+          <button class="tb1__pill">Hacker News <span class="tb1__n">120</span></button>
+          <button class="tb1__pill">Reddit <span class="tb1__n">84</span></button>
+          <button class="tb1__pill">X <span class="tb1__n">41</span></button>
+          <button class="tb1__pill">RSS <span class="tb1__n">17</span></button>
+        </div>
+        <div class="tb1__right">
+          <div class="miniseg"><button>最新</button><button data-on="true">按分数</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pv-block">
+    <div class="pv-cap"><span class="pv-cap__tag">Tab T2</span><span class="pv-cap__name">下划线选项卡 + 计数</span></div>
+    <p class="pv-cap__desc">更编辑、更透气：平台做成<b>文字选项卡</b>，激活项下方一条<b>星云渐变下划线</b>（带辉光），每个 tab 带 mono 计数。右侧排序用极简分段 + 总数。留白最大，标题区不被一坨药丸占据。</p>
+    <div class="pv-screen">
+      <div class="tb2">
+        <div class="tb2__tabs">
+          <a class="tb2__tab" data-on="true">全部 <span class="tb2__c">262</span></a>
+          <a class="tb2__tab">Hacker News <span class="tb2__c">120</span></a>
+          <a class="tb2__tab">Reddit <span class="tb2__c">84</span></a>
+          <a class="tb2__tab">X <span class="tb2__c">41</span></a>
+          <a class="tb2__tab">RSS <span class="tb2__c">17</span></a>
+        </div>
+        <div class="tb2__right">
+          <div class="miniseg"><button>最新</button><button data-on="true">按分数</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pv-block">
+    <div class="pv-cap"><span class="pv-cap__tag">Tab T3</span><span class="pv-cap__name">计数徽标药丸（星云描边）</span></div>
+    <p class="pv-cap__desc">每个平台是<b>带计数徽标的药丸</b>，激活项套上 <b>1.5px 星云渐变描边 + 辉光</b>（和当前选中 sort 同款）。信息量足、点击目标大，适合平台数较多时快速切换。</p>
+    <div class="pv-screen">
+      <div class="tb3">
+        <div class="tb3__filters">
+          <button class="tb3__pill" data-on="true">全部 <span class="tb3__badge">262</span></button>
+          <button class="tb3__pill">Hacker News <span class="tb3__badge">120</span></button>
+          <button class="tb3__pill">Reddit <span class="tb3__badge">84</span></button>
+          <button class="tb3__pill">X <span class="tb3__badge">41</span></button>
+          <button class="tb3__pill">RSS <span class="tb3__badge">17</span></button>
+        </div>
+        <div class="tb3__right">
+          <div class="miniseg"><button>最新</button><button data-on="true">按分数</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pv-block">
+    <div class="pv-cap"><span class="pv-cap__tag">Tab T4</span><span class="pv-cap__name">浮动玻璃胶囊</span></div>
+    <p class="pv-cap__desc">居中的<b>悬浮玻璃胶囊</b>，平台 + 排序合并到一颗药丸里，滚动时吸顶悬浮。最省空间、最"轻"，适合让内容唱主角。</p>
+    <div class="pv-screen">
+      <div class="tb4">
+        <div class="tb4__cap">
+          <div class="tb4__seg">
+            <button class="tb4__b" data-on="true">全部<span class="tb4__n">262</span></button>
+            <button class="tb4__b">HN<span class="tb4__n">120</span></button>
+            <button class="tb4__b">Reddit<span class="tb4__n">84</span></button>
+            <button class="tb4__b">X<span class="tb4__n">41</span></button>
+            <button class="tb4__b">RSS<span class="tb4__n">17</span></button>
+          </div>
+          <span class="tb4__div"></span>
+          <div class="tb4__seg">
+            <button class="tb4__b">最新</button>
+            <button class="tb4__b" data-on="true">按分数</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<!-- ════════ CARDS ════════ -->
+<section class="pv-page" data-page="cards">
+
+  <!-- C1 -->
+  <div class="pv-block">
+    <div class="pv-cap"><span class="pv-cap__tag">卡片 C1</span><span class="pv-cap__name">错落双列玻璃卡</span></div>
+    <p class="pv-cap__desc">2 列不等高布局，<b>高信号卡更高更详</b>（理由+摘要），中低信号卡精简。刻度环移到<b>右上角徽标</b>。最有杂志错落感。</p>
+    <div class="pv-screen">
+      <div class="tb1" style="margin-bottom:16px">
+        <div class="tb1__filters"><button class="tb1__pill" data-on="true">全部 <span class="tb1__n">262</span></button><button class="tb1__pill">Hacker News <span class="tb1__n">120</span></button><button class="tb1__pill">Reddit <span class="tb1__n">84</span></button><button class="tb1__pill">X <span class="tb1__n">41</span></button></div>
+        <div class="tb1__right"><div class="miniseg"><button>最新</button><button data-on="true">按分数</button></div></div>
+      </div>
+      <div class="c1">
+        <article class="c1__card glass">
+          <div class="c1__top"><h3 class="c1__title">Anthropic 发布 Claude 记忆系统，支持跨会话长期上下文</h3>
+            <span class="dial" data-s="high"><svg width="40" height="40" viewBox="0 0 46 46"><circle class="trk" cx="23" cy="23" r="17" fill="none" stroke-width="5"/><circle class="fil" cx="23" cy="23" r="17" fill="none" stroke-width="5" stroke-linecap="round" pathLength="100" stroke-dasharray="92 100" transform="rotate(-90 23 23)"/><text class="num" x="23" y="24" text-anchor="middle" dominant-baseline="middle">92</text></svg></span></div>
+          <div class="c1__host">anthropic.com ↗</div>
+          <p class="c1__reason">把"记忆"做成可检索、可编辑的结构化层，而非塞进上下文窗口——这才是长期记忆该有的形态。</p>
+          <p class="c1__sum">支持按主题归档、跨会话引用，并暴露读写 API。官方称长对话评测准确率提升约 14%。</p>
+          <div class="c1__foot"><span class="metaline"><span class="src">Hacker News</span><span class="meta-dot">·</span>3 小时前<span class="tag--mint" style="margin-left:4px">已入选</span></span><span class="cardact"><button class="ico">EN</button><button class="ico">▲</button><button class="ico ico--star" data-on="true">★</button></span></div>
+        </article>
+        <article class="c1__card glass">
+          <div class="c1__top"><h3 class="c1__title">为什么我们把向量数据库换成了 Postgres + pgvector</h3>
+            <span class="dial" data-s="mid"><svg width="40" height="40" viewBox="0 0 46 46"><circle class="trk" cx="23" cy="23" r="17" fill="none" stroke-width="4"/><circle class="fil" cx="23" cy="23" r="17" fill="none" stroke-width="4" stroke-linecap="round" pathLength="100" stroke-dasharray="78 100" transform="rotate(-90 23 23)"/><text class="num" x="23" y="24" text-anchor="middle" dominant-baseline="middle">78</text></svg></span></div>
+          <div class="c1__host">supabase.com ↗</div>
+          <p class="c1__reason">少维护一个系统、事务一致性更好，2 千万向量下 p95 仍可接受。</p>
+          <div class="c1__foot"><span class="metaline"><span class="src">Hacker News</span><span class="meta-dot">·</span>6 小时前</span><span class="cardact"><button class="ico">▲</button><button class="ico ico--star">★</button></span></div>
+        </article>
+        <article class="c1__card glass">
+          <div class="c1__top"><h3 class="c1__title">OpenAI 调价：o4-mini 每百万 token 降到 $0.15</h3>
+            <span class="dial" data-s="mid"><svg width="40" height="40" viewBox="0 0 46 46"><circle class="trk" cx="23" cy="23" r="17" fill="none" stroke-width="4"/><circle class="fil" cx="23" cy="23" r="17" fill="none" stroke-width="4" stroke-linecap="round" pathLength="100" stroke-dasharray="64 100" transform="rotate(-90 23 23)"/><text class="num" x="23" y="24" text-anchor="middle" dominant-baseline="middle">64</text></svg></span></div>
+          <div class="c1__host">x.com ↗</div>
+          <p class="c1__reason">推理价格继续探底，对高频调用的 Agent 产品边际成本影响显著。</p>
+          <div class="c1__foot"><span class="metaline"><span class="src">X</span><span class="meta-dot">·</span>@swyx<span class="meta-dot">·</span>9 小时前</span><span class="cardact"><button class="ico">▲</button><button class="ico ico--star">★</button></span></div>
+        </article>
+        <article class="c1__card glass">
+          <div class="c1__top"><h3 class="c1__title">用 8GB 显存跑 70B 模型：一份踩坑实录</h3>
+            <span class="dial" data-s="low"><svg width="40" height="40" viewBox="0 0 46 46"><circle class="trk" cx="23" cy="23" r="17" fill="none" stroke-width="3.5"/><circle class="fil" cx="23" cy="23" r="17" fill="none" stroke-width="3.5" stroke-linecap="round" pathLength="100" stroke-dasharray="55 100" transform="rotate(-90 23 23)"/><text class="num" x="23" y="24" text-anchor="middle" dominant-baseline="middle">55</text></svg></span></div>
+          <div class="c1__host">reddit.com ↗</div>
+          <div class="c1__foot"><span class="metaline"><span class="src">Reddit</span><span class="meta-dot">·</span>@quantfan<span class="meta-dot">·</span>昨天</span><span class="cardact"><button class="ico">▲</button><button class="ico ico--star">★</button></span></div>
+        </article>
+      </div>
+    </div>
+  </div>
+
+  <!-- C2 -->
+  <div class="pv-block">
+    <div class="pv-cap"><span class="pv-cap__tag">卡片 C2</span><span class="pv-cap__name">焦点卡 + 紧凑网格</span></div>
+    <p class="pv-cap__desc">顶部一张<b>全宽焦点玻璃卡</b>（今日最强信号，大刻度 + 大标题 + 理由），下方是<b>更密的标准卡网格</b>。层级最分明——一眼看到"今天最重要的"。</p>
+    <div class="pv-screen">
+      <div class="tb2" style="margin-bottom:18px">
+        <div class="tb2__tabs"><a class="tb2__tab" data-on="true">全部 <span class="tb2__c">262</span></a><a class="tb2__tab">Hacker News <span class="tb2__c">120</span></a><a class="tb2__tab">Reddit <span class="tb2__c">84</span></a><a class="tb2__tab">X <span class="tb2__c">41</span></a></div>
+        <div class="tb2__right"><div class="miniseg"><button>最新</button><button data-on="true">按分数</button></div></div>
+      </div>
+      <article class="c2__hero glass">
+        <span class="dial" data-s="high"><svg width="60" height="60" viewBox="0 0 46 46"><circle class="trk" cx="23" cy="23" r="17" fill="none" stroke-width="5"/><circle class="fil" cx="23" cy="23" r="17" fill="none" stroke-width="5" stroke-linecap="round" pathLength="100" stroke-dasharray="92 100" transform="rotate(-90 23 23)"/><text class="num" x="23" y="24" text-anchor="middle" dominant-baseline="middle" style="font-size:13px">92</text></svg></span>
+        <div>
+          <p class="c2__hk">今日最强信号</p>
+          <h2 class="c2__htitle">Anthropic 发布 Claude 记忆系统，支持跨会话长期上下文</h2>
+          <p class="c2__hreason">把"记忆"做成可检索、可编辑的结构化层，而非塞进上下文窗口——这才是长期记忆该有的形态，对做 Agent 产品的人意义很大。</p>
+          <div class="c2__hfoot metaline"><span class="src">Hacker News</span><span class="meta-dot">·</span>anthropic.com<span class="meta-dot">·</span>3 小时前<span class="tag--mint" style="margin-left:4px">已入选</span></div>
+        </div>
+      </article>
+      <div class="c2__grid">
+        <article class="c2__c glass"><div class="c2__ctop"><h3 class="c2__ctitle">Llama 4 推理版权重疑似泄露</h3><span class="dial" data-s="high"><svg width="34" height="34" viewBox="0 0 46 46"><circle class="trk" cx="23" cy="23" r="17" fill="none" stroke-width="5"/><circle class="fil" cx="23" cy="23" r="17" fill="none" stroke-width="5" stroke-linecap="round" pathLength="100" stroke-dasharray="85 100" transform="rotate(-90 23 23)"/><text class="num" x="23" y="24" text-anchor="middle" dominant-baseline="middle">85</text></svg></span></div><div class="c2__cfoot">Reddit · 5 小时前</div></article>
+        <article class="c2__c glass"><div class="c2__ctop"><h3 class="c2__ctitle">把向量库换成 pgvector 的取舍</h3><span class="dial" data-s="mid"><svg width="34" height="34" viewBox="0 0 46 46"><circle class="trk" cx="23" cy="23" r="17" fill="none" stroke-width="4"/><circle class="fil" cx="23" cy="23" r="17" fill="none" stroke-width="4" stroke-linecap="round" pathLength="100" stroke-dasharray="78 100" transform="rotate(-90 23 23)"/><text class="num" x="23" y="24" text-anchor="middle" dominant-baseline="middle">78</text></svg></span></div><div class="c2__cfoot">HN · 6 小时前</div></article>
+        <article class="c2__c glass"><div class="c2__ctop"><h3 class="c2__ctitle">Agent 工具调用的 12 个反模式</h3><span class="dial" data-s="mid"><svg width="34" height="34" viewBox="0 0 46 46"><circle class="trk" cx="23" cy="23" r="17" fill="none" stroke-width="4"/><circle class="fil" cx="23" cy="23" r="17" fill="none" stroke-width="4" stroke-linecap="round" pathLength="100" stroke-dasharray="71 100" transform="rotate(-90 23 23)"/><text class="num" x="23" y="24" text-anchor="middle" dominant-baseline="middle">71</text></svg></span></div><div class="c2__cfoot">HN · 2 天前</div></article>
+      </div>
+    </div>
+  </div>
+
+  <!-- C3 -->
+  <div class="pv-block">
+    <div class="pv-cap"><span class="pv-cap__tag">卡片 C3</span><span class="pv-cap__name">全宽玻璃行卡</span></div>
+    <p class="pv-cap__desc">每条信号是<b>整行玻璃卡</b>：左侧刻度面板（带强/中/弱标签）+ 中间内容 + 右侧操作竖栏。<b>兼顾玻璃质感与列表扫读效率</b>，最接近现有信息密度但更有"卡片"实体感。</p>
+    <div class="pv-screen">
+      <div class="tb3" style="margin-bottom:16px">
+        <div class="tb3__filters"><button class="tb3__pill" data-on="true">全部 <span class="tb3__badge">262</span></button><button class="tb3__pill">Hacker News <span class="tb3__badge">120</span></button><button class="tb3__pill">Reddit <span class="tb3__badge">84</span></button><button class="tb3__pill">X <span class="tb3__badge">41</span></button></div>
+        <div class="tb3__right"><div class="miniseg"><button>最新</button><button data-on="true">按分数</button></div></div>
+      </div>
+      <div class="c3">
+        <article class="c3__card glass">
+          <div class="c3__left"><span class="dial" data-s="high"><svg width="46" height="46" viewBox="0 0 46 46"><circle class="trk" cx="23" cy="23" r="17" fill="none" stroke-width="5"/><circle class="fil" cx="23" cy="23" r="17" fill="none" stroke-width="5" stroke-linecap="round" pathLength="100" stroke-dasharray="92 100" transform="rotate(-90 23 23)"/><text class="num" x="23" y="24" text-anchor="middle" dominant-baseline="middle">92</text></svg></span><span class="c3__strength">强</span></div>
+          <div class="c3__body"><div><span class="c3__title">Anthropic 发布 Claude 记忆系统，支持跨会话长期上下文</span><span class="c3__host">anthropic.com ↗</span></div>
+            <p class="c3__reason">把"记忆"做成可检索、可编辑的结构化层，而非塞进上下文窗口——这才是长期记忆该有的形态。</p>
+            <div class="c3__foot metaline"><span class="src">Hacker News</span><span class="meta-dot">·</span>3 小时前<span class="tag--mint" style="margin-left:4px">已入选</span></div></div>
+          <div class="c3__rail"><button class="ico">EN</button><button class="ico">▲</button><button class="ico ico--star" data-on="true">★</button></div>
+        </article>
+        <article class="c3__card glass">
+          <div class="c3__left"><span class="dial" data-s="mid"><svg width="46" height="46" viewBox="0 0 46 46"><circle class="trk" cx="23" cy="23" r="17" fill="none" stroke-width="4"/><circle class="fil" cx="23" cy="23" r="17" fill="none" stroke-width="4" stroke-linecap="round" pathLength="100" stroke-dasharray="78 100" transform="rotate(-90 23 23)"/><text class="num" x="23" y="24" text-anchor="middle" dominant-baseline="middle">78</text></svg></span><span class="c3__strength">中</span></div>
+          <div class="c3__body"><div><span class="c3__title">为什么我们把向量数据库换成了 Postgres + pgvector</span><span class="c3__host">supabase.com ↗</span></div>
+            <p class="c3__reason">少维护一个系统、事务一致性更好，2 千万向量下 p95 仍可接受。</p>
+            <div class="c3__foot metaline"><span class="src">Hacker News</span><span class="meta-dot">·</span>6 小时前</div></div>
+          <div class="c3__rail"><button class="ico">EN</button><button class="ico">▲</button><button class="ico ico--star">★</button></div>
+        </article>
+        <article class="c3__card glass">
+          <div class="c3__left"><span class="dial" data-s="low"><svg width="46" height="46" viewBox="0 0 46 46"><circle class="trk" cx="23" cy="23" r="17" fill="none" stroke-width="3.5"/><circle class="fil" cx="23" cy="23" r="17" fill="none" stroke-width="3.5" stroke-linecap="round" pathLength="100" stroke-dasharray="55 100" transform="rotate(-90 23 23)"/><text class="num" x="23" y="24" text-anchor="middle" dominant-baseline="middle">55</text></svg></span><span class="c3__strength">弱</span></div>
+          <div class="c3__body"><div><span class="c3__title">用 8GB 显存跑 70B 模型：一份踩坑实录</span><span class="c3__host">reddit.com ↗</span></div>
+            <p class="c3__reason">大量 offload 到内存，token 速度只有 1.8 tok/s，更多是可行性验证。</p>
+            <div class="c3__foot metaline"><span class="src">Reddit</span><span class="meta-dot">·</span>@quantfan<span class="meta-dot">·</span>昨天</div></div>
+          <div class="c3__rail"><button class="ico">▲</button><button class="ico ico--star">★</button></div>
+        </article>
+      </div>
+    </div>
+  </div>
+
+  <!-- C4 -->
+  <div class="pv-block">
+    <div class="pv-cap"><span class="pv-cap__tag">卡片 C4</span><span class="pv-cap__name">横向分档卡轨</span></div>
+    <p class="pv-cap__desc">按强度分档，每档是一条<b>可左右滑动的玻璃卡轨</b>（Netflix 式）。一屏看完今日全档，重点档优先曝光。适合"先扫重点、再横向深挖"。</p>
+    <div class="pv-screen">
+      <div class="tb4" style="margin-bottom:18px"><div class="tb4__cap"><div class="tb4__seg"><button class="tb4__b" data-on="true">全部<span class="tb4__n">262</span></button><button class="tb4__b">HN<span class="tb4__n">120</span></button><button class="tb4__b">Reddit<span class="tb4__n">84</span></button><button class="tb4__b">X<span class="tb4__n">41</span></button></div><span class="tb4__div"></span><div class="tb4__seg"><button class="tb4__b">最新</button><button class="tb4__b" data-on="true">按分数</button></div></div></div>
+      <div class="c4__tier">
+        <div class="c4__tlabel"><b>重点</b><span class="c4__tline"></span></div>
+        <div class="c4__rail">
+          <article class="c4__card glass"><div class="c4__top"><h3 class="c4__title">Anthropic 发布 Claude 记忆系统</h3><span class="dial" data-s="high"><svg width="32" height="32" viewBox="0 0 46 46"><circle class="trk" cx="23" cy="23" r="17" fill="none" stroke-width="5"/><circle class="fil" cx="23" cy="23" r="17" fill="none" stroke-width="5" stroke-linecap="round" pathLength="100" stroke-dasharray="92 100" transform="rotate(-90 23 23)"/><text class="num" x="23" y="24" text-anchor="middle" dominant-baseline="middle">92</text></svg></span></div><p class="c4__reason">把记忆做成可检索、可编辑的结构化层，而非塞进上下文窗口。</p><div class="c4__foot">Hacker News · 3 小时前</div></article>
+          <article class="c4__card glass"><div class="c4__top"><h3 class="c4__title">Llama 4 推理版权重疑似泄露</h3><span class="dial" data-s="high"><svg width="32" height="32" viewBox="0 0 46 46"><circle class="trk" cx="23" cy="23" r="17" fill="none" stroke-width="5"/><circle class="fil" cx="23" cy="23" r="17" fill="none" stroke-width="5" stroke-linecap="round" pathLength="100" stroke-dasharray="85 100" transform="rotate(-90 23 23)"/><text class="num" x="23" y="24" text-anchor="middle" dominant-baseline="middle">85</text></svg></span></div><p class="c4__reason">多个镜像出现分片，社区已在验证哈希，或再燃开源许可证之争。</p><div class="c4__foot">Reddit · 5 小时前</div></article>
+          <article class="c4__card glass"><div class="c4__top"><h3 class="c4__title">把向量库换成 pgvector 的取舍</h3><span class="dial" data-s="mid"><svg width="32" height="32" viewBox="0 0 46 46"><circle class="trk" cx="23" cy="23" r="17" fill="none" stroke-width="4"/><circle class="fil" cx="23" cy="23" r="17" fill="none" stroke-width="4" stroke-linecap="round" pathLength="100" stroke-dasharray="78 100" transform="rotate(-90 23 23)"/><text class="num" x="23" y="24" text-anchor="middle" dominant-baseline="middle">78</text></svg></span></div><p class="c4__reason">少维护一个系统、事务一致性更好，2 千万向量下 p95 仍可接受。</p><div class="c4__foot">HN · 6 小时前</div></article>
+        </div>
+      </div>
+      <div class="c4__tier">
+        <div class="c4__tlabel"><b>值得一看</b><span class="c4__tline"></span></div>
+        <div class="c4__rail">
+          <article class="c4__card glass"><div class="c4__top"><h3 class="c4__title">o4-mini 调价到 $0.15 / 1M</h3><span class="dial" data-s="mid"><svg width="32" height="32" viewBox="0 0 46 46"><circle class="trk" cx="23" cy="23" r="17" fill="none" stroke-width="4"/><circle class="fil" cx="23" cy="23" r="17" fill="none" stroke-width="4" stroke-linecap="round" pathLength="100" stroke-dasharray="64 100" transform="rotate(-90 23 23)"/><text class="num" x="23" y="24" text-anchor="middle" dominant-baseline="middle">64</text></svg></span></div><p class="c4__reason">推理价格继续探底，对高频调用的 Agent 产品影响显著。</p><div class="c4__foot">X · @swyx · 9 小时前</div></article>
+          <article class="c4__card glass"><div class="c4__top"><h3 class="c4__title">Agent 工具调用的 12 个反模式</h3><span class="dial" data-s="mid"><svg width="32" height="32" viewBox="0 0 46 46"><circle class="trk" cx="23" cy="23" r="17" fill="none" stroke-width="4"/><circle class="fil" cx="23" cy="23" r="17" fill="none" stroke-width="4" stroke-linecap="round" pathLength="100" stroke-dasharray="71 100" transform="rotate(-90 23 23)"/><text class="num" x="23" y="24" text-anchor="middle" dominant-baseline="middle">71</text></svg></span></div><p class="c4__reason">从重试风暴到隐式状态共享，按踩坑频率排了序。</p><div class="c4__foot">HN · 2 天前</div></article>
+          <article class="c4__card glass"><div class="c4__top"><h3 class="c4__title">用 8GB 显存跑 70B 模型</h3><span class="dial" data-s="low"><svg width="32" height="32" viewBox="0 0 46 46"><circle class="trk" cx="23" cy="23" r="17" fill="none" stroke-width="3.5"/><circle class="fil" cx="23" cy="23" r="17" fill="none" stroke-width="3.5" stroke-linecap="round" pathLength="100" stroke-dasharray="55 100" transform="rotate(-90 23 23)"/><text class="num" x="23" y="24" text-anchor="middle" dominant-baseline="middle">55</text></svg></span></div><p class="c4__reason">大量 offload 到内存，1.8 tok/s，更多是可行性验证。</p><div class="c4__foot">Reddit · 昨天</div></article>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- C5 -->
+  <div class="pv-block">
+    <div class="pv-cap"><span class="pv-cap__tag">卡片 C5</span><span class="pv-cap__name">紧凑三列等高卡</span></div>
+    <p class="pv-cap__desc">更密的<b>三列等高玻璃卡</b>，刻度降级成标题前的<b>分数 chip</b>，每卡只留标题 + 来源时间。单屏看到最多条目，适合"快速过一遍今天有什么"。</p>
+    <div class="pv-screen">
+      <div class="tb3" style="margin-bottom:16px"><div class="tb3__filters"><button class="tb3__pill" data-on="true">全部 <span class="tb3__badge">262</span></button><button class="tb3__pill">Hacker News <span class="tb3__badge">120</span></button><button class="tb3__pill">Reddit <span class="tb3__badge">84</span></button><button class="tb3__pill">X <span class="tb3__badge">41</span></button></div><div class="tb3__right"><div class="miniseg"><button>最新</button><button data-on="true">按分数</button></div></div></div>
+      <div class="c5">
+        <article class="c5__c glass" data-s="high"><div class="c5__h"><span class="c5__score">92</span><h3 class="c5__title">Anthropic 发布 Claude 记忆系统，跨会话长期上下文</h3></div><div class="c5__foot">Hacker News · 3 小时前</div></article>
+        <article class="c5__c glass" data-s="high"><div class="c5__h"><span class="c5__score">85</span><h3 class="c5__title">Llama 4 推理版权重疑似泄露，Meta 未回应</h3></div><div class="c5__foot">Reddit · 5 小时前</div></article>
+        <article class="c5__c glass" data-s="mid"><div class="c5__h"><span class="c5__score">78</span><h3 class="c5__title">把向量数据库换成 Postgres + pgvector</h3></div><div class="c5__foot">HN · 6 小时前</div></article>
+        <article class="c5__c glass" data-s="mid"><div class="c5__h"><span class="c5__score">71</span><h3 class="c5__title">Agent 工具调用的 12 个反模式</h3></div><div class="c5__foot">HN · 2 天前</div></article>
+        <article class="c5__c glass" data-s="mid"><div class="c5__h"><span class="c5__score">64</span><h3 class="c5__title">o4-mini 调价到 $0.15 每百万 token</h3></div><div class="c5__foot">X · @swyx · 9 小时前</div></article>
+        <article class="c5__c glass" data-s="low"><div class="c5__h"><span class="c5__score">55</span><h3 class="c5__title">用 8GB 显存跑 70B 模型：踩坑实录</h3></div><div class="c5__foot">Reddit · 昨天</div></article>
+      </div>
+    </div>
+  </div>
+
+  <!-- C6 -->
+  <div class="pv-block">
+    <div class="pv-cap"><span class="pv-cap__tag">卡片 C6</span><span class="pv-cap__name">主信息流 + 侧栏</span></div>
+    <p class="pv-cap__desc">仪表盘式双栏：左侧主玻璃信息流，右侧<b>吸顶玻璃侧栏</b>（今日话题 Top + 最强信号）。把"流"和"概览"放一屏，最像产品后台。</p>
+    <div class="pv-screen">
+      <div class="c6">
+        <div class="c6__main">
+          <article class="c6__row glass"><span class="dial" data-s="high"><svg width="44" height="44" viewBox="0 0 46 46"><circle class="trk" cx="23" cy="23" r="17" fill="none" stroke-width="5"/><circle class="fil" cx="23" cy="23" r="17" fill="none" stroke-width="5" stroke-linecap="round" pathLength="100" stroke-dasharray="92 100" transform="rotate(-90 23 23)"/><text class="num" x="23" y="24" text-anchor="middle" dominant-baseline="middle">92</text></svg></span><div><h3 class="c6__title">Anthropic 发布 Claude 记忆系统，支持跨会话长期上下文</h3><p class="c6__reason">把记忆做成可检索、可编辑的结构化层，而非塞进上下文窗口。</p><div class="c6__foot">Hacker News · 3 小时前</div></div></article>
+          <article class="c6__row glass"><span class="dial" data-s="mid"><svg width="44" height="44" viewBox="0 0 46 46"><circle class="trk" cx="23" cy="23" r="17" fill="none" stroke-width="4"/><circle class="fil" cx="23" cy="23" r="17" fill="none" stroke-width="4" stroke-linecap="round" pathLength="100" stroke-dasharray="78 100" transform="rotate(-90 23 23)"/><text class="num" x="23" y="24" text-anchor="middle" dominant-baseline="middle">78</text></svg></span><div><h3 class="c6__title">为什么我们把向量数据库换成了 pgvector</h3><p class="c6__reason">少维护一个系统、事务一致性更好，2 千万向量下 p95 仍可接受。</p><div class="c6__foot">Hacker News · 6 小时前</div></div></article>
+          <article class="c6__row glass"><span class="dial" data-s="low"><svg width="44" height="44" viewBox="0 0 46 46"><circle class="trk" cx="23" cy="23" r="17" fill="none" stroke-width="3.5"/><circle class="fil" cx="23" cy="23" r="17" fill="none" stroke-width="3.5" stroke-linecap="round" pathLength="100" stroke-dasharray="55 100" transform="rotate(-90 23 23)"/><text class="num" x="23" y="24" text-anchor="middle" dominant-baseline="middle">55</text></svg></span><div><h3 class="c6__title">用 8GB 显存跑 70B 模型：一份踩坑实录</h3><p class="c6__reason">大量 offload 到内存，token 速度只有 1.8 tok/s。</p><div class="c6__foot">Reddit · @quantfan · 昨天</div></div></article>
+        </div>
+        <aside class="c6__aside">
+          <div class="c6__panel glass"><p class="c6__ph">今日话题</p>
+            <div class="c6__trow"><span class="c6__trank">01</span><span class="c6__tname">模型记忆与长上下文</span><span class="c6__tscore">48.2</span></div>
+            <div class="c6__trow"><span class="c6__trank">02</span><span class="c6__tname">开源权重之争</span><span class="c6__tscore">39.7</span></div>
+            <div class="c6__trow"><span class="c6__trank">03</span><span class="c6__tname">推理成本下降</span><span class="c6__tscore">31.4</span></div>
+          </div>
+          <div class="c6__panel glass"><p class="c6__ph">最强信号</p>
+            <div class="c6__trow"><span class="c6__tname">Anthropic 记忆系统</span><span class="c6__tscore">92</span></div>
+            <div class="c6__trow"><span class="c6__tname">Llama 4 权重泄露</span><span class="c6__tscore">85</span></div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+
+  <!-- C7 -->
+  <div class="pv-block">
+    <div class="pv-cap"><span class="pv-cap__tag">卡片 C7</span><span class="pv-cap__name">时间线玻璃卡</span></div>
+    <p class="pv-cap__desc">左侧一条时间脊，按时间分组（刚刚 / 今天上午 / 昨天）挂玻璃卡。最适合"最新"排序，强调信息的<b>时序节奏</b>。</p>
+    <div class="pv-screen">
+      <div class="tb2" style="margin-bottom:18px"><div class="tb2__tabs"><a class="tb2__tab" data-on="true">全部 <span class="tb2__c">262</span></a><a class="tb2__tab">Hacker News <span class="tb2__c">120</span></a><a class="tb2__tab">Reddit <span class="tb2__c">84</span></a></div><div class="tb2__right"><div class="miniseg"><button data-on="true">最新</button><button>按分数</button></div></div></div>
+      <div class="c7">
+        <div class="c7__group"><span class="c7__node"></span><p class="c7__time">刚刚</p>
+          <article class="c7__card glass"><span class="dial" data-s="high"><svg width="40" height="40" viewBox="0 0 46 46"><circle class="trk" cx="23" cy="23" r="17" fill="none" stroke-width="5"/><circle class="fil" cx="23" cy="23" r="17" fill="none" stroke-width="5" stroke-linecap="round" pathLength="100" stroke-dasharray="92 100" transform="rotate(-90 23 23)"/><text class="num" x="23" y="24" text-anchor="middle" dominant-baseline="middle">92</text></svg></span><div><div class="c7__title">Anthropic 发布 Claude 记忆系统</div><div class="c7__meta">Hacker News · anthropic.com</div></div><span class="cardact"><button class="ico ico--star" data-on="true">★</button></span></article>
+        </div>
+        <div class="c7__group"><span class="c7__node"></span><p class="c7__time">今天上午</p>
+          <article class="c7__card glass"><span class="dial" data-s="high"><svg width="40" height="40" viewBox="0 0 46 46"><circle class="trk" cx="23" cy="23" r="17" fill="none" stroke-width="5"/><circle class="fil" cx="23" cy="23" r="17" fill="none" stroke-width="5" stroke-linecap="round" pathLength="100" stroke-dasharray="85 100" transform="rotate(-90 23 23)"/><text class="num" x="23" y="24" text-anchor="middle" dominant-baseline="middle">85</text></svg></span><div><div class="c7__title">Llama 4 推理版权重疑似泄露</div><div class="c7__meta">Reddit · r/LocalLLaMA</div></div><span class="cardact"><button class="ico ico--star">★</button></span></article>
+          <article class="c7__card glass"><span class="dial" data-s="mid"><svg width="40" height="40" viewBox="0 0 46 46"><circle class="trk" cx="23" cy="23" r="17" fill="none" stroke-width="4"/><circle class="fil" cx="23" cy="23" r="17" fill="none" stroke-width="4" stroke-linecap="round" pathLength="100" stroke-dasharray="78 100" transform="rotate(-90 23 23)"/><text class="num" x="23" y="24" text-anchor="middle" dominant-baseline="middle">78</text></svg></span><div><div class="c7__title">把向量库换成 Postgres + pgvector</div><div class="c7__meta">Hacker News · supabase.com</div></div><span class="cardact"><button class="ico ico--star">★</button></span></article>
+        </div>
+        <div class="c7__group"><span class="c7__node"></span><p class="c7__time">昨天</p>
+          <article class="c7__card glass"><span class="dial" data-s="low"><svg width="40" height="40" viewBox="0 0 46 46"><circle class="trk" cx="23" cy="23" r="17" fill="none" stroke-width="3.5"/><circle class="fil" cx="23" cy="23" r="17" fill="none" stroke-width="3.5" stroke-linecap="round" pathLength="100" stroke-dasharray="55 100" transform="rotate(-90 23 23)"/><text class="num" x="23" y="24" text-anchor="middle" dominant-baseline="middle">55</text></svg></span><div><div class="c7__title">用 8GB 显存跑 70B 模型：踩坑实录</div><div class="c7__meta">Reddit · @quantfan</div></div><span class="cardact"><button class="ico ico--star">★</button></span></article>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+</div>
+
+<script>
+  const tabs=document.querySelectorAll('.pv-tab'),pages=document.querySelectorAll('.pv-page');
+  function act(t){tabs.forEach(x=>x.setAttribute('aria-selected',x.dataset.target===t));pages.forEach(p=>p.setAttribute('data-active',p.dataset.page===t));}
+  tabs.forEach(t=>t.addEventListener('click',()=>{act(t.dataset.target);window.scrollTo({top:0,behavior:'smooth'});}));
+  const h=location.hash.replace('#','');if(h)act(h);
+</script>
+</body>
+</html>
