@@ -1,28 +1,50 @@
-import { describe, expect, it, beforeAll } from "vitest";
-import { NextRequest } from "next/server";
+import { describe, expect, it } from "vitest";
+import { authorized, isEmailAllowed } from "../../src/auth-rules.js";
 
-beforeAll(() => {
-  process.env.BASIC_AUTH_USER = "admin";
-  process.env.BASIC_AUTH_PASS = "secret";
+const ctx = (path: string, loggedIn: boolean) => ({
+  auth: loggedIn ? { user: { email: "you@gmail.com" } } : null,
+  request: { nextUrl: new URL(`http://localhost${path}`) },
 });
 
-async function mw() { return (await import("../../src/middleware.js")).middleware; }
-const req = (path: string, auth?: string) =>
-  new NextRequest(`http://localhost${path}`, auth ? { headers: { authorization: auth } } : {});
+describe("auth gate routing (authorized)", () => {
+  it("lets /api/ingest through without a session (own bearer token)", () => {
+    expect(authorized(ctx("/api/ingest", false))).toBe(true);
+  });
+  it("lets NextAuth's own /api/auth routes through to finish OAuth", () => {
+    expect(authorized(ctx("/api/auth/callback/google", false))).toBe(true);
+  });
+  it("shows the /login page to a logged-out visitor", () => {
+    expect(authorized(ctx("/login", false))).toBe(true);
+  });
+  it("redirects an already-authed user away from /login", () => {
+    const res = authorized(ctx("/login", true));
+    expect(res).toBeInstanceOf(Response);
+    expect((res as Response).headers.get("location")).toBe("http://localhost/");
+  });
+  it("blocks the dashboard when logged out (NextAuth then redirects to /login)", () => {
+    expect(authorized(ctx("/", false))).toBe(false);
+  });
+  it("allows the dashboard when logged in", () => {
+    expect(authorized(ctx("/", true))).toBe(true);
+  });
+});
 
-describe("basic auth middleware", () => {
-  it("lets /api/ingest through without basic auth", async () => {
-    const res = (await mw())(req("/api/ingest"));
-    expect(res.status).not.toBe(401);
+describe("email allowlist (isEmailAllowed)", () => {
+  it("denies everyone when the allowlist is empty (safe default)", () => {
+    expect(isEmailAllowed("you@gmail.com", true, "")).toBe(false);
+    expect(isEmailAllowed("you@gmail.com", true, undefined)).toBe(false);
   });
-  it("challenges unauthenticated dashboard requests", async () => {
-    const res = (await mw())(req("/"));
-    expect(res.status).toBe(401);
-    expect(res.headers.get("www-authenticate")).toContain("Basic");
+  it("allows listed emails and denies unlisted ones, case-insensitively", () => {
+    const allow = "You@Gmail.com, friend@example.com";
+    expect(isEmailAllowed("you@gmail.com", true, allow)).toBe(true);
+    expect(isEmailAllowed("FRIEND@example.com", true, allow)).toBe(true);
+    expect(isEmailAllowed("stranger@example.com", true, allow)).toBe(false);
   });
-  it("allows correct credentials", async () => {
-    const token = Buffer.from("admin:secret").toString("base64");
-    const res = (await mw())(req("/", `Basic ${token}`));
-    expect(res.status).not.toBe(401);
+  it("rejects unverified Google emails even if listed", () => {
+    expect(isEmailAllowed("you@gmail.com", false, "you@gmail.com")).toBe(false);
+  });
+  it("rejects empty / missing emails", () => {
+    expect(isEmailAllowed("", true, "you@gmail.com")).toBe(false);
+    expect(isEmailAllowed(null, true, "you@gmail.com")).toBe(false);
   });
 });

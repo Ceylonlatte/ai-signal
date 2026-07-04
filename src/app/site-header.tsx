@@ -11,8 +11,10 @@ import {
   Tag,
   Pulse,
   EyeSlash,
+  SignOut,
   type Icon,
 } from "@phosphor-icons/react";
+import { signOutAction } from "./auth-actions.js";
 
 type NavItem = { href: string; label: string; Icon: Icon; group: "browse" | "manage" };
 
@@ -30,7 +32,9 @@ function isActive(pathname: string, href: string): boolean {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
-export function SiteHeader() {
+type SessionUser = { name?: string | null; email?: string | null; image?: string | null };
+
+export function SiteHeader({ user }: { user?: SessionUser | null }) {
   const pathname = usePathname() ?? "/";
   const [open, setOpen] = useState(false);
 
@@ -66,6 +70,9 @@ export function SiteHeader() {
     };
   }, [open]);
 
+  // The login gate is a standalone surface — no app chrome behind it.
+  if (pathname === "/login") return null;
+
   return (
     <>
       <aside className="sidebar">
@@ -97,6 +104,41 @@ export function SiteHeader() {
                 </svg>
               </span>
             </Link>
+            {user ? (
+              <div className="sidebar__user">
+                <span className="sidebar__avatar" aria-hidden="true">
+                  {user.image ? (
+                    // Google avatar (lh3.googleusercontent.com). Plain img keeps
+                    // this a static asset; no-referrer avoids hotlink 403s.
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={user.image} alt="" referrerPolicy="no-referrer" />
+                  ) : (
+                    (user.name || user.email || "?").charAt(0).toUpperCase()
+                  )}
+                </span>
+                <span className="sidebar__user-text">
+                  <span className="sidebar__user-name">{user.name || user.email}</span>
+                  {user.email ? <span className="sidebar__user-mail">{user.email}</span> : null}
+                </span>
+                <form action={signOutAction} className="sidebar__signout-form">
+                  <button
+                    type="submit"
+                    className="sidebar__signout-btn"
+                    aria-label="退出登录"
+                    title="退出登录"
+                  >
+                    <SignOut size={16} weight="regular" aria-hidden="true" />
+                  </button>
+                </form>
+              </div>
+            ) : (
+              <form action={signOutAction} className="sidebar__signout-form">
+                <button type="submit" className="sidebar__signout">
+                  <SignOut size={16} weight="regular" aria-hidden="true" />
+                  退出登录
+                </button>
+              </form>
+            )}
           </div>
         </div>
       </aside>
@@ -145,6 +187,13 @@ export function SiteHeader() {
               {it.label}
             </Link>
           ))}
+          {user?.email ? <p className="navmodal__user">{user.email}</p> : null}
+          <form action={signOutAction} className="navmodal__signout-form">
+            <button type="submit" className="navmodal__signout">
+              <SignOut size={20} weight="regular" aria-hidden="true" />
+              退出登录
+            </button>
+          </form>
         </nav>
       </div>
     </>

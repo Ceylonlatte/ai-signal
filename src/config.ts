@@ -6,8 +6,13 @@ const schema = z.object({
   DATABASE_URL: z.string().url().default("postgres://aisignal:aisignal@localhost:5432/aisignal"),
   TEST_DATABASE_URL: z.string().url().optional(),
   INGEST_TOKEN: z.string().min(1).default("dev-token"),
-  BASIC_AUTH_USER: z.string().default("admin"),
-  BASIC_AUTH_PASS: z.string().default("admin"),
+  // --- 仪表盘登录（Google / NextAuth）---
+  // 实际由 NextAuth 与 src/auth.config.ts 直接读取 process.env，这里登记仅为集中校验与文档。
+  AUTH_SECRET: z.string().default(""),
+  AUTH_GOOGLE_ID: z.string().default(""),
+  AUTH_GOOGLE_SECRET: z.string().default(""),
+  // 允许登录的 Google 邮箱白名单（逗号分隔）；为空 = 拒绝所有人（安全默认）。
+  AUTH_ALLOWED_EMAILS: z.string().default(""),
   OPENROUTER_API_KEY: z.string().default(""),
   SCORING_MODEL: z.string().default("deepseek/deepseek-v4-flash"),
   EMBEDDING_MODEL: z.string().default("qwen/qwen3-embedding-8b"),

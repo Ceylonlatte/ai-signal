@@ -1,15 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
-import { config as env } from "./config.js";
+import NextAuth from "next-auth";
+import { authConfig } from "./auth.config.js";
 
-export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"] };
+// Session-based gate: unauthenticated visitors are redirected to /login (handled
+// by the `authorized` callback in auth.config), never challenged with the
+// browser's native Basic-Auth dialog.
+export const { auth: middleware } = NextAuth(authConfig);
 
-export function middleware(req: NextRequest): NextResponse {
-  if (req.nextUrl.pathname.startsWith("/api/ingest")) return NextResponse.next();
-  const header = req.headers.get("authorization") ?? "";
-  const expected = "Basic " + Buffer.from(`${env.BASIC_AUTH_USER}:${env.BASIC_AUTH_PASS}`).toString("base64");
-  if (header === expected) return NextResponse.next();
-  return new NextResponse("Authentication required", {
-    status: 401,
-    headers: { "WWW-Authenticate": 'Basic realm="ai-signal"' },
-  });
-}
+// Exclude /api so NextAuth's middleware never runs on the OAuth routes
+// (/api/auth/*) — running it there clobbers the state/pkce/csrf cookies and
+// breaks the Google sign-in callback. /api/ingest guards itself with a bearer
+// token, and page data is fetched in RSCs, so no /api route needs the session gate.
+export const config = { matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"] };

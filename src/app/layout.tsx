@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import { SiteHeader } from "./site-header.js";
+import { auth } from "../auth.js";
 import "./globals.css";
 
 // Body / UI text. CJK falls back to the system Chinese face, so only Latin
@@ -34,7 +35,8 @@ export const metadata: Metadata = {
   description: "个人 AI 资讯聚合与排序：只看对你有价值的，永久可搜索。",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const session = await auth();
   return (
     <html lang="zh-CN" className={`${sans.variable} ${display.variable} ${mono.variable}`}>
       <head>
@@ -50,7 +52,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <div className="scroll-progress" aria-hidden="true" />
         <div className="app">
-          <SiteHeader />
+          <SiteHeader user={session?.user ?? null} />
           <div className="app__main">{children}</div>
         </div>
       </body>

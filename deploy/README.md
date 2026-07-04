@@ -33,8 +33,12 @@ cd ai-signal
 cat > .env <<'EOF'
 DATABASE_URL=postgres://aisignal:aisignal@db:5432/aisignal
 INGEST_TOKEN=<LONG_RANDOM_TOKEN>
-BASIC_AUTH_USER=<your-user>
-BASIC_AUTH_PASS=<STRONG_PASSWORD>
+# Dashboard login = Google OAuth (NextAuth). See "Google 登录配置" below.
+AUTH_SECRET=<openssl rand -base64 32>
+AUTH_GOOGLE_ID=<google-oauth-client-id>
+AUTH_GOOGLE_SECRET=<google-oauth-client-secret>
+AUTH_ALLOWED_EMAILS=you@gmail.com
+AUTH_TRUST_HOST=true
 OPENROUTER_API_KEY=<your-openrouter-key>
 SCORING_MODEL=deepseek/deepseek-v4-flash
 EMBEDDING_MODEL=qwen/qwen3-embedding-8b
@@ -47,9 +51,17 @@ EOF
 chmod 600 .env
 ```
 
-- Generate tokens: `openssl rand -hex 32`.
+- Generate tokens: `openssl rand -hex 32`; generate `AUTH_SECRET` with `openssl rand -base64 32`.
 - `DATABASE_URL` here uses host `db` (the compose service); compose also injects it explicitly, so this line is just a default.
-- **Rotate** the dev defaults (`admin/admin`, `dev-token`) — they must not reach production.
+- **Rotate** the dev default `INGEST_TOKEN` (`dev-token`) — it must not reach production.
+
+### Google 登录配置（NextAuth）
+
+1. Google Cloud Console → **APIs & Services → Credentials → Create OAuth client ID**，应用类型选 **Web application**。
+2. **Authorized redirect URI** 填 `https://<你的域名>/api/auth/callback/google`（本地调试再加 `http://localhost:3000/api/auth/callback/google`）。
+3. 把生成的 Client ID / Secret 填进 `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`。
+4. `AUTH_ALLOWED_EMAILS` 填允许登录的 Google 邮箱（逗号分隔）。**留空 = 任何人都登录不了**（安全默认）。
+5. 未登录访问任意页面会被重定向到 `/login`（不再弹浏览器原生账号密码框）。
 
 ## 3. Docker image-pull proxy (ONLY if your daemon can't reach Docker Hub directly)
 
@@ -85,11 +97,12 @@ docker compose ps
 ### Verify
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000           # -> 401
-curl -s -u "$BASIC_AUTH_USER:$BASIC_AUTH_PASS" http://localhost:3000 | head
+# Unauthenticated request gets bounced to the login page (307 → /login):
+curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" http://localhost:3000   # -> 307 .../login?callbackUrl=...
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/login              # -> 200
 ```
 
-Put the dashboard behind HTTPS (Caddy/Traefik/nginx + Let's Encrypt) or restrict it to Tailscale — Basic Auth alone is plaintext.
+Put the dashboard behind HTTPS (Caddy/Traefik/nginx + Let's Encrypt). Google OAuth requires the public HTTPS callback URL configured in step 2 above to match exactly.
 
 ## 5. Scheduled collectors (VPS cron)
 
@@ -213,7 +226,7 @@ docker compose down                  # stop (keeps the pgdata volume)
 
 ## Security checklist
 
-- [ ] Strong `BASIC_AUTH_PASS` + random `INGEST_TOKEN` in `.env` (not the dev defaults).
+- [ ] Real `AUTH_SECRET` / `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`, a non-empty `AUTH_ALLOWED_EMAILS`, and a random `INGEST_TOKEN` in `.env` (not the dev defaults).
 - [ ] `.env` is `chmod 600`, never committed (it's gitignored).
 - [ ] Dashboard behind HTTPS or Tailscale (Basic Auth is plaintext on the wire).
 - [ ] VPS access via SSH key only; rotate any password that ever appeared in chat/logs.

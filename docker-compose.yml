@@ -21,7 +21,7 @@ services:
     # (local `docker compose build` also tags the built image with this name).
     image: ghcr.io/ceylonlatte/ai-signal:latest
     command: npm run start
-    # .env supplies INGEST_TOKEN / BASIC_AUTH_* / OPENROUTER_API_KEY / models / weights.
+    # .env supplies INGEST_TOKEN / AUTH_* (Google login) / OPENROUTER_API_KEY / models / weights.
     # `environment` overrides DATABASE_URL to the compose-internal host (`db`).
     env_file:
       - .env
