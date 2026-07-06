@@ -89,7 +89,7 @@ export default async function Status() {
   const running = pending > 0;
 
   return (
-    <main className="page is-wide is-live">
+    <main className="page is-live">
       {/* Soft auto-refresh scoped to this page (see auto-refresh.tsx). */}
       <StatusAutoRefresh />
 

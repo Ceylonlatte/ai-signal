@@ -1,0 +1,287 @@
+/* ─── Topics — a mission-control board: a dashboard summary sitting over a
+   dense, scannable leaderboard. Three readout tiles (count / total heat /
+   hottest) set the day's shape; the list below packs every topic onto a
+   single mono line with its heat bar held in a fixed column, so the whole
+   board reads top-to-bottom at a glance. Heat stays monochrome (ink → ash)
+   and grows on arrival; the nebula glow is scarce — a resting hairline on
+   the tiles, a soft bloom on row hover, the top-three ranks the lone tint. */
+
+/* Dashboard head — three readout tiles reusing the .stat panel; the third
+   (hottest topic) runs wider and links into that topic. */
+.dash {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.7fr;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+/* The hottest-topic tile carries text, not a figure — single-line, lit as a
+   link rather than a mono readout. */
+.stat--lead .stat__value {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color var(--dur) var(--ease-out-quart);
+}
+.stat--lead:hover {
+  text-decoration: none;
+}
+.stat--lead:hover .stat__value {
+  color: var(--accent-hover);
+}
+
+/* Compact leaderboard — one line per topic, heat bars aligned in a fixed
+   column so they're directly comparable down the list. */
+/* The leaderboard sits in a machined glass panel (double-bezel): a hairline
+   tray cradling a deep glass core, matching the rail. */
+.lite-shell {
+  padding: 6px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.028);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 36px 80px -52px rgba(0, 0, 0, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+.lite {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-2);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #0c0e17, #080a12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+.lite-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 150px auto;
+  grid-template-areas: "rank label bar score";
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  animation: topic-rise var(--dur-reveal) var(--ease-out-expo) backwards;
+  animation-delay: calc(var(--i, 0) * 34ms);
+  transition: background var(--dur-slow) var(--ease-island),
+    box-shadow var(--dur-slow) var(--ease-island);
+}
+.lite li:last-child .lite-row {
+  border-bottom: none;
+}
+.lite-row:hover {
+  background: rgba(255, 255, 255, 0.035);
+  text-decoration: none;
+}
+/* Leaderboard #1: a faintly raised glass pill marked by one accent point,
+   echoing the rail's selected item. */
+.lite-row--lead {
+  border-bottom: none;
+  margin-bottom: var(--space-1);
+  padding-left: calc(var(--space-3) + 10px);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    0 1px 1px rgba(0, 0, 0, 0.45), 0 14px 30px -20px rgba(0, 0, 0, 0.9);
+}
+.lite-row--lead::after {
+  content: "";
+  position: absolute;
+  left: var(--space-3);
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin-top: -2px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 9px 1px rgba(174, 175, 255, 0.85);
+}
+.lite-row--lead:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+.lite-row__rank {
+  grid-area: rank;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+  text-align: right;
+}
+/* Top three ranks wear the nebula gradient — the only colour in the column. */
+.lite-row--top .lite-row__rank {
+  background: var(--nebula-bright);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.lite-row__label {
+  grid-area: label;
+  min-width: 0;
+  color: var(--text-strong);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color var(--dur) var(--ease-out-quart);
+}
+.lite-row:hover .lite-row__label {
+  color: var(--accent);
+}
+.lite-row__bar {
+  grid-area: bar;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--mist);
+  overflow: hidden;
+}
+.lite-row__bar-fill {
+  display: block;
+  height: 100%;
+  width: var(--w, 0%);
+  border-radius: inherit;
+  background: var(--ash);
+  animation: bar-grow var(--dur-reveal) var(--ease-out-expo) backwards;
+  animation-delay: calc(var(--i, 0) * 34ms + 90ms);
+}
+.lite-row--top .lite-row__bar-fill {
+  background: var(--ink);
+}
+.lite-row__metrics {
+  grid-area: score;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+.lite-row__score {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.lite-row--top .lite-row__score {
+  color: var(--text-strong);
+}
+.lite-row__count {
+  font-family: var(--font-mono);
+  color: var(--text-faint);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Arrival: rows rise + sharpen, then their bars fill from empty, so the
+   day's heat reads as data landing rather than a static render. */
+@keyframes topic-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+@keyframes bar-grow {
+  from {
+    width: 0;
+  }
+}
+
+/* The loading skeleton reuses these classes, so pin it to rest — no rise,
+   no bar grow — to avoid a skeleton arrival handing off to a second one. */
+.is-static .lite-row,
+.is-static .lite-row__bar-fill {
+  animation: none;
+}
+
+/* ─── Topic detail — subject header + vitals readout ────────
+   The detail page opens with a clear subject: a back link to the trend board,
+   the topic name as the page title, then one horizontal instrument readout of
+   the topic's vitals (size, freshness, sources) on the content glass. This
+   orients the reader before the list, replacing the old one-line description
+   that only restated the title and buried the back link at its end. */
+.topic-head {
+  margin-bottom: var(--space-6);
+}
+.topic-head__title {
+  font-size: clamp(1.5rem, 1.15rem + 1.7vw, 1.9rem);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  margin-bottom: var(--space-4);
+  animation: enter-rise 600ms var(--ease-out-expo) both;
+}
+.topic-readout {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  flex-wrap: wrap;
+  gap: var(--space-4) 0;
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, #0c0e17, #080a12);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 22px 48px -34px rgba(0, 0, 0, 0.9);
+  animation: enter-rise 600ms var(--ease-out-expo) 90ms both;
+}
+/* Cells divide by a hairline (the instrument-panel idiom used across the
+   leaderboard + pipeline), not a colored stripe; the first cell has none. */
+.topic-readout__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 0 var(--space-5);
+  border-left: 1px solid rgba(255, 255, 255, 0.07);
+}
+.topic-readout__cell:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+.topic-readout__val {
+  font-family: var(--font-mono);
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+/* The source cell carries short labels, not a figure — set it in the UI sans
+   so it doesn't read as a malformed number in the mono readout. */
+.topic-readout__val--text {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topic-readout__lab {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+/* Narrow: drop the dividers and let the cells wrap on a row gap so a wrapped
+   cell never starts with an orphan hairline. */
+@media (max-width: 560px) {
+  .topic-readout {
+    gap: var(--space-4) var(--space-6);
+    padding: var(--space-4);
+  }
+  .topic-readout__cell {
+    padding: 0;
+    border-left: 0;
+  }
+}
+

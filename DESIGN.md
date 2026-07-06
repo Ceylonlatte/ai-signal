@@ -5,7 +5,7 @@
 
 A quiet, overwhelmingly achromatic reading tool rebuilt as a cosmic command bridge. Content floats on a Void canvas (`#1f232e`, never pure black) with a cool-blue undertone; spatial depth comes from surface-tone steps that go *darker* (Void → Abyss → Singularity), never from elevation drop shadows. The system has **no chromatic CTA**: every filled action is the inverted Lunar-White `#f2f6fa` with dark Void text, the same pressed pill the whole UI shares. Colour is scarce and assigned by meaning: violet for links, signal-blue for the live pulse, amber for the saved star, mint for the accepted tag, and one purple-magenta nebula gradient spent only on edges (the selected sort/filter stroke, a focused input, a hovered ghost button, hovered feed/result cards and vote chips) and the scroll-progress bar. Those lit edges -- and the white CTA -- carry a soft twin-hue nebula **glow** (signal-blue + ultraviolet bloom) so the void reads as lit from within; the brand mark is lit by an inset highlight instead, and the strongest signal dials glow faint white. The glow is a lighting accent, never an elevation cue, and the canvas *behind* content stays a clean even void with no background fill. Hierarchy is weight-driven; figures read like a mission-control gauge in JetBrains Mono. The signal dial and trend bars stay monochrome: strength reads as brightness (bright = strong, dim = weak), not hue.
 
-These are the tokens implemented in `src/app/globals.css` (`:root`). Treat that file as the source of truth.
+These are the tokens implemented in `src/app/styles/tokens.css` (`:root`). Treat that file as the source of truth. Styles are split into surface-scoped files under `src/app/styles/`, aggregated in `@import` order by `src/app/globals.css` — import order is the cascade order.
 
 ## Colors
 
@@ -74,7 +74,7 @@ The mission-control readout: the signal dial number, stat values + labels, badge
 
 **Base unit:** 4px · **Density:** comfortable
 
-- **Reading width:** 1160px (left-aligned in the main pane)
+- **Content width:** the pane fills everything beside the rail (no container cap); long-form text caps its own measure (`ch`-based; reader sections share `--kb-measure`, `min(100%, 1096px)`)
 - **Card padding:** 32-40px (`--space-8`/`--space-10`)
 - **Element gap:** 16-24px
 - **Sidebar:** 248px column holding a detached glass panel (double-bezel: hairline tray + deep glass core), main pane Void
@@ -171,7 +171,7 @@ Hairline row borders, mono tabular figures, light-wash row hover. On `/status` (
 
 State-bearing and brief, built from transform / opacity / blur. The scroll-progress bar (nebula gradient) and the live pulse (signal-blue) are the only colour in motion, and both are tied to status. Every effect degrades under `prefers-reduced-motion`; content is never gated on JS.
 
-**Tokens** (`globals.css`): easings `--ease-out-quart/quint/expo` and `--ease-island` `cubic-bezier(0.32,0.72,0,1)`; durations `--dur-fast` 120ms, `--dur` 180ms, `--dur-slow` 320ms, `--dur-reveal` 560ms. No bounce, no elastic.
+**Tokens** (`styles/tokens.css`): easings `--ease-out-quart/quint/expo` and `--ease-island` `cubic-bezier(0.32,0.72,0,1)`; durations `--dur-fast` 120ms, `--dur` 180ms, `--dur-slow` 320ms, `--dur-reveal` 560ms. No bounce, no elastic.
 
 | Moment | Motion | Material / timing |
 |--------|--------|-------------------|
@@ -208,7 +208,7 @@ No photography, illustration, or decorative graphics. The clean void canvas, wit
 
 ## Layout
 
-A full-width dark canvas: a detached glass sidebar panel (brand + nav + live status) beside a Void main pane holding a left-aligned reading column (max-width 1160px, padded 32-40px). The canvas carries no background glow; the nebula gradient appears only on selected/focused edges. Sections flow vertically with no dividers between bands. Below 860px the sidebar collapses to a translucent top bar with a hamburger takeover; below 600px the reading column goes full-bleed.
+A full-width dark canvas: a detached glass sidebar panel (brand + nav + live status) beside a Void main pane whose content fills the remaining width (padded 32-40px); prose caps its own `ch` measure instead of the container. The feed console pins to the top on scroll, docking under a hairline that fades in scroll-driven over the first ~96px. The canvas carries no background glow; the nebula gradient appears only on selected/focused edges. Sections flow vertically with no dividers between bands. Below 860px the sidebar collapses to a translucent top bar with a hamburger takeover; below 600px the reading column goes full-bleed.
 
 ## Similar Brands
 

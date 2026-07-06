@@ -1,6 +1,6 @@
 export default function Loading() {
   return (
-    <main className="page is-wide is-static" aria-busy="true" aria-label="加载中">
+    <main className="page is-static" aria-busy="true" aria-label="加载中">
       <div className="page__head">
         <h1 className="page__title">流水线状态</h1>
       </div>

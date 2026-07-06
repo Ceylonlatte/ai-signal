@@ -1,0 +1,352 @@
+/* ─── Page scaffold — the content pane fills everything beside the rail,
+   no card: the surface is the main pane itself. Long-form text inside caps
+   its own measure (ch-based), so the container can run edge to edge. ─── */
+
+.page {
+  position: relative;
+  width: 100%;
+  margin: 0;
+  padding: var(--space-10) var(--space-8) var(--space-16);
+}
+
+/* No atmospheric background glow — the nebula lives only in the fine detail:
+   gradient strokes on selected/focused controls and the scroll-progress bar.
+   The canvas itself stays a clean, even void. */
+
+.page__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+.page__title {
+  font-size: clamp(1.5rem, 2.4vw, 1.75rem);
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  animation: enter-rise 600ms var(--ease-out-expo) both;
+}
+.page__tools {
+  animation: enter-rise 600ms var(--ease-out-expo) 90ms both;
+}
+
+/* One-time arrival for the page head — the "today's signal" moment. */
+@keyframes enter-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+.page__count {
+  color: var(--text-faint);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* Status header tools: the live count reads as a mono pill with a nebula edge
+   + soft glow, so the page__tools area isn't a bare line of text. */
+.is-live .page__count {
+  position: relative;
+  padding: 5px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  color: var(--text-strong);
+  box-shadow: var(--glow-nebula-soft);
+}
+.is-live .page__count::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--nebula-bright);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Visually hidden but exposed to screen readers / SEO. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Bare head (home feed): no visible title — the toolbar IS the page head.
+   The <h1> stays for a11y/SEO via .sr-only. */
+.page__head--bare {
+  display: block;
+  /* Pin the console to the top as the feed scrolls beneath it. A symmetric
+     opaque void apron (padding above *and* below the console, same colour as
+     the main pane) means scrolled rows tuck evenly behind the bar instead of
+     clipping against the glass edge; the negative top margin keeps the
+     at-rest position unchanged. */
+  position: sticky;
+  top: var(--head-pin-top, 0px);
+  z-index: var(--z-sticky);
+  margin: calc(-1 * var(--space-5)) 0 var(--space-2);
+  padding: var(--space-5) 0 var(--space-3);
+  background: var(--surface);
+}
+/* Docking hairline: a bottom rule that fades in across the first stretch of
+   scroll (scroll-driven, Chromium-first), so the pin reads as the console
+   smoothly docking rather than an abrupt state flip. Other engines keep the
+   plain bar — no loss of function. */
+.page__head--bare::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 1px;
+  background: var(--border);
+  opacity: 0;
+  pointer-events: none;
+}
+@supports (animation-timeline: scroll()) {
+  .page__head--bare::after {
+    animation: head-dock linear both;
+    animation-timeline: scroll(root block);
+    animation-range: 0px 96px;
+  }
+  @keyframes head-dock {
+    to {
+      opacity: 1;
+    }
+  }
+}
+/* Toolbar head splits into two groups: platform filter on the left,
+   sort + count on the right — so they don't read as one ambiguous strip. */
+.page__head--bare .page__tools {
+  flex: 1;
+  justify-content: space-between;
+}
+.page__tools__right {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/* ─── Feed sort toggle (segmented control) ──────────────── */
+.page__tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+.sort {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+}
+.sort__btn {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease-out-quint),
+    background var(--dur-fast) var(--ease-out-quint);
+}
+.sort__btn[data-active="true"] {
+  background: var(--surface);
+  color: var(--text-strong);
+  font-weight: 600;
+  box-shadow: var(--glow-nebula-soft);
+  /* The active chip slides between options across navigation. */
+  view-transition-name: sort-active;
+}
+.sort__btn:hover {
+  color: var(--text-strong);
+}
+
+@media (max-width: 720px) {
+  .page__tools {
+    justify-content: flex-start;
+  }
+}
+
+/* ─── Signal console — the feed's page head ──────────────────
+   One slim glass row: platform filter on the left, live count + sort on the
+   right. Server-rendered — every control is a <Link>, so filtering is a plain
+   navigation. Wraps to a second line only at narrow widths. */
+.console {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.02);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  animation: enter-rise 600ms var(--ease-out-expo) 90ms both;
+}
+.console__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.console__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.console__stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.console__stat i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--aurora-mint);
+  box-shadow: 0 0 9px 0 rgba(75, 243, 200, 0.85);
+}
+.console__stat b {
+  color: var(--text-strong);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.platform {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease-out-quint),
+    border-color var(--dur-fast) var(--ease-out-quint),
+    transform var(--dur-fast) var(--ease-out-quart);
+}
+.platform:hover {
+  color: var(--text-strong);
+  text-decoration: none;
+  transform: translateY(-1px);
+}
+.platform__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ash);
+}
+.platform__n {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+.platform[data-active="true"] {
+  color: var(--text-strong);
+  border-color: transparent;
+  background: linear-gradient(180deg, #15171f, #0d0f17);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.platform[data-active="true"] .platform__n {
+  color: var(--accent);
+}
+.platform[data-active="true"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--nebula-bright);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+/* Brand source dots — each platform reads in its own hue. */
+.platform[data-src="all"] .platform__dot {
+  background: var(--nebula-bright);
+}
+.platform[data-src="hn"] .platform__dot {
+  background: #ff6a00;
+  box-shadow: 0 0 7px rgba(255, 106, 0, 0.55);
+}
+.platform[data-src="reddit"] .platform__dot {
+  background: #ff4500;
+  box-shadow: 0 0 7px rgba(255, 69, 0, 0.55);
+}
+.platform[data-src="twitter"] .platform__dot {
+  background: #e8eaed;
+  box-shadow: 0 0 7px rgba(232, 234, 237, 0.5);
+}
+.platform[data-src="rss"] .platform__dot {
+  background: #ff8a3d;
+  box-shadow: 0 0 7px rgba(255, 138, 61, 0.5);
+}
+
+/* ─── Notice (stale sources / inline status) ────────────── */
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-6);
+  background: var(--cloud);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font-size: 14px;
+}
+.notice__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--ash);
+}
+
+/* Soft variant — a quiet advisory line (no filled box) for low-priority status
+   like stale sources, so it recedes instead of reading as an alert before content. */
+.notice--soft {
+  gap: var(--space-2);
+  padding: 0;
+  margin-bottom: var(--space-5);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.notice--soft .notice__dot {
+  width: 6px;
+  height: 6px;
+  margin-top: 5px;
+}
+

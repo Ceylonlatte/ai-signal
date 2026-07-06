@@ -1,0 +1,672 @@
+/* ═══════════════════════════════════════════════════════════
+   Secondary surfaces — topics / search / keywords / status /
+   suppressed. Same ink-and-ember discipline as the feed:
+   monochrome by default, ember only for action + active state,
+   --danger the lone semantic exception (errors / destructive).
+   ═══════════════════════════════════════════════════════════ */
+
+/* Lead paragraph under a page title — the one-line "what this is". */
+.page__lead {
+  max-width: 68ch;
+  margin: 0 0 var(--space-6);
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1.6;
+  text-wrap: pretty;
+  animation: enter-rise 600ms var(--ease-out-expo) 60ms both;
+}
+.page__lead strong {
+  color: var(--text-strong);
+  font-weight: 700;
+}
+.page__lead em {
+  font-style: normal;
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* A live-refreshing page (status) must not replay its arrival on every
+   reload, and a skeleton fallback must not animate then hand off to a
+   second animated arrival — pin the head to its rest state in both. */
+.page.is-live .page__title,
+.page.is-live .page__lead,
+.page.is-static .page__title,
+.page.is-static .page__lead {
+  animation: none;
+}
+
+/* ─── Buttons — the pill vocabulary (DESIGN: Pill Primary + Ghost) ─── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: 38px;
+  padding: 0 var(--space-5);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease-out-quint),
+    border-color var(--dur-fast) var(--ease-out-quint),
+    color var(--dur-fast) var(--ease-out-quint),
+    transform var(--dur-fast) var(--ease-out-quart);
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.btn--primary {
+  background: var(--action);
+  color: var(--on-accent);
+  /* The signature inverted CTA: a Lunar-White pill that glows on the void. */
+  box-shadow: var(--glow-white);
+}
+.btn--primary:hover:not(:disabled) {
+  background: var(--action-hover);
+  box-shadow: 0 0 28px -6px rgba(242, 246, 250, 0.65);
+}
+.btn--ghost {
+  background: var(--surface);
+  border-color: var(--border-strong);
+  color: var(--text-strong);
+}
+.btn--ghost:hover:not(:disabled) {
+  border-color: transparent;
+  color: var(--accent);
+  box-shadow: var(--glow-nebula-soft);
+}
+
+/* Small destructive text button (keyword delete). */
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--text-faint);
+  font-size: 13px;
+  font-weight: 600;
+  transition: background var(--dur-fast) var(--ease-out-quint),
+    color var(--dur-fast) var(--ease-out-quint);
+}
+.btn-danger:hover {
+  background: var(--danger-weak);
+  color: var(--danger);
+}
+
+/* ─── Text input ────────────────────────────────────────── */
+
+.field {
+  height: 38px;
+  padding: 0 var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-input);
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 15px;
+  transition: border-color var(--dur-fast) var(--ease-out-quint),
+    box-shadow var(--dur-fast) var(--ease-out-quint);
+}
+.field::placeholder {
+  color: var(--text-faint);
+}
+.field:hover {
+  border-color: var(--smoke);
+}
+/* Focus draws a nebula-gradient stroke (the input can't carry a pseudo-element,
+   so it uses the padding-box / border-box double-background trick — no size
+   shift, the border stays 1px). */
+.field:focus {
+  outline: none;
+  border-color: transparent;
+  background: linear-gradient(var(--surface), var(--surface)) padding-box,
+    var(--nebula-bright) border-box;
+  box-shadow: 0 0 0 3px var(--accent-weak), var(--glow-nebula);
+}
+
+/* ─── Segmented control — radio variant of .sort (search mode) ─── */
+
+.seg {
+  display: inline-flex;
+  flex: none;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+}
+.seg__opt {
+  position: relative;
+  display: inline-flex;
+}
+.seg__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.seg__face {
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.7;
+  white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease-out-quint),
+    background var(--dur-fast) var(--ease-out-quint);
+}
+.seg__opt:hover .seg__face {
+  color: var(--text-strong);
+}
+.seg__input:checked + .seg__face {
+  background: var(--surface);
+  color: var(--text-strong);
+  font-weight: 600;
+  box-shadow: var(--glow-nebula-soft);
+}
+.seg__input:focus-visible + .seg__face {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ─── Toggle switch (keyword enable — "active state" → ember) ─── */
+
+.switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.switch__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.switch__track {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  border-radius: var(--radius-pill);
+  background: var(--ash);
+  transition: background var(--dur) var(--ease-out-quint),
+    box-shadow var(--dur) var(--ease-out-quint);
+}
+.switch__track::after {
+  content: "";
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 18px;
+  height: 18px;
+  margin: 2px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform var(--dur) var(--ease-out-quint),
+    box-shadow var(--dur) var(--ease-out-quint);
+}
+/* On: the flat violet fill becomes a lit nebula track + a glowing knob. */
+.switch__input:checked + .switch__track {
+  background: var(--nebula-bright);
+  box-shadow: var(--glow-nebula-soft);
+}
+.switch__input:checked + .switch__track::after {
+  transform: translateX(16px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 9px rgba(168, 175, 255, 0.75);
+}
+.switch__input:focus-visible + .switch__track {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.switch__input:disabled + .switch__track {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ─── Badge — small status pill (dot + label, monochrome) ─── */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-badge);
+  background: var(--cloud);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.badge__dot {
+  position: relative;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ash);
+}
+.badge--on {
+  position: relative;
+  color: var(--text-strong);
+}
+/* A faint nebula hairline rings the "ready" badge. */
+.badge--on::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--nebula-bright);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  opacity: 0.7;
+  pointer-events: none;
+}
+/* The dot is a lit nebula core that breathes... */
+.badge--on .badge__dot {
+  background: #cdbcff;
+  box-shadow: 0 0 5px 0.5px rgba(168, 175, 255, 0.85),
+    0 0 10px rgba(217, 139, 255, 0.5);
+  animation: badge-core 2.4s ease-in-out infinite;
+}
+/* ...ringed by two tiny twinkling spark particles. */
+.badge--on .badge__dot::before,
+.badge--on .badge__dot::after {
+  content: "";
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: #e3d4ff;
+  opacity: 0;
+  pointer-events: none;
+}
+.badge--on .badge__dot::before {
+  top: -3px;
+  left: 4px;
+  animation: badge-twinkle 1.9s ease-in-out infinite;
+}
+.badge--on .badge__dot::after {
+  top: 4px;
+  left: -3px;
+  animation: badge-twinkle 1.9s ease-in-out 0.95s infinite;
+}
+@keyframes badge-core {
+  0%,
+  100% {
+    box-shadow: 0 0 5px 0.5px rgba(168, 175, 255, 0.8),
+      0 0 9px rgba(217, 139, 255, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 8px 1.5px rgba(168, 175, 255, 1),
+      0 0 14px rgba(217, 139, 255, 0.7);
+  }
+}
+@keyframes badge-twinkle {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ─── Card + section scaffold ───────────────────────────── */
+
+.section {
+  margin-top: var(--space-10);
+}
+.section__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.section__title {
+  font-size: 18px;
+  line-height: 1.2;
+}
+.section__note {
+  max-width: 68ch;
+  margin: 0 0 var(--space-4);
+  color: var(--text-muted);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+/* ─── Data table ────────────────────────────────────────── */
+
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.table th {
+  padding: var(--space-3);
+  text-align: left;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-sunken);
+}
+.table td {
+  padding: var(--space-3);
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.table tbody tr {
+  transition: background var(--dur-fast) var(--ease-out-quint);
+}
+.table tbody tr:hover {
+  background: var(--hover);
+}
+.table .num {
+  text-align: right;
+}
+.table .strong {
+  color: var(--text-strong);
+  font-weight: 600;
+}
+.table .muted {
+  color: var(--text-faint);
+}
+.table__total td {
+  color: var(--text-strong);
+  font-weight: 700;
+  border-top: 1px solid var(--border-strong);
+}
+/* On /status the tables ride the rail's glass: a deep glass panel with hairline
+   dividers and a barely-there header. Scoped to .is-live so the keywords table
+   keeps its bordered sunken card. */
+.is-live .table-wrap {
+  border-color: rgba(255, 255, 255, 0.07);
+  background: linear-gradient(180deg, #0c0e17, #080a12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 30px 70px -50px rgba(0, 0, 0, 0.9);
+}
+.is-live .table th {
+  background: rgba(255, 255, 255, 0.018);
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+.is-live .table td {
+  border-bottom-color: rgba(255, 255, 255, 0.05);
+}
+.is-live .table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+.is-live .table__total td {
+  border-top-color: rgba(255, 255, 255, 0.12);
+}
+
+/* ─── Stat tiles ────────────────────────────────────────── */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-3);
+}
+/* Stat tiles wear the rail's glass: a deep glass face lit by an inset highlight
+   and held by a soft ambient shadow (used on /topics + /status). */
+.stat {
+  padding: var(--space-4);
+  background: linear-gradient(180deg, #0c0e17, #080a12);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 22px 48px -34px rgba(0, 0, 0, 0.9);
+}
+.stat__label {
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 600;
+}
+.stat__value {
+  margin-top: 6px;
+  color: var(--text-strong);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.stat__hint {
+  margin-top: 4px;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+/* ─── Pipeline progress (status) — monochrome, like the dial ─── */
+
+/* The pipeline is a stepped flow: a spine threads through the stages, each a
+   glass capsule. Completed nodes go solid, the live bottleneck pulses, and the
+   connector between nodes lights by completion. Cradled in the rail's glass. */
+.pipe-shell {
+  padding: 6px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.028);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 36px 80px -52px rgba(0, 0, 0, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+.pipe {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) var(--space-4) var(--space-3);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #0c0e17, #080a12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+.pipe__step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: var(--space-3);
+}
+.pipe__spine {
+  position: relative;
+}
+/* Nodes + connectors are positioned, so they don't care about capsule height. */
+.pipe__node {
+  position: absolute;
+  top: 15px;
+  left: 50%;
+  width: 11px;
+  height: 11px;
+  margin-left: -5.5px;
+  border-radius: 50%;
+  background: #12141d;
+  box-shadow: inset 0 0 0 2px var(--ash), 0 0 0 4px rgba(0, 0, 0, 0.35);
+  z-index: 1;
+}
+.pipe__seg {
+  position: absolute;
+  top: 26px;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  bottom: calc(-1 * var(--space-3) - 15px);
+  background: rgba(255, 255, 255, 0.08);
+}
+.pipe__step.is-done .pipe__node {
+  background: var(--ink);
+  box-shadow: inset 0 0 0 2px var(--ink), 0 0 0 4px rgba(0, 0, 0, 0.35);
+}
+.pipe__step.is-done .pipe__seg {
+  background: linear-gradient(180deg, var(--ink), var(--ash));
+}
+.pipe__step.is-active .pipe__node {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px rgba(174, 175, 255, 0.22),
+    0 0 11px 1px rgba(174, 175, 255, 0.8);
+  animation: pipe-node 1.9s var(--ease-out-quint) infinite;
+}
+@keyframes pipe-node {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px rgba(174, 175, 255, 0.18),
+      0 0 8px 0 rgba(174, 175, 255, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(174, 175, 255, 0.26),
+      0 0 14px 2px rgba(174, 175, 255, 0.9);
+  }
+}
+.pipe__cap {
+  padding: var(--space-3) var(--space-4);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.022);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.pipe__step.is-active .pipe__cap {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    0 14px 30px -20px rgba(0, 0, 0, 0.9);
+}
+.pipe__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+.pipe__label {
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.pipe__val {
+  color: var(--text-faint);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pipe__pending {
+  color: var(--text-muted);
+}
+.pipe__step.is-active .pipe__pending {
+  color: var(--accent);
+}
+.bar {
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: rgba(0, 0, 0, 0.42);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+}
+.bar__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ash);
+  transition: width var(--dur-slow) var(--ease-out-expo);
+}
+.pipe__step.is-done .bar__fill {
+  background: var(--ink);
+}
+
+/* Running / idle status dot (status header — "status" use of ember). */
+.run-dot {
+  position: relative;
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ash);
+  vertical-align: middle;
+  /* Idle standby: even at rest the dot is lit — a soft neutral halo that
+     slowly breathes, so it reads as "online, waiting" rather than a dead pip. */
+  background: var(--graphite);
+  box-shadow: 0 0 7px -1px color-mix(in srgb, var(--graphite) 55%, transparent);
+  animation: run-idle 3.2s var(--ease-out-quint) infinite;
+}
+@keyframes run-idle {
+  0%,
+  100% {
+    box-shadow: 0 0 4px -1px color-mix(in srgb, var(--graphite) 35%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 10px 0 color-mix(in srgb, var(--graphite) 60%, transparent);
+  }
+}
+.run-dot[data-running="true"] {
+  background: var(--ember);
+  /* Running: a lit signal-blue core that breathes under the expanding ping. */
+  animation: run-core 1.8s var(--ease-out-quint) infinite;
+}
+.run-dot[data-running="true"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  animation: run-ping 1.8s var(--ease-out-quint) infinite;
+}
+@keyframes run-core {
+  0%,
+  100% {
+    box-shadow: 0 0 7px 0 var(--ember);
+  }
+  50% {
+    box-shadow: 0 0 13px 1px var(--ember);
+  }
+}
+@keyframes run-ping {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--ember) 60%, transparent);
+    opacity: 1;
+  }
+  70% {
+    opacity: 0;
+  }
+  100% {
+    box-shadow: 0 0 0 10px transparent;
+    opacity: 0;
+  }
+}
+
+/* ─── Notice variant — warnings / alerts (--danger accent) ─── */
+
+.notice--alert {
+  background: var(--danger-weak);
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
+  color: var(--danger);
+}
+.notice--alert .notice__dot {
+  background: var(--danger);
+}
+

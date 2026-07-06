@@ -1,0 +1,121 @@
+/* ─── Instrument-panel figures — mono for readout numbers + meta ─────
+   The dial score, stat values, badges, ranks and counters read like a
+   mission-control gauge: JetBrains Mono, already tabular elsewhere. */
+.signal__num,
+.stat__value,
+.stat__label,
+.page__count,
+.badge,
+.pipe__val,
+.item__triage,
+.result__sim,
+.feed-status,
+.feed-end {
+  font-family: var(--font-mono);
+}
+
+/* ─── Nebula stroke detailing — gradient on lit edges ─────────────────
+   The gradient rides borders: selected nav/filter pills, hovered ghost
+   buttons, hovered feed/topic/result cards and vote chips, plus an always-on
+   hairline on stat panels. Drawn as a 1px masked ring inside a pseudo-element
+   so it costs no layout (no box-model shift, rides view transitions). */
+.sidebar__link,
+.sort__btn,
+.seg__face,
+.btn,
+.feed-more,
+.item,
+.result {
+  position: relative;
+}
+.sort__btn[data-active="true"]::before,
+.seg__input:checked + .seg__face::before,
+.btn--ghost:hover:not(:disabled)::before,
+.feed-more:hover:not(:disabled)::before,
+.item:hover::before,
+.result:hover::before,
+.vote__btn:hover:not(:disabled):not([data-active="true"])::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--nebula-bright);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+/* Active filter/segment pills carry a stronger 2px ring (vs the 1px hairline on
+   cards/stat) so the selection edge reads clearly. */
+.sort__btn[data-active="true"]::before,
+.seg__input:checked + .seg__face::before {
+  padding: 2px;
+}
+
+/* ─── Responsive ────────────────────────────────────────── */
+
+@media (max-width: 600px) {
+  /* Two numeric tiles abreast, the hottest-topic tile spanning under them. */
+  .dash {
+    grid-template-columns: 1fr 1fr;
+  }
+  .stat--lead {
+    grid-column: 1 / -1;
+  }
+  /* The bar drops to its own full-width line under the label so it still
+     reads at phone widths. */
+  .lite-row {
+    grid-template-columns: 26px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "rank label score"
+      ".    bar   bar";
+    row-gap: 7px;
+    column-gap: var(--space-3);
+  }
+  .section {
+    margin-top: var(--space-8);
+  }
+}
+
+@media (max-width: 600px) {
+  .page {
+    padding: var(--space-6) var(--space-4) var(--space-10);
+  }
+  .item {
+    padding: var(--space-4) var(--space-2);
+  }
+  .page__title {
+    font-size: 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  @view-transition {
+    navigation: none;
+  }
+  .scroll-progress {
+    display: none;
+  }
+  /* Reduced motion: skip the reveal entirely, show everything at rest. */
+  .feed .item {
+    opacity: 1;
+    animation: none;
+  }
+  /* Topics: no rise / stagger, and bars rest at their full width. */
+  .lite-row,
+  .lite-row__bar-fill {
+    animation: none;
+  }
+}
+

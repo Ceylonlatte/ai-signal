@@ -1,0 +1,842 @@
+/* ─── Feed list ─────────────────────────────────────────── */
+
+.feed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.item {
+  padding: var(--space-5) var(--space-4);
+  border: 1px solid transparent;
+  border-bottom-color: var(--border);
+  border-radius: var(--radius-md);
+  transition: background var(--dur-slow) var(--ease-island),
+    border-color var(--dur-slow) var(--ease-island),
+    box-shadow var(--dur-slow) var(--ease-island),
+    transform var(--dur-slow) var(--ease-island);
+}
+/* Home + topic feed cards — machined "double-bezel" glass plates: a recessed
+   dial well in the metric gutter, a content column, and a right-hand action
+   rail. A spotlight bloom + the shared .item:hover::before nebula edge light
+   the card on hover. Other lists (raw / library / rss / suppressed) reuse the
+   flat .item, so all the card styling scopes to .item--feed. */
+.item--feed {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: var(--space-6);
+  padding: var(--space-5) var(--space-6);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, #0c0e17, #080a12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 30px 70px -50px rgba(0, 0, 0, 0.95);
+  overflow: hidden;
+  cursor: pointer;
+}
+.item--feed:hover {
+  background: linear-gradient(180deg, #0e111b, #0a0c15);
+  border-color: transparent;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 24px 60px -34px rgba(0, 0, 0, 0.95), var(--glow-nebula-soft);
+}
+/* Spotlight — a soft nebula bloom fades in behind the card on hover. */
+.item__glow {
+  position: absolute;
+  left: -40px;
+  top: -120px;
+  width: 420px;
+  height: 420px;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(circle, rgba(124, 140, 255, 0.14), transparent 60%);
+  transition: opacity var(--dur-slow) var(--ease-island);
+}
+.item--feed:hover .item__glow {
+  opacity: 1;
+}
+
+/* Metric gutter: dial in a recessed well, with strength tier + R on one line
+   beneath it (compact, so the card height is set by the content, not the dial). */
+.item__metric {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+.item__well {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 34%, #16181f, #0a0c12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.03), 0 14px 30px -18px #000;
+}
+.item__well .signal__ring {
+  width: 46px;
+  height: 46px;
+}
+/* Strength tier + R readout, stacked under the dial like an instrument label. */
+.item__gauge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+.item__tier {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--text-faint);
+}
+.item--feed[data-strength="high"] .item__tier {
+  color: var(--ink);
+}
+.item--feed[data-strength="mid"] .item__tier {
+  color: var(--graphite);
+}
+.item__r {
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: var(--text-faint);
+}
+
+.item__body {
+  position: relative;
+  min-width: 0;
+}
+/* Kicker line above the title: source · author · time · host, in mono. */
+.item__kicker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px var(--space-2);
+  margin-bottom: 8px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.item__kicker .item__src {
+  font-family: var(--font-mono);
+}
+
+/* Right-hand action rail: EN toggle, up/down vote, then the save star set apart
+   below a hairline. The buttons are uniform machined circles. */
+.item__rail {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+.item__vote {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.item__act {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  transition: color var(--dur-fast) var(--ease-out-quint),
+    border-color var(--dur-fast) var(--ease-out-quint),
+    box-shadow var(--dur-fast) var(--ease-out-quint),
+    transform var(--dur-fast) var(--ease-out-quart);
+}
+.item__act:hover:not(:disabled):not([data-active="true"]) {
+  color: var(--accent);
+  border-color: transparent;
+  box-shadow: var(--glow-nebula-soft);
+  transform: translateY(-1px);
+}
+.item__act:active:not(:disabled) {
+  transform: scale(0.9);
+}
+.item__act:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.item__act[data-active="true"] {
+  background: var(--action);
+  border-color: var(--action);
+  color: var(--on-accent);
+}
+.item__act[data-kind="down"][data-active="true"] {
+  background: var(--graphite);
+  border-color: var(--graphite);
+}
+.item__act .vote__icon {
+  display: block;
+}
+/* The signal lands: a one-shot ring blooms + the icon pops on activation. */
+.item__act::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+}
+.item__act[data-active="true"]::after {
+  animation: vote-ring var(--dur-reveal) var(--ease-out-expo);
+}
+.item__act[data-active="true"] .vote__icon {
+  animation: icon-pop 380ms var(--ease-out-expo);
+}
+/* EN + save sit in their own group below the vote pair, set off by a short
+   hairline so "calibrate ranking" (up/down) reads apart from "read / keep". */
+.item__rail-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  width: 34px;
+  margin-top: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+/* Save star → same machined circle as the vote/EN buttons. */
+.item__rail-group .star {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  line-height: 0;
+}
+.item__rail-group .star:hover:not([data-active="true"]) {
+  color: var(--accent);
+  border-color: transparent;
+  box-shadow: var(--glow-nebula-soft);
+}
+.item__rail-group .star[data-active="true"] {
+  color: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 55%, var(--border-strong));
+}
+.item__rail .vote__err {
+  text-align: center;
+}
+
+/* Tags as mono # chips, kept to a single non-wrapping row so they add one
+   compact line at most (feed only — other lists keep the flat .tag). */
+.item__tags {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  margin-top: var(--space-3);
+  overflow: hidden;
+}
+.item--feed .tag {
+  flex: none;
+  height: 21px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+}
+.item--feed .tag::before {
+  content: "#";
+  margin-right: 1px;
+  color: var(--text-faint);
+}
+
+/* Compact card: title + summary each clamp to 2 lines so more signals fit per
+   screen. Full text lives on the detail page (the whole card is a link). */
+.item--feed .item__title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 17px;
+  line-height: 1.4;
+}
+.item--feed .item__summary {
+  margin-top: 8px;
+  max-width: 80ch;
+  font-size: 14px;
+  line-height: 1.65;
+}
+/* EN summary reads as its own labelled glass block in the card. */
+.item--feed .item__summary-en {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+}
+.item__en-label {
+  display: block;
+  margin-bottom: 5px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+@media (max-width: 600px) {
+  .feed .item--feed {
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: var(--space-3);
+    padding: var(--space-4);
+  }
+  .feed .item__rail {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    margin-top: var(--space-4);
+  }
+  .feed .item__vote {
+    flex-direction: row;
+  }
+  .feed .item__rail-group {
+    flex-direction: row;
+    width: auto;
+    margin: 0;
+    padding: 0 0 0 var(--space-3);
+    border-top: 0;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+  }
+}
+.item:hover {
+  background: var(--hover);
+  border-color: transparent;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px -22px rgba(0, 0, 0, 0.7), var(--glow-nebula-soft);
+}
+
+/* Scroll-reveal: items rise + sharpen as they enter view. Hidden from
+   the very first paint via CSS (not a JS-toggled class) so the reveal
+   never flashes visible-then-hidden. Fallbacks guarantee content for
+   no-JS (<noscript> in layout), reduced-motion (below), and any env
+   where the observer can't run (JS sets data-animate="off"). --i is the
+   index *within* each IntersectionObserver batch — the first screen
+   staggers, a lone item scrolled into view reveals at once. Reveal uses
+   animation, hover uses transition, so they never fight over transform. */
+.feed .item {
+  opacity: 0;
+}
+.feed .item.is-in {
+  opacity: 1;
+  animation: item-reveal var(--dur-reveal) var(--ease-out-expo) backwards;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+.feed[data-animate="off"] .item {
+  opacity: 1;
+  animation: none;
+}
+@keyframes item-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+
+/* Title row for the dial-less lists (raw / library / rss / suppressed). */
+.item__top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Signal-strength dial — the ranking cue, made unmistakable */
+.signal {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+}
+.signal__ring {
+  display: block;
+  /* Let the high-strength dial's glow bloom past the 46×46 SVG box instead of
+     being clipped square by the SVG viewport. */
+  overflow: visible;
+}
+/* A monochrome dial: the arc length reads the 0–100 signal score on a tonal
+   ladder (ink → graphite → ash) so the strongest dials dominate the scan and
+   the weak ones recede. Colour stays out of it — the Astro system keeps the UI achromatic. */
+.signal__track {
+  stroke: var(--mist);
+}
+.signal__fill {
+  stroke: var(--ash);
+}
+.signal__num {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  fill: var(--text-faint);
+}
+.signal[data-strength="high"] .signal__fill {
+  stroke: var(--ink);
+  /* The strongest signals literally glow — a faint white bloom on the ring. */
+  filter: drop-shadow(0 0 4px rgba(242, 246, 250, 0.5));
+}
+.signal[data-strength="high"] .signal__num {
+  fill: var(--ink);
+}
+.signal[data-strength="mid"] .signal__fill {
+  stroke: var(--graphite);
+}
+.signal[data-strength="mid"] .signal__num {
+  fill: var(--graphite);
+}
+.signal[data-strength="low"] .signal__track {
+  stroke: #20242f;
+}
+/* Strength shows in the ring's tone + thickness and in the number's colour, which
+   tracks the ring (ink → graphite → faint). Size and weight stay uniform across
+   tiers. Track + fill move together so the ring stays even. */
+.signal[data-strength="high"] .signal__track,
+.signal[data-strength="high"] .signal__fill {
+  stroke-width: 5;
+}
+.signal[data-strength="low"] .signal__track,
+.signal[data-strength="low"] .signal__fill {
+  stroke-width: 3.5;
+}
+/* The dial sweeps its arc in as the card reveals — a brief, state-bearing
+   draw, not decoration. Active only on `.is-in`; reduced-motion collapses the
+   keyframe to its filled rest state via the global guard. */
+.feed .item.is-in .signal__fill {
+  animation: signal-draw var(--dur-reveal) var(--ease-out-expo) backwards;
+  animation-delay: calc(var(--i, 0) * 45ms + 110ms);
+}
+@keyframes signal-draw {
+  from {
+    stroke-dashoffset: var(--score, 100);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.item__title {
+  min-width: 0;
+  color: var(--text-strong);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+.item__title:hover {
+  color: var(--accent);
+  text-decoration: none;
+}
+.item__ext {
+  margin-left: 6px;
+  color: var(--text-faint);
+  font-size: 13px;
+  font-weight: 500;
+}
+/* The host chip doubles as the original-source link on the feed. */
+.item__src {
+  transition: color var(--dur-fast) var(--ease-out-quint);
+}
+.item__src:hover {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.item__reason {
+  margin: 6px 0 0;
+  max-width: 72ch;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.item__summary {
+  margin: 6px 0 0;
+  max-width: 72ch;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+/* Original (untranslated) title shown under a Chinese title in the RSS tab. */
+.item__orig {
+  margin: 3px 0 0;
+  color: var(--text-faint);
+  font-size: 13px;
+  line-height: 1.4;
+}
+/* EN summary reveals by animating grid rows (0fr -> 1fr), never raw
+   height, so it expands smoothly without layout-thrash. */
+.item__en {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-slow) var(--ease-out-quart);
+}
+.item__en[data-open="true"] {
+  grid-template-rows: 1fr;
+}
+.item__en-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+.item__summary-en {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--border);
+  color: var(--text-faint);
+  font-size: 13.5px;
+  line-height: 1.5;
+  opacity: 0;
+  transition: opacity var(--dur-slow) var(--ease-out-quart);
+}
+.item__en[data-open="true"] .item__summary-en {
+  opacity: 1;
+}
+
+.item__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-3);
+  color: var(--text-faint);
+  font-size: 13px;
+}
+.item__source {
+  color: var(--text-muted);
+  font-weight: 700;
+}
+.item__author {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.meta-dot {
+  color: var(--ash);
+}
+
+.tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.tag {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-badge);
+  background: var(--cloud);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+/* Triage outcome states (/raw + search): accepted into the feed, dropped by
+   the quality gate, or not yet triaged. */
+.tag--accepted {
+  background: rgba(75, 243, 200, 0.12);
+  color: var(--aurora-mint);
+}
+.tag--dropped {
+  color: var(--text-faint);
+}
+.tag--pending {
+  background: transparent;
+  border: 1px dashed var(--border-strong);
+  color: var(--text-faint);
+}
+/* Triage decision detail on /raw: Q vs gate + component scores + LLM reason. */
+.item__triage {
+  margin: var(--space-2) 0 0;
+  color: var(--text-faint);
+  font-size: 12.5px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.linkish {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--text-faint);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.linkish:hover {
+  color: var(--text-strong);
+}
+
+/* "详情" entry link on feed/RSS cards → KB detail page. Accent = action (brand),
+   so it reads as the card's primary navigation, not muted meta text. */
+.item__detail {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.item__detail:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ─── Feedback (ghost pills, reversible) ────────────────── */
+
+/* The action cluster (EN / 详情 / vote / save) sits to the right, separated
+   from the read-only metadata (source · author · time · tags) on the left, so
+   primary actions don't compete with metadata at the same visual weight. */
+.item__actions {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  margin-left: auto;
+}
+.vote {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.vote__btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 44px;
+  height: 30px;
+  padding: 0 var(--space-3);
+  background: var(--porcelain);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+  --ring: var(--accent);
+  transition: border-color var(--dur-fast) var(--ease-out-quint),
+    color var(--dur-fast) var(--ease-out-quint),
+    background var(--dur-fast) var(--ease-out-quint),
+    transform var(--dur-fast) var(--ease-out-quart);
+}
+.vote__btn:hover:not(:disabled):not([data-active="true"]) {
+  border-color: transparent;
+  color: var(--accent);
+  box-shadow: var(--glow-nebula-soft);
+}
+.vote__btn:active:not(:disabled) {
+  transform: scale(0.9);
+}
+.vote__btn[data-kind="down"] {
+  --ring: var(--ink);
+}
+.vote__btn[data-active="true"] {
+  background: var(--action);
+  border-color: var(--action);
+  color: var(--on-accent);
+}
+.vote__btn[data-active="true"][data-kind="down"] {
+  background: var(--graphite);
+  border-color: var(--graphite);
+  color: var(--on-accent);
+  box-shadow: none;
+}
+.vote__btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.vote__icon {
+  display: block;
+}
+
+/* The signal lands: a one-shot ring blooms and the thumb pops the
+   moment a vote turns active (Principle #4 — feedback you can see). */
+.vote__btn::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+}
+.vote__btn[data-active="true"]::after {
+  animation: vote-ring var(--dur-reveal) var(--ease-out-expo);
+}
+.vote__btn[data-active="true"] .vote__icon {
+  animation: icon-pop 380ms var(--ease-out-expo);
+}
+@keyframes vote-ring {
+  from {
+    opacity: 0.6;
+    box-shadow: 0 0 0 0 var(--ring);
+  }
+  to {
+    opacity: 0;
+    box-shadow: 0 0 0 9px transparent;
+  }
+}
+@keyframes icon-pop {
+  0% {
+    transform: scale(1);
+  }
+  42% {
+    transform: scale(1.3);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.vote__err {
+  color: var(--danger);
+  font-size: 12px;
+}
+
+/* ─── Knowledge base: ⭐ star + card preview ─────────────── */
+
+.star {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  color: var(--text-faint);
+  padding: var(--space-1);
+  line-height: 0;
+  transition: color var(--dur-fast) var(--ease-out-quint);
+}
+.star__icon {
+  display: block;
+}
+.star[data-active="true"] {
+  color: var(--amber);
+}
+.star:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+/* Saving lands with the same satisfaction as a vote, but in ember (its scarce
+   "saved" home): the star pops and a single ember ring blooms — distinct from
+   the vote's ink ring, so colour carries the meaning (saved vs calibrated). */
+.star::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 24px;
+  height: 24px;
+  margin: auto;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+}
+.star[data-active="true"]::after {
+  animation: saved-ring var(--dur-reveal) var(--ease-out-expo);
+}
+.star[data-active="true"] .star__icon {
+  animation: icon-pop 380ms var(--ease-out-expo);
+}
+@keyframes saved-ring {
+  from {
+    opacity: 0.5;
+    box-shadow: 0 0 0 0 var(--amber);
+  }
+  to {
+    opacity: 0;
+    box-shadow: 0 0 0 8px transparent;
+  }
+}
+/* Library shelf (/library): each saved item is a deep-glass note card — the
+   rail's glass language applied to a list. The shared .item is restyled only
+   under .results--kb, so the feed / search / rss lists keep their flat rows. */
+.results--kb {
+  gap: var(--space-3);
+}
+.results--kb .item {
+  padding: var(--space-4);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, #0c0e17, #080a12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 22px 48px -34px rgba(0, 0, 0, 0.9);
+}
+/* Calm glass hover — a light-wash + lift, no nebula ring/glow. */
+.results--kb .item:hover {
+  transform: translateY(-2px);
+  background: linear-gradient(180deg, #0e1019, #0a0c14);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 30px 62px -40px rgba(0, 0, 0, 0.95);
+}
+.results--kb .item:hover::before {
+  display: none;
+}
+.results--kb .skeleton-item {
+  padding: var(--space-4);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, #0c0e17, #080a12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 22px 48px -34px rgba(0, 0, 0, 0.9);
+}
+
+.kb-card__points {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.kb-card__points li {
+  position: relative;
+  padding-left: 15px;
+  margin: 5px 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.kb-card__points li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 8px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.6;
+}
+.kb-status[data-status="failed"] {
+  color: var(--danger);
+}
+.kb-status[data-status="pending"] {
+  color: var(--text-faint);
+}
+.kb-status[data-status="skipped"] {
+  color: var(--text-muted);
+}
+
