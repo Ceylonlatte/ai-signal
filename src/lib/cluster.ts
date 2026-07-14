@@ -74,8 +74,25 @@ async function relabelGrownTopics(db: Db): Promise<number> {
   return relabeled;
 }
 
-// Online clustering: for each unassigned item, find nearest topic centroid;
-// if cosine distance < threshold join it, else create a new topic.
+// Big topics snowball: every join drags the running-mean centroid toward the
+// corpus center, which widens the catchment, which attracts more joins — one
+// topic ended up holding 24% of all items. Shrink the join radius as a topic
+// grows so mature topics only accept near-duplicates while young topics keep
+// the full base threshold. sqrt keeps the falloff gentle near the cap.
+export const TOPIC_SOFT_CAP = 30;
+export const MIN_JOIN_THRESHOLD = 0.12;
+export function joinThreshold(base: number, memberCount: number): number {
+  if (memberCount <= TOPIC_SOFT_CAP) return base;
+  return Math.max(MIN_JOIN_THRESHOLD, base * Math.sqrt(TOPIC_SOFT_CAP / memberCount));
+}
+
+// A rejected giant may hide a small topic just behind it, so rank a few
+// nearest centroids and take the first whose size-adjusted radius accepts.
+const JOIN_CANDIDATES = 5;
+
+// Online clustering: for each unassigned item, find the nearest topic
+// centroids; join the first one within its size-adjusted threshold, else
+// create a new topic.
 export async function runClusterStage(db: Db, opts: { threshold: number }): Promise<number> {
   const rows = await db.execute(sql`
     SELECT e.item_id, e.embedding, i.title
@@ -91,13 +108,15 @@ export async function runClusterStage(db: Db, opts: { threshold: number }): Prom
 
   for (const row of list) {
     const nearest = await db.execute(sql`
-      SELECT id, centroid <=> ${row.embedding}::vector AS dist
-      FROM topics ORDER BY dist ASC LIMIT 1
+      SELECT id, centroid <=> ${row.embedding}::vector AS dist,
+             (SELECT count(*)::int FROM item_topics WHERE topic_id = topics.id) AS n
+      FROM topics ORDER BY dist ASC LIMIT ${JOIN_CANDIDATES}
     `);
-    const near = (nearest.rows ?? nearest)[0] as { id: number; dist: number } | undefined;
+    const cands = (nearest.rows ?? nearest) as Array<{ id: number; dist: number; n: number }>;
+    const near = cands.find((c) => Number(c.dist) < joinThreshold(opts.threshold, Number(c.n)));
 
     let topicId: number;
-    if (near && near.dist < opts.threshold) {
+    if (near) {
       topicId = Number(near.id);
       await foldIntoCentroid(db, topicId, row.embedding);
     } else {
@@ -135,7 +154,9 @@ export async function runClusterStage(db: Db, opts: { threshold: number }): Prom
 // Slightly above the 0.25 assignment threshold: fragments drift back within
 // reach as centroids stabilize, and the LLM judge guards against bad merges.
 const MERGE_CAND_DIST = 0.28;
-const MERGE_PAIRS_PER_RUN = 3;
+// 10 (was 3): at 3/run the candidate backlog outgrew the drain rate — 82% of
+// topics ended up as never-revisited singletons.
+const MERGE_PAIRS_PER_RUN = 10;
 
 async function topicSample(db: Db, topicId: number): Promise<TopicSample | null> {
   const lab = await db.execute(sql`SELECT label FROM topics WHERE id = ${topicId}`);
@@ -190,6 +211,58 @@ async function mergeTopics(db: Db, keepId: number, dropId: number): Promise<void
     DELETE FROM topic_merge_decisions
     WHERE a_id IN (${keepId}, ${dropId}) OR b_id IN (${keepId}, ${dropId})
   `);
+}
+
+// ─── Orphan reabsorb stage ───────────────────────────────────────────────
+// The merge stage only revisits topics active in the last 7 days, so a
+// singleton whose event-topic matured later never gets a second chance —
+// 82% of topics were stranded this way. Periodically re-run the nearest-
+// centroid check for old singletons and fold them into whichever topic now
+// accepts them (same size-adjusted radius as assignment). Distance-only on
+// purpose: a wrong verdict moves exactly one item, not worth an LLM judge.
+// Random order so unabsorbable orphans can't starve the batch forever.
+const ORPHAN_BATCH = 20;
+const ORPHAN_MIN_AGE_DAYS = 7;
+
+export async function reabsorbOrphanTopics(db: Db, opts: { threshold: number }): Promise<number> {
+  const res = await db.execute(sql`
+    SELECT t.id AS topic_id, it.item_id, e.embedding
+    FROM topics t
+    JOIN item_topics it ON it.topic_id = t.id
+    JOIN item_embeddings e ON e.item_id = it.item_id
+    WHERE t.last_seen < now() - make_interval(days => ${ORPHAN_MIN_AGE_DAYS})
+      AND (SELECT count(*) FROM item_topics x WHERE x.topic_id = t.id) = 1
+    ORDER BY random()
+    LIMIT ${ORPHAN_BATCH}
+  `);
+  const orphans = (res.rows ?? res) as Array<{ topic_id: number; item_id: number; embedding: string }>;
+  const gone = new Set<number>();
+  let reabsorbed = 0;
+
+  for (const o of orphans) {
+    const orphanId = Number(o.topic_id);
+    if (gone.has(orphanId)) continue;
+    const nearest = await db.execute(sql`
+      SELECT id, centroid <=> ${o.embedding}::vector AS dist,
+             (SELECT count(*)::int FROM item_topics WHERE topic_id = topics.id) AS n
+      FROM topics WHERE id <> ${orphanId}
+      ORDER BY dist ASC LIMIT 1
+    `);
+    const near = (nearest.rows ?? nearest)[0] as { id: number; dist: number; n: number } | undefined;
+    if (!near) continue;
+    const targetId = Number(near.id);
+    if (gone.has(targetId)) continue;
+    if (Number(near.dist) >= joinThreshold(opts.threshold, Number(near.n))) continue;
+    try {
+      await mergeTopics(db, targetId, orphanId);
+      gone.add(orphanId);
+      gone.add(targetId); // keep this round's merges independent — no chains
+      reabsorbed++;
+    } catch (err) {
+      console.error(`orphan reabsorb ${orphanId} -> ${targetId} failed`, err);
+    }
+  }
+  return reabsorbed;
 }
 
 export async function runTopicMergeStage(db: Db): Promise<number> {

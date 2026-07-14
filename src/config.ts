@@ -24,7 +24,10 @@ const schema = z.object({
   WEIGHT_NOVELTY: z.coerce.number().default(0.15),
   WEIGHT_LLM: z.coerce.number().default(0.45),
   // --- Quality gate Q (time-invariant, llm-dominant) ---
-  Q_THRESHOLD: z.coerce.number().default(0.55),
+  // Lowered 0.55 → 0.50 (2026-07): at 0.55 HN kept only 2.9% / Reddit 4.2%,
+  // and near-miss sampling showed clearly-wanted content (Karpathy tooling,
+  // Google whitepapers) rejected right at the line.
+  Q_THRESHOLD: z.coerce.number().default(0.50),
   // Lower gate for twitter "following": a hand-curated timeline we trust more,
   // so it clears the bar more easily than the global threshold. Tunable.
   Q_THRESHOLD_TWITTER_FOLLOWING: z.coerce.number().default(0.45),

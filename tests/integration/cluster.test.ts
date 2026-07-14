@@ -64,6 +64,76 @@ it("folds new members into the topic centroid (running mean)", async () => {
   expect(centroid[1]).toBeGreaterThan(0.05);
 });
 
+it("reabsorbs a stale singleton into the topic that now accepts it", async () => {
+  await truncateAll();
+  const ins = await db.insert(items).values([
+    { rawItemId: 30, source: "hn", title: "orphan", createdAt: new Date(), contentHash: "c30" },
+    { rawItemId: 31, source: "hn", title: "member 1", createdAt: new Date(), contentHash: "c31" },
+    { rawItemId: 32, source: "hn", title: "member 2", createdAt: new Date(), contentHash: "c32" },
+    { rawItemId: 33, source: "hn", title: "far orphan", createdAt: new Date(), contentHash: "c33" },
+  ]).returning();
+  // orphan sits ~0.04 cosine dist from the target centroid; far orphan is
+  // orthogonal to everything and must be left alone.
+  const nearOrphan = Array(2048).fill(0); nearOrphan[0] = 1; nearOrphan[1] = 0.3;
+  const member = Array(2048).fill(0); member[0] = 1;
+  const farAway = Array(2048).fill(0); farAway[7] = 1;
+  await db.insert(itemEmbeddings).values([
+    { itemId: ins[0]!.id, embedding: nearOrphan },
+    { itemId: ins[1]!.id, embedding: member },
+    { itemId: ins[2]!.id, embedding: member },
+    { itemId: ins[3]!.id, embedding: farAway },
+  ]);
+  const staleDate = new Date(Date.now() - 8 * 86400_000);
+  const [orphan] = await db.insert(topics).values(
+    { label: "stale orphan", centroid: nearOrphan, labelN: 1, lastSeen: staleDate }).returning();
+  const [target] = await db.insert(topics).values(
+    { label: "target", centroid: member, labelN: 2 }).returning();
+  const [farOrphan] = await db.insert(topics).values(
+    { label: "far orphan", centroid: farAway, labelN: 1, lastSeen: staleDate }).returning();
+  await db.insert(itemTopics).values([
+    { itemId: ins[0]!.id, topicId: orphan!.id },
+    { itemId: ins[1]!.id, topicId: target!.id },
+    { itemId: ins[2]!.id, topicId: target!.id },
+    { itemId: ins[3]!.id, topicId: farOrphan!.id },
+  ]);
+
+  const { reabsorbOrphanTopics } = await import("../../src/lib/cluster.js");
+  expect(await reabsorbOrphanTopics(db, { threshold: 0.2 })).toBe(1);
+
+  const remaining = await db.select().from(topics);
+  expect(remaining.map((t) => t.id).sort()).toEqual([target!.id, farOrphan!.id].sort());
+  const links = await db.select().from(itemTopics);
+  expect(links.filter((l) => l.topicId === target!.id)).toHaveLength(3);
+  // second run: nothing left to absorb
+  expect(await reabsorbOrphanTopics(db, { threshold: 0.2 })).toBe(0);
+});
+
+it("leaves fresh singletons alone — merge stage still owns the active window", async () => {
+  await truncateAll();
+  const ins = await db.insert(items).values([
+    { rawItemId: 40, source: "hn", title: "fresh orphan", createdAt: new Date(), contentHash: "c40" },
+    { rawItemId: 41, source: "hn", title: "member", createdAt: new Date(), contentHash: "c41" },
+  ]).returning();
+  const near = Array(2048).fill(0); near[0] = 1; near[1] = 0.3;
+  const member = Array(2048).fill(0); member[0] = 1;
+  await db.insert(itemEmbeddings).values([
+    { itemId: ins[0]!.id, embedding: near },
+    { itemId: ins[1]!.id, embedding: member },
+  ]);
+  const [orphan] = await db.insert(topics).values(
+    { label: "fresh orphan", centroid: near, labelN: 1 }).returning(); // last_seen = now
+  const [target] = await db.insert(topics).values(
+    { label: "target", centroid: member, labelN: 1 }).returning();
+  await db.insert(itemTopics).values([
+    { itemId: ins[0]!.id, topicId: orphan!.id },
+    { itemId: ins[1]!.id, topicId: target!.id },
+  ]);
+
+  const { reabsorbOrphanTopics } = await import("../../src/lib/cluster.js");
+  expect(await reabsorbOrphanTopics(db, { threshold: 0.2 })).toBe(0);
+  expect(await db.select().from(topics)).toHaveLength(2);
+});
+
 it("relabels a topic from member titles once membership grows", async () => {
   await truncateAll();
   const ins = await db.insert(items).values([

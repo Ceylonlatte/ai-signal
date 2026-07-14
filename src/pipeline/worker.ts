@@ -4,7 +4,7 @@ import { runTriageStage } from "./triage.js";
 import { runEmbedStage } from "./stages.js";
 import { runSummarizeStage } from "./summarize-stage.js";
 import { runRssSummarizeStage } from "./rss-summarize-stage.js";
-import { runClusterStage, runTopicMergeStage } from "../lib/cluster.js";
+import { runClusterStage, runTopicMergeStage, reabsorbOrphanTopics } from "../lib/cluster.js";
 import { runKbStage } from "./kb-stage.js";
 import { runRssKbStage } from "./rss-kb-stage.js";
 
@@ -19,9 +19,10 @@ async function loop() {
       const rssSummarized = await runRssSummarizeStage(db);
       const clustered = await runClusterStage(db, { threshold: 0.25 });
       const mergedTopics = await runTopicMergeStage(db);
+      const reabsorbed = await reabsorbOrphanTopics(db, { threshold: 0.25 });
       const kb = await runKbStage(db);
       const rssKb = await runRssKbStage(db);
-      if (triaged + embedded + summarized + rssSummarized + clustered + mergedTopics + kb + rssKb === 0) {
+      if (triaged + embedded + summarized + rssSummarized + clustered + mergedTopics + reabsorbed + kb + rssKb === 0) {
         await new Promise((r) => setTimeout(r, POLL_MS));
       }
     } catch (err) {

@@ -9,11 +9,11 @@ const e = (i: number) => Array.from({ length: 2048 }, (_, k) => (k === i ? 1 : 0
 // Borderline LLM value chosen so Q lands in the rescue band. HN items get
 // qualityRelevance 0 (relevance is zeroed for hn in triage) and trust 0.5, so
 // Q = llmValue + 0.30*(0 - 0.5) + 0.15*(0.5 - 0.5) = llmValue - 0.15.
-// value 65 -> llmValue 0.65 -> Q = 0.50: below the 0.55 gate, inside the
-// rescue band [0.45, 0.55).
+// value 60 -> llmValue 0.60 -> Q = 0.45: below the 0.50 gate, inside the
+// rescue band [0.40, 0.50).
 vi.mock("../../src/lib/scoring/llm.js", () => ({
   scoreBatch: vi.fn(async (cands: { id: number }[]) =>
-    new Map(cands.map((c) => [c.id, { id: c.id, value: 65, topics: [], reason: "r" }]))),
+    new Map(cands.map((c) => [c.id, { id: c.id, value: 60, topics: [], reason: "r" }]))),
 }));
 // The borderline candidate embeds identical to the liked reference (e(0)).
 vi.mock("../../src/lib/embeddings.js", () => ({

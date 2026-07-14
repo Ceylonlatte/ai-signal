@@ -16,16 +16,23 @@ describe("computeQuality", () => {
     expect(computeQuality({ llmValue: 1, relevance: 1, trust: 1 })).toBeLessThanOrEqual(1);
     expect(computeQuality({ llmValue: 0, relevance: 0, trust: 0 })).toBeGreaterThanOrEqual(0);
   });
+  it("rounds away float dust so the stored q equals the gated q", () => {
+    // 0.7 + 0.30*(0-0.5) + 0.15*(0.5-0.5) = 0.7 - 0.15 = 0.5499999… in IEEE754;
+    // the round makes it exactly 0.55 so display and gate agree.
+    const q = computeQuality({ llmValue: 0.7, relevance: 0, trust: 0.5 });
+    expect(q).toBe(0.55);
+    expect(passesGate(q, 0.55)).toBe(true);
+  });
 });
 
 describe("gate", () => {
-  it("passesGate at/above threshold (default 0.55)", () => {
-    expect(passesGate(0.55)).toBe(true);
-    expect(passesGate(0.54)).toBe(false);
+  it("passesGate at/above threshold (default 0.50)", () => {
+    expect(passesGate(0.50)).toBe(true);
+    expect(passesGate(0.49)).toBe(false);
   });
   it("inRescueBand for borderline below threshold (default margin 0.10)", () => {
-    expect(inRescueBand(0.50)).toBe(true);   // 0.45..0.55
-    expect(inRescueBand(0.44)).toBe(false);  // too low
-    expect(inRescueBand(0.60)).toBe(false);  // already passes
+    expect(inRescueBand(0.45)).toBe(true);   // 0.40..0.50
+    expect(inRescueBand(0.39)).toBe(false);  // too low
+    expect(inRescueBand(0.55)).toBe(false);  // already passes
   });
 });
