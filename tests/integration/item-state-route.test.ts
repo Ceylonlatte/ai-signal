@@ -51,14 +51,41 @@ it("sets favorited_at when favoriting and clears it when unfavoriting", async ()
   expect(b!.favoritedAt).toBeNull();
 });
 
-it("deletes the kb_entry when unfavoriting (so re-favoriting reprocesses fresh)", async () => {
+it("keeps the kb_entry when unfavoriting (notes are permanent memory)", async () => {
   const { PATCH } = await import("../../src/app/api/items/[id]/route.js");
-  await db.insert(kbEntries).values({ itemId: id, status: "failed", attempts: 3 });
+  await db.insert(kbEntries).values({ itemId: id, status: "ready" });
   const res = await PATCH(
     new Request(`http://x/api/items/${id}`, { method: "PATCH", body: JSON.stringify({ isFavorited: false }) }),
     { params: Promise.resolve({ id: String(id) }) },
   );
   expect(res.status).toBe(200);
   const rows = await db.select().from(kbEntries).where(eq(kbEntries.itemId, id));
-  expect(rows).toHaveLength(0);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]!.status).toBe("ready");
+});
+
+it("resets a failed kb_entry when favoriting (so the worker retries it)", async () => {
+  const { PATCH } = await import("../../src/app/api/items/[id]/route.js");
+  await db.insert(kbEntries).values({ itemId: id, status: "failed", attempts: 3, error: "boom" });
+  const res = await PATCH(
+    new Request(`http://x/api/items/${id}`, { method: "PATCH", body: JSON.stringify({ isFavorited: true }) }),
+    { params: Promise.resolve({ id: String(id) }) },
+  );
+  expect(res.status).toBe(200);
+  const [row] = await db.select().from(kbEntries).where(eq(kbEntries.itemId, id));
+  expect(row!.status).toBe("pending");
+  expect(row!.attempts).toBe(0);
+  expect(row!.error).toBeNull();
+});
+
+it("does not reset a ready kb_entry when favoriting", async () => {
+  const { PATCH } = await import("../../src/app/api/items/[id]/route.js");
+  await db.insert(kbEntries).values({ itemId: id, status: "ready" });
+  const res = await PATCH(
+    new Request(`http://x/api/items/${id}`, { method: "PATCH", body: JSON.stringify({ isFavorited: true }) }),
+    { params: Promise.resolve({ id: String(id) }) },
+  );
+  expect(res.status).toBe(200);
+  const [row] = await db.select().from(kbEntries).where(eq(kbEntries.itemId, id));
+  expect(row!.status).toBe("ready");
 });

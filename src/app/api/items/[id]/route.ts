@@ -1,8 +1,7 @@
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../../../../db/client.js";
 import { items, kbEntries } from "../../../../db/schema.js";
-import { deletePrefix, r2Configured } from "../../../../lib/kb/r2.js";
 
 export const dynamic = "force-dynamic";
 
@@ -23,15 +22,15 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (Object.keys(patch).length === 0) return new Response("no-op", { status: 400 });
 
   await db.update(items).set(patch).where(eq(items.id, Number(id)));
-  // Unfavoriting drops the knowledge-base entry AND its transferred images:
-  // prevents orphan rows + orphan R2 objects, and lets a later re-favorite
-  // reprocess from scratch (a `failed` entry would otherwise be permanently
-  // excluded by runKbStage's attempts cap). R2 cleanup is best-effort.
-  if (parsed.data.isFavorited === false) {
-    await db.delete(kbEntries).where(eq(kbEntries.itemId, Number(id)));
-    if (r2Configured()) {
-      await deletePrefix(`kb/${Number(id)}/`).catch((e) => console.error("r2 cleanup failed", id, e));
-    }
+  // The star only moves items in/out of the favorites list — the knowledge-base
+  // entry is permanent memory and survives unfavoriting (design principle:
+  // nothing valuable is ever lost). Re-favoriting resets a `failed` entry so
+  // runKbStage retries it (otherwise the attempts cap would exclude it forever).
+  if (parsed.data.isFavorited === true) {
+    await db
+      .update(kbEntries)
+      .set({ attempts: 0, status: "pending", error: null })
+      .where(and(eq(kbEntries.itemId, Number(id)), eq(kbEntries.status, "failed")));
   }
   return Response.json({ ok: true });
 }

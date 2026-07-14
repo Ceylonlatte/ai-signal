@@ -71,7 +71,7 @@ export function FavoriteButton({
           className="kb-save"
           data-active={on}
           aria-pressed={on}
-          aria-label={on ? "已存入知识库，点击移除" : "存入知识库"}
+          aria-label={on ? "已收藏，点击取消收藏（笔记会保留）" : "收藏"}
           disabled={pending}
           onClick={toggle}
         >
@@ -90,8 +90,8 @@ export function FavoriteButton({
         className="star"
         data-active={on}
         aria-pressed={on}
-        aria-label={on ? "已存入知识库，点击移除" : "存入知识库"}
-        title={on ? "已存入知识库" : "存入知识库"}
+        aria-label={on ? "已收藏，点击取消收藏" : "收藏"}
+        title={on ? "已收藏" : "收藏"}
         disabled={pending}
         onClick={toggle}
       >

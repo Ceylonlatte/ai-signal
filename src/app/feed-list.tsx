@@ -159,9 +159,11 @@ export function FeedList({
       </div>
 
       <div className="feed-foot">
-        <p className="feed-status" aria-live="polite">
-          已加载 {items.length} / 共 {total} 条
-        </p>
+        {hasMore && (
+          <p className="feed-status" aria-live="polite">
+            已加载 {items.length} / 共 {total} 条
+          </p>
+        )}
 
         {hasMore ? (
           <>
@@ -189,7 +191,7 @@ export function FeedList({
             <div ref={sentinelRef} className="feed-sentinel" aria-hidden="true" />
           </>
         ) : (
-          items.length > 0 && <p className="feed-end">没有更多了</p>
+          items.length > 0 && <p className="feed-end">全部 {total} 条已加载</p>
         )}
       </div>
     </>

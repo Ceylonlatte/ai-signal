@@ -55,8 +55,8 @@ export function FeedConsole({
       </div>
 
       <div className="console__right">
-        <span className="console__stat" title="实时更新">
-          <i aria-hidden="true" />共 <b>{total}</b> 条
+        <span className="console__stat">
+          共 <b>{total}</b> 条
         </span>
         {showSort && (
           <div className="sort" role="group" aria-label="排序方式">

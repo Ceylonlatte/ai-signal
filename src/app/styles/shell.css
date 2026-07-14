@@ -411,10 +411,11 @@
   .topbar {
     display: flex;
   }
-  /* The mobile top bar (56px) owns the very top, so the pinned console parks
-     just beneath it. Set via a custom property so it wins regardless of where
-     the base .page__head--bare rule sits in source order. */
-  .page__head--bare {
+  /* The mobile top bar (56px) owns the very top, so pinned heads (the feed
+     console, the reader toolbar) park just beneath it. Set via a custom
+     property so it wins regardless of source order. */
+  .page__head--bare,
+  .kb-read__head {
     --head-pin-top: 56px;
   }
 }

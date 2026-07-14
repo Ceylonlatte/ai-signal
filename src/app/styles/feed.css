@@ -39,6 +39,7 @@
 .item--feed:hover {
   background: linear-gradient(180deg, #0e111b, #0a0c15);
   border-color: transparent;
+  transform: translateY(-2px);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08),
     0 24px 60px -34px rgba(0, 0, 0, 0.95), var(--glow-nebula-soft);
 }
@@ -104,7 +105,7 @@
   color: var(--graphite);
 }
 .item__r {
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.02em;
   color: var(--text-faint);
 }
@@ -236,13 +237,17 @@
 }
 
 /* Tags as mono # chips, kept to a single non-wrapping row so they add one
-   compact line at most (feed only — other lists keep the flat .tag). */
+   compact line at most (feed only — other lists keep the flat .tag). Overflow
+   fades out at the right edge instead of slicing a chip mid-glyph; the mask
+   only bites when content actually reaches the edge. */
 .item__tags {
   display: flex;
   flex-wrap: nowrap;
   gap: 6px;
   margin-top: var(--space-3);
   overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
 }
 .item--feed .tag {
   flex: none;
@@ -260,6 +265,34 @@
   content: "#";
   margin-right: 1px;
   color: var(--text-faint);
+}
+
+/* Home feed skeletons ride the same glass plates as the cards they stand in
+   for, so the loading state and the arrived feed share one shape (no flat-row
+   flash, no reflow). Shimmer lines lighten to stay visible on the deep glass. */
+.feed .skeleton-item,
+.feed-loading .skeleton-item {
+  padding: var(--space-5) var(--space-6);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, #0c0e17, #080a12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 30px 70px -50px rgba(0, 0, 0, 0.95);
+}
+.feed .skeleton-item .skeleton-line,
+.feed-loading .skeleton-item .skeleton-line {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.09) 50%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+  background-size: 200% 100%;
+}
+.feed-loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
 }
 
 /* Compact card: title + summary each clamp to 2 lines so more signals fit per
@@ -290,7 +323,7 @@
   display: block;
   margin-bottom: 5px;
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.2em;
   text-transform: uppercase;
@@ -322,7 +355,11 @@
     border-left: 1px solid rgba(255, 255, 255, 0.1);
   }
 }
-.item:hover {
+/* Flat-list hover (raw / library / rss / suppressed). :not(.item--feed) keeps
+   this rule off the feed's glass plates, whose hover is the deepened glass
+   above — without it this later rule wins the specificity tie and wipes the
+   glass gradient + inset highlight on hover. */
+.item:not(.item--feed):hover {
   background: var(--hover);
   border-color: transparent;
   transform: translateY(-2px);

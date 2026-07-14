@@ -45,6 +45,55 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+// Long LLM lists collapse past this point so the note stays a distillation,
+// not a transcript (cognitive chunking; the rest is one toggle away, no JS).
+const NOTE_LIST_LIMIT = 6;
+
+function NoteList({ items }: { items: string[] }) {
+  if (items.length <= NOTE_LIST_LIMIT) {
+    return <ul>{items.map((k, i) => <li key={i}>{k}</li>)}</ul>;
+  }
+  return (
+    <>
+      <ul>{items.slice(0, NOTE_LIST_LIMIT).map((k, i) => <li key={i}>{k}</li>)}</ul>
+      <details className="kb-note__more">
+        <summary>其余 {items.length - NOTE_LIST_LIMIT} 条</summary>
+        <ul>{items.slice(NOTE_LIST_LIMIT).map((k, i) => <li key={i}>{k}</li>)}</ul>
+      </details>
+    </>
+  );
+}
+
+// Tweets are quotes, not articles: the text appears once (translation leading,
+// original resting muted below), with one prominent exit to the source tweet —
+// no 全文/译文/原文/对照 reader chrome around a two-sentence post.
+function TweetQuote({
+  url,
+  hasZh,
+  zh,
+  original,
+}: {
+  url: string | null;
+  hasZh: boolean;
+  zh: React.ReactNode;
+  original: React.ReactNode;
+}) {
+  return (
+    <section className="kb-tweet">
+      <h2 className="sr-only">推文</h2>
+      <blockquote className="kb-tweet__quote">
+        <div className="kb-tweet__zh markdown">{hasZh ? zh : original}</div>
+        {hasZh && <div className="kb-tweet__orig markdown">{original}</div>}
+      </blockquote>
+      {url && (
+        <a className="btn btn--ghost kb-tweet__link" href={url} target="_blank" rel="noreferrer">
+          在 X 上读原推 ↗
+        </a>
+      )}
+    </section>
+  );
+}
+
 export default async function LibraryDetail({
   params,
   searchParams,
@@ -63,7 +112,13 @@ export default async function LibraryDetail({
       <main className="page">
         <div className="placeholder">
           <p className="placeholder__title">条目不存在</p>
-          <p className="placeholder__body"><Link href="/library">← 返回收藏</Link></p>
+          <p className="placeholder__body">
+            {from === "feed" ? (
+              <Link href="/">← 返回信号流</Link>
+            ) : (
+              <Link href="/library">← 返回收藏</Link>
+            )}
+          </p>
         </div>
       </main>
     );
@@ -90,6 +145,12 @@ export default async function LibraryDetail({
   const hasCommentsZh = Boolean(entry.commentsZhMd?.trim());
   const zhComments = parseComments(entry.commentsZhMd);
   const enComments = parseComments(entry.commentsMd);
+
+  // Tweets render as a quote card, not an article reader. Without a structured
+  // note the overview would just repeat the tweet, so the note panel only shows
+  // when synthesis actually produced one.
+  const isTweet = entry.source === "twitter";
+  const showNote = isTweet ? hasStructured : overviewText.length > 0 || hasStructured;
 
   return (
     <main className="page kb-detail">
@@ -118,12 +179,13 @@ export default async function LibraryDetail({
       {entry.status === "pending" || entry.status === null ? (
         <div className="notice" role="status">正在整理这篇内容，稍后刷新查看。</div>
       ) : entry.status === "failed" ? (
-        <div className="notice" role="status">整理失败。可取消 ⭐ 再重新收藏以重试。</div>
+        <div className="notice" role="status">整理失败。取消收藏后重新收藏，会再次尝试整理。</div>
       ) : null}
 
-      {(overviewText || hasStructured) && (
+      {showNote && (
         <div className="kb-note-shell">
           <div className="kb-note">
+            <h2 className="sr-only">整理笔记</h2>
             {overviewText && (
               <Section title="概述">
                 <p>{overviewText}</p>
@@ -132,12 +194,12 @@ export default async function LibraryDetail({
             )}
             {note.keypoints && note.keypoints.length > 0 && (
               <Section title="核心要点">
-                <ul>{note.keypoints.map((k, i) => <li key={i}>{k}</li>)}</ul>
+                <NoteList items={note.keypoints} />
               </Section>
             )}
             {note.facts && note.facts.length > 0 && (
               <Section title="关键数据 · 结论">
-                <ul>{note.facts.map((f, i) => <li key={i}>{f}</li>)}</ul>
+                <NoteList items={note.facts} />
               </Section>
             )}
             {note.why && <Section title="为什么值得记"><p>{note.why}</p></Section>}
@@ -151,11 +213,20 @@ export default async function LibraryDetail({
       )}
 
       {entry.bodyMd && (
-        <BilingualBody
-          hasZh={hasBodyZh}
-          zh={<div className="markdown"><Markdown>{entry.bodyZhMd ?? ""}</Markdown></div>}
-          original={<div className="markdown"><Markdown>{entry.bodyMd}</Markdown></div>}
-        />
+        isTweet ? (
+          <TweetQuote
+            url={entry.url}
+            hasZh={hasBodyZh}
+            zh={<Markdown>{entry.bodyZhMd ?? ""}</Markdown>}
+            original={<Markdown>{entry.bodyMd}</Markdown>}
+          />
+        ) : (
+          <BilingualBody
+            hasZh={hasBodyZh}
+            zh={<div className="markdown"><Markdown>{entry.bodyZhMd ?? ""}</Markdown></div>}
+            original={<div className="markdown"><Markdown>{entry.bodyMd}</Markdown></div>}
+          />
+        )
       )}
 
       {entry.commentsMd && (
