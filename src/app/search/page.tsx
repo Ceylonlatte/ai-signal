@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { db } from "../../db/client.js";
 import { keywordSearch, semanticSearch } from "./search-queries.js";
 import { sourceLabel, relativeTime } from "../format.js";
@@ -82,15 +83,12 @@ export default async function Search({
             {results.map((r: any) => {
               const host = hostOf(r.url ?? null);
               const sim = semantic && typeof r.dist === "number" ? Math.max(0, Math.round((1 - r.dist) * 100)) : null;
-              return (
-                <a
-                  key={r.id}
-                  className="result"
-                  href={r.url ?? "#"}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <span className="result__title">{r.title}</span>
+              // Accepted rows have a reader page; filtered/pending rows only
+              // exist in raw_items, so their title stays the original and the
+              // card falls back to the external source link.
+              const inner = (
+                <>
+                  <span className="result__title">{r.titleZh || r.title}</span>
                   <span className="result__meta">
                     <span className="item__source">{sourceLabel(r.source)}</span>
                     {host && (
@@ -119,6 +117,15 @@ export default async function Search({
                       <span className="tag tag--dropped">已过滤</span>
                     )}
                   </span>
+                </>
+              );
+              return r.itemId != null ? (
+                <Link key={r.id} className="result" href={`/library/${r.itemId}?from=search`}>
+                  {inner}
+                </Link>
+              ) : (
+                <a key={r.id} className="result" href={r.url ?? "#"} target="_blank" rel="noreferrer">
+                  {inner}
                 </a>
               );
             })}

@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeEach, expect, it, vi } from "vitest";
-import { items, itemEmbeddings, rawItems } from "../../src/db/schema.js";
+import { items, itemEmbeddings, rawItems, scores } from "../../src/db/schema.js";
 import { embedTexts } from "../../src/lib/embeddings.js";
 import { db, pool, truncateAll } from "../setup/db.js";
 
@@ -58,6 +58,25 @@ it("keyword search matches a CJK substring the FTS parser can't segment", async 
   const out = await keywordSearch(db, "小程序");
   expect(out.map((r: any) => r.title)).toContain("微信小程序可以被微信 AI 推荐了");
   expect(out.map((r: any) => r.title)).not.toContain("Cooking recipes");
+});
+
+it("search rows carry itemId + titleZh for accepted items so the UI can link the reader", async () => {
+  const [item] = await db.select().from(items);
+  await db.insert(scores).values({ itemId: item!.id, titleZh: "Agent 框架对比", rubricVersion: "test" });
+  const { keywordSearch } = await import("../../src/app/search/search-queries.js");
+
+  const kept = (await keywordSearch(db, "agent")).find((r: any) => r.title === "Agent frameworks compared");
+  expect(kept.itemId).toBe(item!.id);
+  expect(kept.titleZh).toBe("Agent 框架对比");
+
+  const dropped = (await keywordSearch(db, "pasta")).find((r: any) => r.title === "Cooking recipes");
+  expect(dropped.itemId).toBeNull();
+
+  vi.mocked(embedTexts).mockResolvedValueOnce([vec(0)]);
+  const { semanticSearch } = await import("../../src/app/search/search-queries.js");
+  const sem = await semanticSearch(db, "agent");
+  expect(sem[0].itemId).toBe(item!.id);
+  expect(sem[0].titleZh).toBe("Agent 框架对比");
 });
 
 it("semantic search drops items below the similarity threshold", async () => {

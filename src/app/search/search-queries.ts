@@ -18,13 +18,16 @@ export async function keywordSearch(db: Db, q: string) {
   const res = await db.execute(sql`
     SELECT r.id,
            r.payload->>'title'     AS title,
+           s.title_zh              AS "titleZh",
            r.payload->>'url'       AS url,
            r.payload->>'source'    AS source,
            r.payload->>'createdAt' AS "createdAt",
            (r.processed_at IS NOT NULL) AS processed,
-           (i.id IS NOT NULL) AS accepted
+           (i.id IS NOT NULL) AS accepted,
+           i.id::int AS "itemId"
     FROM raw_items r
     LEFT JOIN items i ON i.raw_item_id = r.id
+    LEFT JOIN scores s ON s.item_id = i.id
     WHERE to_tsvector('english', coalesce(r.payload->>'title','') || ' ' || coalesce(r.payload->>'text',''))
           @@ plainto_tsquery('english', ${q})
        OR (coalesce(r.payload->>'title','') || ' ' || coalesce(r.payload->>'text','')) ILIKE ${like}
@@ -45,10 +48,11 @@ export async function semanticSearch(db: Db, q: string) {
   // never persists their vectors), so semantic search can't cover the filtered
   // corpus — every hit is accepted by construction.
   const res = await db.execute(sql`
-    SELECT i.id, i.title, i.url, i.source, i.created_at AS "createdAt",
-           TRUE AS processed, TRUE AS accepted,
+    SELECT i.id, i.title, s.title_zh AS "titleZh", i.url, i.source, i.created_at AS "createdAt",
+           TRUE AS processed, TRUE AS accepted, i.id::int AS "itemId",
            e.embedding <=> ${vecJson}::vector AS dist
     FROM item_embeddings e JOIN items i ON i.id = e.item_id
+    LEFT JOIN scores s ON s.item_id = i.id
     WHERE e.embedding <=> ${vecJson}::vector < ${maxDist}
     ORDER BY dist ASC LIMIT 50
   `);
