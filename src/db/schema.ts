@@ -210,7 +210,7 @@ export const kbEntries = pgTable("kb_entries", {
   // reddit 完整评论树渲染成 Markdown（原文，不截断）；commentsZhMd 为其中文翻译。
   commentsMd: text("comments_md").notNull().default(""),
   commentsZhMd: text("comments_zh_md").notNull().default(""),
-  bodySource: text("body_source").notNull().default(""), // firecrawl | markdownnew | extractor | fallback | source | reddit
+  bodySource: text("body_source").notNull().default(""), // firecrawl | markdownnew | extractor | fallback | source | reddit | x-article
   images: jsonb("images").notNull().default([]), // [{ srcUrl, r2Url, bytes, contentType }]
   attempts: integer("attempts").notNull().default(0),
   error: text("error"),

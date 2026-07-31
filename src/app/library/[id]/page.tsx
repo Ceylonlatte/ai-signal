@@ -146,10 +146,13 @@ export default async function LibraryDetail({
   const zhComments = parseComments(entry.commentsZhMd);
   const enComments = parseComments(entry.commentsMd);
 
-  // Tweets render as a quote card, not an article reader. Without a structured
+  // Tweets render as a quote card, not an article reader — except when the KB
+  // stage pulled in an embedded X Article: that's a long-form body that needs
+  // the full reader (语言切换 included; the quote card stacks 译文+原文, which
+  // for a 25K-char article means the whole text twice). Without a structured
   // note the overview would just repeat the tweet, so the note panel only shows
   // when synthesis actually produced one.
-  const isTweet = entry.source === "twitter";
+  const isTweet = entry.source === "twitter" && entry.bodySource !== "x-article";
   const showNote = isTweet ? hasStructured : overviewText.length > 0 || hasStructured;
 
   return (

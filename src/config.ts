@@ -69,6 +69,9 @@ const schema = z.object({
   KB_MAX_IMAGE_BYTES: z.coerce.number().default(5_000_000),
   KB_MIN_BODY_CHARS: z.coerce.number().default(400),
   KB_NOTE_INPUT_CHARS: z.coerce.number().default(12000),
+  // FxTwitter API base — the only reader that can see X Articles (x.com's
+  // login wall blanks firecrawl/markdown.new). Overridable for tests/mirrors.
+  FX_API_BASE: z.string().default("https://api.fxtwitter.com"),
 });
 
 export const config = schema.parse(process.env);

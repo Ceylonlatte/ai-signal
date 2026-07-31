@@ -52,11 +52,10 @@ export function BilingualBody({
   zh: ReactNode;
   original: ReactNode;
 }) {
-  const [mode, setMode] = useState<BodyMode>(hasZh ? "compare" : "orig");
+  // 译文 is the default read; the mode is a preference, not per-visit state,
+  // so a previously chosen 原文/对照 is restored after hydration.
+  const [mode, setMode] = useState<BodyMode>(hasZh ? "zh" : "orig");
 
-  // The mode is a preference, not per-visit state: restore the last choice, and
-  // on narrow screens (where 对照 stacks into two full copies) default to 译文.
-  // Runs once after hydration; SSR can't know viewport or storage.
   useEffect(() => {
     if (!hasZh) return;
     let saved: string | null = null;
@@ -65,8 +64,6 @@ export function BilingualBody({
     } catch {}
     if (saved === "zh" || saved === "orig" || saved === "compare") {
       setMode(saved);
-    } else if (window.matchMedia("(max-width: 760px)").matches) {
-      setMode("zh");
     }
   }, [hasZh]);
 

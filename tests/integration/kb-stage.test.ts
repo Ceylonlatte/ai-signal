@@ -20,6 +20,11 @@ vi.mock("../../src/lib/kb/reader.js", () => ({
 vi.mock("../../src/lib/kb/images.js", () => ({
   localizeImages: vi.fn(async (_id: number, md: string) => ({ markdown: md, images: [] })),
 }));
+// No tweet has an X Article by default; the x-article test overrides per-call.
+vi.mock("../../src/lib/kb/x-article.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/lib/kb/x-article.js")>();
+  return { ...actual, fetchXArticle: vi.fn(async () => null) };
+});
 vi.mock("../../src/lib/kb/notes.js", () => ({
   synthesizeNotes: vi.fn(async () => ({ overview: "ov", keypoints: ["k"], facts: [], why: "w", terms: [] })),
 }));
@@ -72,6 +77,30 @@ it("twitter uses source text without fetching, translating the body", async () =
   const [k] = await db.select().from(kbEntries).where(eq(kbEntries.itemId, id));
   expect(k!.bodySource).toBe("source");
   expect(k!.bodyMd).toBe("a short english tweet");
+  expect(k!.bodyZhMd).toBe("译文");
+});
+
+it("twitter with an embedded X Article uses the article as the body", async () => {
+  const id = await makeItem({
+    source: "twitter",
+    text: "thread summary of the article",
+    url: "https://x.com/0xCodez/status/2082482596135485822",
+  });
+  const { fetchXArticle } = await import("../../src/lib/kb/x-article.js");
+  (fetchXArticle as any).mockResolvedValueOnce({
+    title: "How to become an FDE",
+    markdown: "## Step 1\n\n" + "long article body ".padEnd(600, "y"),
+    images: ["https://pbs.twimg.com/media/a.png"],
+    quoted: true,
+  });
+  const { runKbStage } = await import("../../src/pipeline/kb-stage.js");
+  await runKbStage(db);
+  expect(fetchXArticle).toHaveBeenCalledWith("2082482596135485822");
+  const [k] = await db.select().from(kbEntries).where(eq(kbEntries.itemId, id));
+  expect(k!.status).toBe("ready");
+  expect(k!.bodySource).toBe("x-article");
+  // Quoted article: tweet text kept above the article body.
+  expect(k!.bodyMd).toMatch(/^thread summary of the article\n\n---\n\n# How to become an FDE\n\n## Step 1/);
   expect(k!.bodyZhMd).toBe("译文");
 });
 

@@ -2,6 +2,7 @@ import { eq, sql as dsql } from "drizzle-orm";
 import { kbEntries } from "../db/schema.js";
 import { config } from "../config.js";
 import { fetchArticle } from "../lib/kb/reader.js";
+import { fetchXArticle, statusIdFromUrl } from "../lib/kb/x-article.js";
 import { localizeImages, type StoredImage } from "../lib/kb/images.js";
 import { synthesizeNotes } from "../lib/kb/notes.js";
 import { buildRedditKbBody, type RedditDoc } from "../lib/kb/reddit.js";
@@ -28,13 +29,27 @@ async function loadRawDoc(db: Db, rawItemId: number): Promise<RedditDoc | null> 
   return (row?.payload?.raw ?? null) as RedditDoc | null;
 }
 
-// Per-source body assembly. Twitter uses the ingested tweet text verbatim (no
-// fetch). Reddit builds from the digest's embedded comment tree (no fetch).
-// HN/RSS fetch + localize the linked article (markdown.new preferred via reader).
+// Per-source body assembly. Twitter uses the ingested tweet text — unless the
+// tweet is (or quotes) an X Article, whose full long-form body FxTwitter can
+// read past the login wall. Reddit builds from the digest's embedded comment
+// tree (no fetch). HN/RSS fetch + localize the linked article.
 async function buildBody(db: Db, row: ItemRow): Promise<BuiltBody> {
   if (row.source === "twitter") {
-    const body = row.text ?? "";
-    return { bodyMd: body, commentsMd: "", noteInput: body, bodySource: "source", images: [] };
+    const tweetText = row.text ?? "";
+    const statusId = statusIdFromUrl(row.url);
+    const article = statusId ? await fetchXArticle(statusId) : null;
+    if (article) {
+      // Quoted case: the tweet's own text (often a thread-style summary) still
+      // matters — keep it above the article. Own-article tweets carry only a
+      // t.co self-link as text, so the article stands alone.
+      const heading = article.title ? `# ${article.title}\n\n` : "";
+      const bodyRaw = article.quoted && tweetText.trim()
+        ? `${tweetText.trim()}\n\n---\n\n${heading}${article.markdown}`
+        : `${heading}${article.markdown}`;
+      const { markdown, images } = await localizeImages(row.id, bodyRaw, article.images);
+      return { bodyMd: markdown, commentsMd: "", noteInput: markdown, bodySource: "x-article", images };
+    }
+    return { bodyMd: tweetText, commentsMd: "", noteInput: tweetText, bodySource: "source", images: [] };
   }
   if (row.source === "reddit") {
     const doc = await loadRawDoc(db, row.rawItemId);
