@@ -13,6 +13,16 @@ const TIMEOUT_MS = 90_000;
 
 const CJK = /[一-鿿]/g;
 const LATIN = /[a-zA-Z]/g;
+// Kana (hiragana / katakana / halfwidth katakana) and hangul: the scripts that
+// tell Japanese and Korean apart from Chinese. Han characters alone can't —
+// Japanese prose is mostly kanji by character count, so a CJK-vs-Latin ratio
+// reads it as "already Chinese" and silently leaves whole articles untranslated.
+const KANA = /[぀-ゟ゠-ヿｦ-ﾝ]/g;
+const HANGUL = /[가-힯]/g;
+// Kana/hangul share of the ideographic characters. Japanese prose sits far above
+// this; a Chinese article quoting a Japanese product name or a ツ kaomoji sits
+// far below, so it isn't dragged through a pointless translation pass.
+const KANA_RATIO = 0.1;
 
 // True when the text is predominantly NOT Chinese, so we should translate it.
 // Mixed/Chinese content (CJK at least ~30% of letter-ish chars) is left as-is to
@@ -21,6 +31,11 @@ export function needsTranslation(text: string): boolean {
   const s = (text ?? "").trim();
   if (s.length === 0) return false;
   const cjk = (s.match(CJK) ?? []).length;
+  // Japanese/Korean first: they carry Han characters too, so the ratio below
+  // would otherwise pass them off as Chinese (and, for kana-only text, the
+  // letterless early return would drop them before any ratio ran at all).
+  const jk = (s.match(KANA) ?? []).length + (s.match(HANGUL) ?? []).length;
+  if (jk > 0 && jk / (cjk + jk) >= KANA_RATIO) return true;
   const latin = (s.match(LATIN) ?? []).length;
   if (cjk + latin === 0) return false; // no letters (urls/numbers/emoji) → nothing to translate
   return cjk / (cjk + latin) < 0.3;
@@ -57,7 +72,8 @@ export function splitMarkdown(md: string, target = CHUNK_TARGET_CHARS): string[]
   return chunks;
 }
 
-const SYSTEM = `你是专业的中英技术翻译。把用户给的 Markdown 文本完整翻译成简体中文。
+const SYSTEM = `你是专业的技术翻译。把用户给的 Markdown 文本完整翻译成简体中文。
+原文可能是英文、日文、韩文或其它任何语言；无论原文是什么语言，输出一律是简体中文。
 要求：
 - 保留原有 Markdown 结构（标题、列表缩进、引用、代码块、链接、图片）。
 - 代码块、行内代码、URL、@用户名、专有名词缩写保持原样不译。

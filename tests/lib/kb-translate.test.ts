@@ -11,6 +11,26 @@ it("leaves predominantly-Chinese text alone", () => {
   expect(needsTranslation("这是一段中文说明，介绍智能体的能力。")).toBe(false);
 });
 
+it("flags Japanese as needing translation however kanji-heavy it is", () => {
+  // Kanji-dominated prose: a CJK-vs-Latin ratio scores this 1.00 "Chinese".
+  expect(needsTranslation("本記事では、大規模言語モデルの推論性能を改善する手法について解説します。")).toBe(true);
+  // Kana-only: no Han, no Latin — must not fall through the letterless return.
+  expect(needsTranslation("これはとてもすごいですね。")).toBe(true);
+  // Kana + Latin loanwords, the shape most X posts take.
+  expect(needsTranslation("OpenAI の GPT モデルは Transformer に基づいています。")).toBe(true);
+  expect(needsTranslation("ｺﾚﾊﾊﾝｶｸｶﾀｶﾅﾃﾞｽ")).toBe(true); // halfwidth katakana
+});
+
+it("flags Korean as needing translation", () => {
+  expect(needsTranslation("이 글은 대규모 언어 모델의 추론 성능을 다룹니다.")).toBe(true);
+});
+
+it("leaves Chinese alone when it merely quotes a little kana", () => {
+  const zh = `${"这是一段中文说明，介绍智能体的能力。".repeat(6)}其中提到了日本的「けものフレンズ」。`;
+  expect(needsTranslation(zh)).toBe(false); // stray kana below the ratio → no pointless pass
+  expect(needsTranslation("中文正文里的颜文字 ツ 不该触发翻译。")).toBe(false);
+});
+
 it("returns false for empty or letterless text", () => {
   expect(needsTranslation("")).toBe(false);
   expect(needsTranslation("   ")).toBe(false);
@@ -67,6 +87,17 @@ it("translateToZh retries a still-English result once, then falls back to the or
   const input = "An English paragraph that should have been translated.";
   expect(await translateToZh(input)).toBe(input); // fallback keeps content readable
   expect(fetchMock).toHaveBeenCalledTimes(2); // first try + one retry
+});
+
+it("translateToZh retries when the model hands back the Japanese untouched", async () => {
+  const input = "本記事では推論性能の改善手法を解説します。";
+  const fetchMock = vi.fn(async () =>
+    new Response(JSON.stringify({ choices: [{ message: { content: input } }] }), { status: 200 }),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  const { translateToZh } = await import("../../src/lib/kb/translate.js");
+  expect(await translateToZh(input)).toBe(input);
+  expect(fetchMock).toHaveBeenCalledTimes(2); // output QC sees kana, so it doesn't accept the passthrough
 });
 
 it("translateToZh posts to the model and returns trimmed content", async () => {
