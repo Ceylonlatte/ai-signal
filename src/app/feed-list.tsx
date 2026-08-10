@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { strengthLabel, type Strength } from "./format.js";
@@ -36,6 +36,28 @@ function seedVotes(items: FeedItemData[]): Record<number, VoteState> {
   return m;
 }
 
+interface FeedSnapshot {
+  items: FeedItemData[];
+  page: number;
+  total: number;
+  totalPages: number;
+  votes: Record<number, VoteState>;
+  scrollY: number;
+}
+
+// Module scope, so it survives a client-side round trip to a detail page (the
+// module stays loaded) but not a real reload. Opening an item and coming back
+// then restores the rows already paged in plus the scroll offset, instead of
+// snapping to page 1 at the top — the router remounts this component on every
+// back navigation, so component state alone can't carry that across.
+// Keyed by sort+source because each filter is its own list; the page already
+// remounts FeedList via `key` when either changes.
+const feedSnapshots = new Map<string, FeedSnapshot>();
+
+// useLayoutEffect warns during SSR; the restore only ever has work to do in the
+// browser, where it must run before paint to avoid a scroll flash.
+const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
 export function FeedList({
   initialItems,
   total: initialTotal,
@@ -49,15 +71,67 @@ export function FeedList({
   sort: FeedSort;
   source: FeedSource;
 }) {
-  const [items, setItems] = useState<FeedItemData[]>(initialItems);
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(initialTotal);
-  const [totalPages, setTotalPages] = useState(initialTotalPages);
+  const cacheKey = `${sort}:${source}`;
+  const [restored] = useState<FeedSnapshot | null>(() => feedSnapshots.get(cacheKey) ?? null);
+
+  const [items, setItems] = useState<FeedItemData[]>(restored?.items ?? initialItems);
+  const [page, setPage] = useState(restored?.page ?? 1);
+  const [total, setTotal] = useState(restored?.total ?? initialTotal);
+  const [totalPages, setTotalPages] = useState(restored?.totalPages ?? initialTotalPages);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
-  const [votes, setVotes] = useState<Record<number, VoteState>>(() => seedVotes(initialItems));
+  const [votes, setVotes] = useState<Record<number, VoteState>>(
+    () => restored?.votes ?? seedVotes(initialItems),
+  );
 
   const hasMore = page < totalPages;
+
+  // One live snapshot object per list, mutated in place so the render pass and
+  // the scroll listener both write into the same map entry.
+  const snapshotRef = useRef<FeedSnapshot | null>(null);
+  if (!snapshotRef.current) {
+    snapshotRef.current = restored ?? {
+      items,
+      page,
+      total,
+      totalPages,
+      votes,
+      scrollY: 0,
+    };
+    feedSnapshots.set(cacheKey, snapshotRef.current);
+  }
+  const snapshot = snapshotRef.current;
+
+  // No dep array: every committed render refreshes the snapshot, so whatever is
+  // on screen when the user opens an item is what comes back.
+  useEffect(() => {
+    snapshot.items = items;
+    snapshot.page = page;
+    snapshot.total = total;
+    snapshot.totalPages = totalPages;
+    snapshot.votes = votes;
+  });
+
+  useEffect(() => {
+    const onScroll = () => {
+      snapshot.scrollY = window.scrollY;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [snapshot]);
+
+  // Put the reader back where they left off. The rows were restored above, so
+  // the document is already tall enough at layout time; the extra frame covers
+  // the router's own scroll restoration landing after this effect.
+  useIsomorphicLayoutEffect(() => {
+    if (!restored) return;
+    const y = restored.scrollY;
+    if (y <= 0) return;
+    window.scrollTo(0, y);
+    const raf = requestAnimationFrame(() => window.scrollTo(0, y));
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function loadMore() {
     if (loading || page >= totalPages) return;
@@ -116,7 +190,10 @@ export function FeedList({
     const root = listRef.current;
     if (!root) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce || typeof IntersectionObserver === "undefined") {
+    // A restored list has already been read: show it at rest rather than
+    // re-playing the reveal (and leaving the rows above the restored scroll
+    // offset invisible until they're scrolled past again).
+    if (restored || reduce || typeof IntersectionObserver === "undefined") {
       root.dataset.animate = "off";
       return;
     }
@@ -135,7 +212,7 @@ export function FeedList({
     );
     root.querySelectorAll<HTMLElement>(".item:not(.is-in)").forEach((el) => io.observe(el));
     return () => io.disconnect();
-  }, [items]);
+  }, [items, restored]);
 
   async function vote(id: number, signal: Signal) {
     const prev = votes[id]?.signal ?? null;
