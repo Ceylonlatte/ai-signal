@@ -123,6 +123,9 @@ export interface ModelUsageSummary {
   rows: ModelUsageRow[];
   totalCalls: number; totalTokens: number; totalCost: number;
   calls24h: number; cost24h: number;
+  // Timestamp of the most recent model call — the pipeline's heartbeat. A
+  // backlog with a cold heartbeat is what "stalled" means (see assessHealth).
+  lastCallAt: string | null;
 }
 
 // Aggregated model spend, grouped by (kind, model). Token counts and cost come
@@ -152,7 +155,8 @@ export async function getModelUsage(db: Db): Promise<ModelUsageSummary> {
       COALESCE(sum(total_tokens), 0) AS "totalTokens",
       COALESCE(sum(cost), 0) AS "totalCost",
       count(*) FILTER (WHERE created_at > now() - interval '24 hours')::int AS "calls24h",
-      COALESCE(sum(cost) FILTER (WHERE created_at > now() - interval '24 hours'), 0) AS "cost24h"
+      COALESCE(sum(cost) FILTER (WHERE created_at > now() - interval '24 hours'), 0) AS "cost24h",
+      max(created_at) AS "lastCallAt"
     FROM model_usage
   `);
   const t = (totRes.rows ?? totRes)[0] as Record<string, unknown>;
@@ -160,5 +164,136 @@ export async function getModelUsage(db: Db): Promise<ModelUsageSummary> {
     rows,
     totalCalls: n(t.totalCalls), totalTokens: n(t.totalTokens), totalCost: n(t.totalCost),
     calls24h: n(t.calls24h), cost24h: n(t.cost24h),
+    lastCallAt: t.lastCallAt ? new Date(t.lastCallAt as string).toISOString() : null,
+  };
+}
+
+export interface KeyBudget {
+  // `ok: false` means the probe itself failed (no network, bad key, OpenRouter
+  // down) — that's "unknown budget", not "budget fine", so the UI stays quiet
+  // about spend but still says the probe didn't land.
+  ok: boolean;
+  limit: number | null; // null = uncapped key
+  usage: number;
+  remaining: number | null; // null = uncapped
+  // OpenRouter's own reset cadence for a capped key ("weekly"/"monthly"/null).
+  reset: string | null;
+  error: string | null;
+}
+
+const BUDGET_TTL_MS = 60_000;
+const BUDGET_TIMEOUT_MS = 5_000;
+let budgetCache: { at: number; value: KeyBudget } | null = null;
+
+// Live credit headroom on the OpenRouter key, straight from their `/key`
+// endpoint. This is the one failure that silently freezes the whole pipeline
+// (the worker keeps looping on 403s and nothing reaches the feed), so the
+// status page reads it rather than leaving it to be inferred from a flat spend
+// chart. The status page auto-refreshes every 5s; this is cached for a minute
+// so it stays one probe per minute, not one per render.
+export async function getKeyBudget(): Promise<KeyBudget> {
+  const now = Date.now();
+  if (budgetCache && now - budgetCache.at < BUDGET_TTL_MS) return budgetCache.value;
+
+  const fail = (error: string): KeyBudget => ({
+    ok: false, limit: null, usage: 0, remaining: null, reset: null, error,
+  });
+
+  let value: KeyBudget;
+  try {
+    if (!config.OPENROUTER_API_KEY) {
+      value = fail("未配置 OPENROUTER_API_KEY");
+    } else {
+      const res = await fetch("https://openrouter.ai/api/v1/key", {
+        headers: { authorization: `Bearer ${config.OPENROUTER_API_KEY}` },
+        signal: AbortSignal.timeout(BUDGET_TIMEOUT_MS),
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        value = fail(`OpenRouter ${res.status}`);
+      } else {
+        const d = (await res.json()).data as Record<string, unknown>;
+        const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+        const limit = num(d?.limit);
+        const usage = num(d?.usage) ?? 0;
+        // `limit_remaining` is authoritative when present (it accounts for the
+        // key's reset window); fall back to limit - usage for older payloads.
+        const remaining = num(d?.limit_remaining) ?? (limit === null ? null : limit - usage);
+        value = {
+          ok: true,
+          limit,
+          usage,
+          remaining,
+          reset: typeof d?.limit_reset === "string" ? d.limit_reset : null,
+          error: null,
+        };
+      }
+    }
+  } catch (err) {
+    value = fail(err instanceof Error ? err.message : String(err));
+  }
+
+  budgetCache = { at: now, value };
+  return value;
+}
+
+// A backlog is only alarming if nothing is being spent on it: the worker calls
+// the LLM on every triage batch, so "items waiting + no model call in a while"
+// is the signature of a stuck pipeline (crashed worker, 403 on the key, model
+// outage) rather than a slow one.
+export const STALL_MINUTES = 20;
+// Past this, the feed's newest card is old enough that the user notices.
+export const FEED_STALE_HOURS = 12;
+
+export interface PipelineHealth {
+  stalled: boolean;
+  stalledMinutes: number | null; // null = no model call on record at all
+  pending: number;
+  budgetExhausted: boolean;
+  budgetLow: boolean;
+  feedStale: boolean;
+  feedAgeHours: number | null;
+}
+
+// Turns the raw counters into the handful of "something is wrong" verdicts the
+// status page banners render. Kept here (not in the page) so the thresholds are
+// testable and live next to the queries they read.
+export function assessHealth(input: {
+  rawPending: number;
+  lastCallAt: string | null;
+  latestItemAt: string | null;
+  budget: KeyBudget;
+  now?: Date;
+}): PipelineHealth {
+  const now = input.now ?? new Date();
+  const minsSince = (iso: string | null) =>
+    iso ? (now.getTime() - new Date(iso).getTime()) / 60000 : null;
+
+  const stalledMinutes = minsSince(input.lastCallAt);
+  const pending = input.rawPending;
+  const stalled = pending > 0 && (stalledMinutes === null || stalledMinutes > STALL_MINUTES);
+
+  const { remaining, limit } = input.budget;
+  const budgetExhausted = input.budget.ok && remaining !== null && remaining <= 0;
+  const budgetLow =
+    input.budget.ok &&
+    !budgetExhausted &&
+    remaining !== null &&
+    limit !== null &&
+    limit > 0 &&
+    remaining / limit < 0.1;
+
+  const feedAgeMins = minsSince(input.latestItemAt);
+  const feedAgeHours = feedAgeMins === null ? null : feedAgeMins / 60;
+  const feedStale = feedAgeHours !== null && feedAgeHours > FEED_STALE_HOURS;
+
+  return {
+    stalled,
+    stalledMinutes: stalledMinutes === null ? null : Math.round(stalledMinutes),
+    pending,
+    budgetExhausted,
+    budgetLow,
+    feedStale,
+    feedAgeHours,
   };
 }

@@ -1,5 +1,10 @@
 import { db } from "../../db/client.js";
-import { getPipelineStatus, getDataStats, getModelUsage, getIngestStats } from "../status-queries.js";
+import {
+  getPipelineStatus, getDataStats, getModelUsage, getIngestStats,
+  getKeyBudget, assessHealth, STALL_MINUTES, FEED_STALE_HOURS,
+  type PipelineHealth, type KeyBudget,
+} from "../status-queries.js";
+import { relativeTime } from "../format.js";
 import { StatusAutoRefresh } from "./auto-refresh.js";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +20,72 @@ const fmtDate = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString("zh-CN", { hour12: false }) : "—";
 
 type Stage = { label: string; done: number; total: number; extra?: string };
+
+function Notice({ tone, children }: { tone: "alert" | "warn"; children: React.ReactNode }) {
+  return (
+    <div className={`notice notice--${tone}`} role="alert">
+      <span className="notice__dot" aria-hidden="true" />
+      <span>{children}</span>
+    </div>
+  );
+}
+
+// The banners that name a stuck pipeline outright. Ordered worst-first: a stall
+// is the symptom the user actually sees ("the feed stopped updating"), the
+// budget line is usually its cause, and feed staleness is the trailing echo —
+// so it only shows on its own, once the two live problems are clear.
+function HealthBanners({ health, budget }: { health: PipelineHealth; budget: KeyBudget }) {
+  const heartbeat =
+    health.stalledMinutes === null
+      ? "从未调用过模型"
+      : `最近一次模型调用在 ${health.stalledMinutes} 分钟前`;
+  const ageHours = health.feedAgeHours === null ? 0 : Math.round(health.feedAgeHours);
+
+  return (
+    <>
+      {health.stalled && (
+        <Notice tone="alert">
+          <strong>流水线停滞</strong>：{fmtInt(health.pending)} 条待处理，但{heartbeat}
+          （阈值 {STALL_MINUTES} 分钟）。新抓到的内容不会进入信号流。
+          {budget.ok && health.budgetExhausted
+            ? "下方模型额度已用尽，多半就是原因。"
+            : "先看下方模型额度，再查 worker 日志：docker compose logs --tail=50 worker。"}
+        </Notice>
+      )}
+
+      {health.budgetExhausted && (
+        <Notice tone="alert">
+          <strong>模型额度已用尽</strong>：{fmtCost(budget.usage)}
+          {budget.limit !== null ? ` / 上限 ${fmtCost(budget.limit)}` : ""}
+          {budget.reset ? `（${budget.reset} 重置）` : ""}。
+          打分、摘要、KB 会全部收到 403 并失败。去 OpenRouter 提额或充值后重启 worker。
+        </Notice>
+      )}
+
+      {health.budgetLow && (
+        <Notice tone="warn">
+          <strong>模型额度紧张</strong>：仅剩 {fmtCost(budget.remaining ?? 0)}
+          {budget.limit !== null ? ` / ${fmtCost(budget.limit)}` : ""}
+          （不足 10%）。用尽后流水线会整体停摆。
+        </Notice>
+      )}
+
+      {health.feedStale && !health.stalled && (
+        <Notice tone="warn">
+          <strong>信号流数据偏旧</strong>：最新入库条目已是 {ageHours} 小时前
+          （阈值 {FEED_STALE_HOURS} 小时）。流水线本身在动，请检查采集台账里各平台的「最近采集」。
+        </Notice>
+      )}
+
+      {!budget.ok && (
+        <Notice tone="warn">
+          <strong>额度探测失败</strong>：{budget.error ?? "未知错误"}。
+          本页无法确认模型额度，请自行到 OpenRouter 核对。
+        </Notice>
+      )}
+    </>
+  );
+}
 
 function Pipeline({ stages }: { stages: Stage[] }) {
   // The flow is sequential; the first stage that isn't fully drained is the
@@ -68,11 +139,12 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
 }
 
 export default async function Status() {
-  const [s, data, usage, ingestStats] = await Promise.all([
+  const [s, data, usage, ingestStats, budget] = await Promise.all([
     getPipelineStatus(db),
     getDataStats(db),
     getModelUsage(db),
     getIngestStats(db),
+    getKeyBudget(),
   ]);
   const ingestTotal = ingestStats.reduce(
     (a, r) => ({ attempted: a.attempted + r.attempted, inserted: a.inserted + r.inserted }),
@@ -87,6 +159,13 @@ export default async function Status() {
     att > 0 ? `${Math.round(((att - ins) / att) * 100)}%` : "—";
   const pending = s.rawPending + s.embedPending + s.summaryPending + s.unclustered;
   const running = pending > 0;
+  const health = assessHealth({
+    rawPending: s.rawPending,
+    lastCallAt: usage.lastCallAt,
+    latestItemAt: data.latest,
+    budget,
+  });
+  const degraded = health.stalled || health.budgetExhausted;
 
   return (
     <main className="page is-live">
@@ -95,15 +174,19 @@ export default async function Status() {
 
       <div className="page__head">
         <h1 className="page__title">
-          流水线状态 <span className="run-dot" data-running={running} aria-hidden="true" />
+          流水线状态 <span className="run-dot" data-running={running && !degraded} aria-hidden="true" />
         </h1>
         <div className="page__tools">
-          <span className="page__count">{running ? `${fmtInt(pending)} 项处理中` : "空闲 ✓"}</span>
+          <span className="page__count">
+            {degraded ? `${fmtInt(pending)} 项卡住` : running ? `${fmtInt(pending)} 项处理中` : "空闲 ✓"}
+          </span>
         </div>
       </div>
       <p className="page__lead">
         采集 → 入库 → 打分 → 向量 → 摘要 → 聚类的实时进度。本页每 5 秒自动刷新。
       </p>
+
+      <HealthBanners health={health} budget={budget} />
 
       <section className="section" style={{ marginTop: 0 }}>
         <Pipeline
@@ -216,6 +299,24 @@ export default async function Status() {
           <Stat label="总花销" value={fmtCost(usage.totalCost)} hint={`${fmtInt(usage.totalCalls)} 次调用`} />
           <Stat label="近 24h 花销" value={fmtCost(usage.cost24h)} hint={`${fmtInt(usage.calls24h)} 次调用`} />
           <Stat label="总 token" value={fmtInt(usage.totalTokens)} />
+          <Stat
+            label="额度剩余"
+            value={
+              !budget.ok ? "—" : budget.remaining === null ? "无上限" : fmtCost(budget.remaining)
+            }
+            hint={
+              !budget.ok
+                ? "探测失败"
+                : budget.limit === null
+                  ? "key 未设上限"
+                  : `上限 ${fmtCost(budget.limit)}${budget.reset ? ` · ${budget.reset} 重置` : ""}`
+            }
+          />
+          <Stat
+            label="最近调用"
+            value={usage.lastCallAt ? relativeTime(usage.lastCallAt) : "—"}
+            hint={usage.lastCallAt ? fmtDate(usage.lastCallAt) : "尚无记录"}
+          />
         </div>
         {usage.rows.length > 0 ? (
           <div className="table-wrap" style={{ marginTop: "var(--space-4)" }}>
