@@ -5,15 +5,25 @@ import { RUBRIC } from "./rubric.js";
 import { recordModelUsage, type OpenRouterUsage } from "../usage.js";
 import type { Candidate } from "./prefilter.js";
 
+// The scoring model intermittently returns id as a string ("12345"), so accept
+// number-like ids. Deliberately narrower than z.coerce.number(): coercing
+// null/true/[] would silently mint a bogus id 0 instead of dropping the entry.
+const idSchema = z.union([
+  z.number(),
+  z.string().trim().regex(/^-?\d+$/).transform(Number),
+]).pipe(z.number().int());
+
 // Lenient: real LLMs occasionally over-produce topics or push value out of
 // range. Clamp/truncate instead of rejecting the whole batch.
 const resultSchema = z.object({
-  id: z.number(),
+  id: idSchema,
   value: z.number().catch(0).transform((v) => Math.max(0, Math.min(100, v))),
   topics: z.array(z.string()).catch([]).transform((a) => a.slice(0, 3)),
   reason: z.string().catch(""),
 });
-const responseSchema = z.object({ results: z.array(resultSchema) });
+// Entries stay `unknown` here so one malformed result cannot reject the array:
+// each is validated individually in parseChunkResults.
+const responseSchema = z.object({ results: z.array(z.unknown()) });
 
 export type ScoreResult = z.infer<typeof resultSchema>;
 
@@ -74,8 +84,37 @@ async function scoreChunk(chunk: Candidate[]): Promise<ScoreResult[]> {
   if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${await res.text()}`);
   const data = (await res.json()) as { choices: { message: { content: string } }[]; usage?: OpenRouterUsage };
   await recordModelUsage("score", config.SCORING_MODEL, data.usage);
-  const parsed = responseSchema.parse(JSON.parse(data.choices[0]!.message.content));
-  return parsed.results;
+  return parseChunkResults(data.choices[0]!.message.content);
+}
+
+// A whole chunk of BATCH candidates used to be discarded when a single result
+// failed validation, so those raw_items never reached the feed. Parse entries
+// one by one and drop only the bad ones. Results whose id is not in the chunk
+// are harmless: scoreBatch keys a Map by id and the caller only looks up ids it
+// asked about.
+export function parseChunkResults(content: string): ScoreResult[] {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(content);
+  } catch (err) {
+    console.error("scoreChunk: response was not JSON, dropping chunk", err);
+    return [];
+  }
+  const envelope = responseSchema.safeParse(raw);
+  if (!envelope.success) {
+    console.error("scoreChunk: response had no results array, dropping chunk");
+    return [];
+  }
+  const out: ScoreResult[] = [];
+  for (const entry of envelope.data.results) {
+    const parsed = resultSchema.safeParse(entry);
+    if (parsed.success) out.push(parsed.data);
+  }
+  const skipped = envelope.data.results.length - out.length;
+  if (skipped > 0) {
+    console.error(`scoreChunk: skipped ${skipped}/${envelope.data.results.length} malformed results`);
+  }
+  return out;
 }
 
 // Event-style Chinese label. Generic category words (company names, "AI
