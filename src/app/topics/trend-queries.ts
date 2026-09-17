@@ -36,12 +36,15 @@ export async function getTopTopics(db: Db, opts: { date: string }): Promise<TopT
            rep.title AS "topTitle"
     FROM topic_trends tt
     JOIN topics t ON t.id = tt.topic_id
+    -- Representative title for the day's bucket: scoped to the same day as the
+    -- row it decorates, so it can't surface a story the board isn't counting.
     LEFT JOIN LATERAL (
       SELECT coalesce(nullif(s.title_zh, ''), i.title) AS title
       FROM item_topics it
       JOIN items i ON i.id = it.item_id
       LEFT JOIN scores s ON s.item_id = i.id
       WHERE it.topic_id = t.id
+        AND (i.created_at AT TIME ZONE 'UTC')::date = ${opts.date}::date
       ORDER BY s.composite DESC NULLS LAST
       LIMIT 1
     ) rep ON true

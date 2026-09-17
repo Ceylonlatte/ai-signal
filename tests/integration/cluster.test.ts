@@ -151,9 +151,83 @@ it("relabels a topic from member titles once membership grows", async () => {
   const { runClusterStage } = await import("../../src/lib/cluster.js");
   await runClusterStage(db, { threshold: 0.2 });
 
-  // Created with the single-title label, then relabeled from 3 member titles
-  // (3 >= label_n(1) * 2), recording the member count at labeling time.
+  // Created with the single-title label, then relabeled from the 3 titles that
+  // landed today (3 >= label_n(1) + RELABEL_STEP), stamped with today's day.
   const [topic] = await db.select().from(topics);
   expect(topic!.label).toBe("Claude Fable 5 发布");
   expect(topic!.labelN).toBe(3);
+  expect(topic!.labelDate).toBe(new Date().toISOString().slice(0, 10));
+});
+
+// The bug this guards: labels used to be debounced on TOTAL membership
+// (`count >= label_n + 3 OR count >= label_n * 2`), but the 30-day cleanup
+// makes membership shrink. A topic labeled at 40 members and cleaned down to a
+// handful satisfied neither branch, so its label froze on an event whose items
+// were already deleted — the board showed a title nothing in the list matched.
+it("relabels a shrunken topic whose membership fell below the last labeling", async () => {
+  await truncateAll();
+  const day = new Date().toISOString().slice(0, 10);
+  const [stale] = await db.insert(topics).values({
+    label: "Archify 与 show-me：AI 图表生成技能集",
+    centroid: vec(0),
+    labelN: 40,           // labeled back when the topic was big
+    labelDate: "2020-01-01",
+  }).returning();
+
+  const ins = await db.insert(items).values([
+    { rawItemId: 30, source: "hn", title: "Anthropic ships Claude Fable 5", createdAt: new Date(), contentHash: "c30" },
+    { rawItemId: 31, source: "hn", title: "Claude Fable 5 first impressions", createdAt: new Date(), contentHash: "c31" },
+  ]).returning();
+  await db.insert(itemEmbeddings).values(ins.map((row) => ({ itemId: row.id, embedding: vec(0) })));
+  await db.insert(scores).values(ins.map((row) => ({ itemId: row.id, composite: 0.6, rubricVersion: "test" })));
+  await db.insert(itemTopics).values(ins.map((row) => ({ itemId: row.id, topicId: stale!.id })));
+  await db.execute(sql`
+    INSERT INTO topic_trends (topic_id, bucket_date, item_count, score_sum)
+    VALUES (${stale!.id}, ${day}, 2, 1.2)
+  `);
+
+  const { runClusterStage } = await import("../../src/lib/cluster.js");
+  await runClusterStage(db, { threshold: 0.2 });
+
+  const [topic] = await db.select().from(topics);
+  expect(topic!.label).toBe("Claude Fable 5 发布");
+  expect(topic!.labelN).toBe(2);        // today's count, not the old 40
+  expect(topic!.labelDate).toBe(day);
+});
+
+// The board buckets by day, so the label has to come from the day's items —
+// otherwise a high-scoring item from last week keeps naming today's topic.
+it("builds the label from today's items only", async () => {
+  await truncateAll();
+  const day = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const [t] = await db.insert(topics).values({
+    label: "seed", centroid: vec(0), labelN: 0, labelDate: null,
+  }).returning();
+
+  const ins = await db.insert(items).values([
+    { rawItemId: 40, source: "hn", title: "OLD high-scoring story", createdAt: yesterday, contentHash: "c40" },
+    { rawItemId: 41, source: "hn", title: "Claude Fable 5 first impressions", createdAt: new Date(), contentHash: "c41" },
+    { rawItemId: 42, source: "hn", title: "Fable 5 pricing breakdown", createdAt: new Date(), contentHash: "c42" },
+  ]).returning();
+  await db.insert(itemEmbeddings).values(ins.map((row) => ({ itemId: row.id, embedding: vec(0) })));
+  await db.insert(scores).values([
+    { itemId: ins[0]!.id, composite: 0.99, rubricVersion: "test" },  // would win an all-time sort
+    { itemId: ins[1]!.id, composite: 0.5, rubricVersion: "test" },
+    { itemId: ins[2]!.id, composite: 0.4, rubricVersion: "test" },
+  ]);
+  await db.insert(itemTopics).values(ins.map((row) => ({ itemId: row.id, topicId: t!.id })));
+  await db.execute(sql`
+    INSERT INTO topic_trends (topic_id, bucket_date, item_count, score_sum)
+    VALUES (${t!.id}, ${day}, 2, 0.9)
+  `);
+
+  const { labelTopic } = await import("../../src/lib/scoring/llm.js");
+  vi.mocked(labelTopic).mockClear();
+  const { runClusterStage } = await import("../../src/lib/cluster.js");
+  await runClusterStage(db, { threshold: 0.2 });
+
+  const seen = vi.mocked(labelTopic).mock.calls.at(-1)![0];
+  expect(seen).toEqual(["Claude Fable 5 first impressions", "Fable 5 pricing breakdown"]);
+  expect(seen).not.toContain("OLD high-scoring story");
 });

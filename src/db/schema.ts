@@ -93,9 +93,12 @@ export const topics = pgTable("topics", {
   centroid: vector("centroid", { dimensions: 2048 }).notNull(),
   firstSeen: timestamp("first_seen", { withTimezone: true }).notNull().defaultNow(),
   lastSeen: timestamp("last_seen", { withTimezone: true }).notNull().defaultNow(),
-  // Member count at the time the label was last generated; 0 = never labeled
-  // from members. Drives relabel debounce in the cluster stage.
+  // The trend board ranks topics by TODAY's bucket, so a label has to describe
+  // what landed today. These two record the last labeling: how many of that
+  // day's items it saw, and which UTC day that was (NULL = never labeled from
+  // members). Drives the relabel debounce in the cluster stage.
   labelN: integer("label_n").notNull().default(0),
+  labelDate: text("label_date"), // YYYY-MM-DD, matches topic_trends.bucket_date
 });
 
 export const itemTopics = pgTable("item_topics", {

@@ -30,19 +30,40 @@ async function foldIntoCentroid(db: Db, topicId: number, embedding: string): Pro
 // Bound LLM label calls per cluster run; catch-up over old topics happens
 // across runs instead of stalling one run on hundreds of calls.
 const RELABEL_BATCH = 10;
+// Within a day, re-label once the topic has this many more of today's items
+// than the label was built from — enough to change what the day is about
+// without paying a label call per arriving item.
+const RELABEL_STEP = 2;
 
-// Re-label topics whose membership clearly outgrew the last labeling
-// (label_n = 0 means never labeled from members). The LLM sees the topic's
-// top-scored member titles, so the label names the shared event ("Claude
-// Fable 5 发布") instead of the most frequent generic tag ("Anthropic").
-async function relabelGrownTopics(db: Db): Promise<number> {
+// /topics is a DAILY board: it ranks topic_trends rows bucketed to today, so a
+// topic's label has to say what landed TODAY. Two things used to break that:
+//
+//   * The label was built from the topic's top-scored members across all time,
+//     so it could name an event whose items the 30-day cleanup had already
+//     deleted — a label about items no longer in the list.
+//   * The debounce compared total membership against label_n, and cleanup makes
+//     membership SHRINK. A topic labeled at 40 members and cleaned down to 20
+//     satisfied neither `20 >= 43` nor `20 >= 80`, so its label froze forever.
+//
+// Both go away by scoping to the day: today's member count restarts at 0 each
+// UTC day and only grows within it, and today's titles are exactly the ones a
+// reader sees at the top of the topic.
+async function relabelTodayTopics(db: Db, day: string): Promise<number> {
   const due = await db.execute(sql`
-    SELECT t.id, count(it.item_id)::int AS n
-    FROM topics t
-    JOIN item_topics it ON it.topic_id = t.id
-    GROUP BY t.id
-    HAVING count(it.item_id) >= t.label_n + 3 OR count(it.item_id) >= t.label_n * 2
-    ORDER BY max(t.last_seen) DESC
+    WITH today AS (
+      SELECT it.topic_id, count(*)::int AS n
+      FROM item_topics it
+      JOIN items i ON i.id = it.item_id
+      WHERE (i.created_at AT TIME ZONE 'UTC')::date = ${day}::date
+      GROUP BY it.topic_id
+    )
+    SELECT tt.topic_id AS id, today.n
+    FROM topic_trends tt
+    JOIN topics t ON t.id = tt.topic_id
+    JOIN today ON today.topic_id = tt.topic_id
+    WHERE tt.bucket_date = ${day}
+      AND (t.label_date IS DISTINCT FROM ${day} OR today.n >= t.label_n + ${RELABEL_STEP})
+    ORDER BY tt.score_sum DESC
     LIMIT ${RELABEL_BATCH}
   `);
   const list = (due.rows ?? due) as Array<{ id: number; n: number }>;
@@ -55,6 +76,7 @@ async function relabelGrownTopics(db: Db): Promise<number> {
       JOIN items i ON i.id = it.item_id
       LEFT JOIN scores s ON s.item_id = i.id
       WHERE it.topic_id = ${Number(topic.id)}
+        AND (i.created_at AT TIME ZONE 'UTC')::date = ${day}::date
       ORDER BY s.composite DESC NULLS LAST
       LIMIT 8
     `);
@@ -63,7 +85,7 @@ async function relabelGrownTopics(db: Db): Promise<number> {
     try {
       const label = await labelTopic(titles);
       await db.execute(sql`
-        UPDATE topics SET label = ${label}, label_n = ${Number(topic.n)}
+        UPDATE topics SET label = ${label}, label_n = ${Number(topic.n)}, label_date = ${day}
         WHERE id = ${Number(topic.id)}
       `);
       relabeled++;
@@ -94,6 +116,9 @@ const JOIN_CANDIDATES = 5;
 // centroids; join the first one within its size-adjusted threshold, else
 // create a new topic.
 export async function runClusterStage(db: Db, opts: { threshold: number }): Promise<number> {
+  // One UTC day for the whole pass: the trend bucket, the label scope and the
+  // /topics board all have to agree on which day "today" is.
+  const day = new Date().toISOString().slice(0, 10);
   const rows = await db.execute(sql`
     SELECT e.item_id, e.embedding, i.title
     FROM item_embeddings e
@@ -122,14 +147,14 @@ export async function runClusterStage(db: Db, opts: { threshold: number }): Prom
     } else {
       const label = await labelTopic([row.title]);
       const created = await db.execute(sql`
-        INSERT INTO topics (label, centroid, label_n) VALUES (${label}, ${row.embedding}::vector, 1) RETURNING id
+        INSERT INTO topics (label, centroid, label_n, label_date)
+        VALUES (${label}, ${row.embedding}::vector, 1, ${day}) RETURNING id
       `);
       topicId = Number(((created.rows ?? created)[0] as { id: number }).id);
     }
     await db.insert(itemTopics)
       .values({ itemId: Number(row.item_id), topicId, weight: 1 })
       .onConflictDoNothing({ target: [itemTopics.itemId, itemTopics.topicId] });
-    const day = new Date().toISOString().slice(0, 10);
     await db.execute(sql`
       INSERT INTO topic_trends (topic_id, bucket_date, item_count, score_sum)
       VALUES (${topicId}, ${day}, 1, COALESCE((SELECT composite FROM scores WHERE item_id = ${Number(row.item_id)}), 0))
@@ -139,7 +164,7 @@ export async function runClusterStage(db: Db, opts: { threshold: number }): Prom
     `);
     assigned++;
   }
-  const relabeled = await relabelGrownTopics(db);
+  const relabeled = await relabelTodayTopics(db, day);
   return assigned + relabeled;
 }
 
@@ -203,6 +228,7 @@ async function mergeTopics(db: Db, keepId: number, dropId: number): Promise<void
         WHERE it.topic_id = ${keepId}
       ), centroid),
       label_n = 0,
+      label_date = NULL,
       last_seen = now()
     WHERE id = ${keepId}
   `);
