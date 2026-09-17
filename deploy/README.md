@@ -106,12 +106,45 @@ Put the dashboard behind HTTPS (Caddy/Traefik/nginx + Let's Encrypt). Google OAu
 
 ## 5. Scheduled collectors (VPS cron)
 
-Edit the host crontab (`crontab -e`) to call the scripts inside the running `worker` container (it has the code + `.env`):
+Edit the host crontab (`crontab -e`) to call the scripts inside the running `worker`
+container (it has the code + `.env`). Use `docker exec` against the container name,
+not `docker compose exec`: compose has to read `.env`, which is `root:600`, so it
+fails for the cron user.
 
 ```cron
-0 */4 * * * cd /opt/ai-signal && docker compose exec -T worker npm run collect:hn  >> /var/log/aisignal-hn.log 2>&1
-0 0 * * *   cd /opt/ai-signal && docker compose exec -T worker npm run collect:rss >> /var/log/aisignal-rss.log 2>&1
-0 4 * * *   cd /opt/ai-signal && docker compose exec -T worker npm run cleanup      >> /var/log/aisignal-cleanup.log 2>&1
+PATH=/usr/local/bin:/usr/bin:/bin
+0 */4 * * * docker exec ai-signal-worker-1 npm run collect:hn  >> /home/deploy/aisignal-logs/hn.log 2>&1
+0 0 * * *   docker exec ai-signal-worker-1 npm run collect:rss >> /home/deploy/aisignal-logs/rss.log 2>&1
+0 4 * * *   docker exec ai-signal-worker-1 npm run cleanup     >> /home/deploy/aisignal-logs/cleanup.log 2>&1
+```
+
+### What the nightly cleanup touches
+
+`npm run cleanup` enforces the 30-day window (see `src/lib/cleanup.ts`). Deleted:
+expired non-favorited `items` and their score/embedding/topic/KB rows plus the R2
+images, expired `rss_items`, child rows whose item is gone, and topics that have no
+members left and haven't been seen in 30 days. **Favorites are never deleted.**
+
+Two tables are deliberately handled differently:
+
+- **`raw_items` rows are kept forever.** They are the ingest dedupe ledger, and
+  `/raw` + keyword search render straight out of `payload`. Only the untouched
+  upstream API document at `payload->'raw'` is stripped once a row is past
+  retention — about half the bytes, none of what the UI reads.
+- **`model_usage` is never swept**, because `/status` sums it for all-time spend and
+  the whole table is only ~8 MB.
+
+### One-off: reclaim the bloat from the first slimming run
+
+The payload strip is an `UPDATE`, so the first run (which slims the whole back
+catalogue at once) leaves a dead tuple per row and `raw_items` temporarily grows.
+The nightly job runs a plain `VACUUM`, which makes that space reusable and stops
+the growth, but does not hand it back to the OS. To actually shrink the file, run
+this once after the first nightly sweep — it takes an exclusive lock on the table
+for a minute or two and needs free disk equal to the table size:
+
+```bash
+docker exec ai-signal-db-1 psql -U aisignal -d aisignal -c "VACUUM FULL raw_items, topics, item_embeddings"
 ```
 
 ### Re-processing after a rubric change
