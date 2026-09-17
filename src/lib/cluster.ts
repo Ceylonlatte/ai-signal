@@ -54,6 +54,14 @@ const RELABEL_STEP = 2;
 // items.created_at instead would compare two different days: the backlog
 // clusters most items well after ingest, so a topic could sit on today's board
 // with no item created today and never qualify.
+//
+// Being on today's board is the whole condition; having a member linked today
+// only sets the pace. A topic can reach the board with its linked_at stamps
+// unusable (rows backfilled at migration, a clock skew, a repaired row), and
+// requiring one would leave it showing a months-old label under today's items
+// — exactly the failure this is fixing. So titles are read newest-first with
+// today's members in front, and a topic on the board is always labeled from
+// the most recent thing it holds.
 async function relabelTodayTopics(db: Db, day: string): Promise<number> {
   const due = await db.execute(sql`
     WITH today AS (
@@ -62,12 +70,13 @@ async function relabelTodayTopics(db: Db, day: string): Promise<number> {
       WHERE (it.linked_at AT TIME ZONE 'UTC')::date = ${day}::date
       GROUP BY it.topic_id
     )
-    SELECT tt.topic_id AS id, today.n
+    SELECT tt.topic_id AS id, coalesce(today.n, 0) AS n
     FROM topic_trends tt
     JOIN topics t ON t.id = tt.topic_id
-    JOIN today ON today.topic_id = tt.topic_id
+    LEFT JOIN today ON today.topic_id = tt.topic_id
     WHERE tt.bucket_date = ${day}
-      AND (t.label_date IS DISTINCT FROM ${day} OR today.n >= t.label_n + ${RELABEL_STEP})
+      AND (t.label_date IS DISTINCT FROM ${day}
+           OR coalesce(today.n, 0) >= t.label_n + ${RELABEL_STEP})
     ORDER BY tt.score_sum DESC
     LIMIT ${RELABEL_BATCH}
   `);
@@ -81,8 +90,9 @@ async function relabelTodayTopics(db: Db, day: string): Promise<number> {
       JOIN items i ON i.id = it.item_id
       LEFT JOIN scores s ON s.item_id = i.id
       WHERE it.topic_id = ${Number(topic.id)}
-        AND (it.linked_at AT TIME ZONE 'UTC')::date = ${day}::date
-      ORDER BY s.composite DESC NULLS LAST
+      ORDER BY (it.linked_at AT TIME ZONE 'UTC')::date = ${day}::date DESC,
+               it.linked_at DESC,
+               s.composite DESC NULLS LAST
       LIMIT 8
     `);
     const titles = ((res.rows ?? res) as Array<{ title: string }>).map((r) => r.title);

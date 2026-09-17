@@ -195,9 +195,9 @@ it("relabels a shrunken topic whose membership fell below the last labeling", as
   expect(topic!.labelDate).toBe(day);
 });
 
-// The board buckets by day, so the label has to come from the day's items —
-// otherwise a high-scoring item from last week keeps naming today's topic.
-it("builds the label from today's items only", async () => {
+// The board buckets by day, so today's members lead the titles the labeler
+// sees — otherwise a high-scoring item from last week keeps naming the topic.
+it("puts today's members in front of older ones when labeling", async () => {
   await truncateAll();
   const day = new Date().toISOString().slice(0, 10);
   const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -232,8 +232,45 @@ it("builds the label from today's items only", async () => {
   await runClusterStage(db, { threshold: 0.2 });
 
   const seen = vi.mocked(labelTopic).mock.calls.at(-1)![0];
-  expect(seen).toEqual(["Claude Fable 5 first impressions", "Fable 5 pricing breakdown"]);
-  expect(seen).not.toContain("OLD high-scoring story");
+  expect(seen.slice(0, 2)).toEqual(["Claude Fable 5 first impressions", "Fable 5 pricing breakdown"]);
+  expect(seen.indexOf("OLD high-scoring story")).toBe(2);  // present, but last
+});
+
+// A topic can reach today's board with nothing stamped linked_at today — rows
+// backfilled by the linked_at migration are the live case. Skipping those left
+// 67 of 92 topics on the prod board wearing labels built from items the 30-day
+// cleanup had deleted, which is the bug in the first place. Being on the board
+// is the whole condition; the newest members supply the title.
+it("relabels a topic on today's board even with no member linked today", async () => {
+  await truncateAll();
+  const day = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const [stale] = await db.insert(topics).values({
+    label: "Archify 与 show-me：AI 图表生成技能集",
+    centroid: vec(0), labelN: 11, labelDate: null,
+  }).returning();
+
+  const ins = await db.insert(items).values([
+    { rawItemId: 60, source: "hn", title: "Anthropic ships Claude Fable 5", createdAt: yesterday, contentHash: "c60" },
+    { rawItemId: 61, source: "hn", title: "Claude Fable 5 first impressions", createdAt: yesterday, contentHash: "c61" },
+  ]).returning();
+  await db.insert(itemEmbeddings).values(ins.map((row) => ({ itemId: row.id, embedding: vec(0) })));
+  await db.insert(scores).values(ins.map((row) => ({ itemId: row.id, composite: 0.5, rubricVersion: "test" })));
+  await db.insert(itemTopics).values(ins.map((row) => ({
+    itemId: row.id, topicId: stale!.id, linkedAt: yesterday,   // nothing linked today
+  })));
+  await db.execute(sql`
+    INSERT INTO topic_trends (topic_id, bucket_date, item_count, score_sum)
+    VALUES (${stale!.id}, ${day}, 2, 1.0)
+  `);
+
+  const { runClusterStage } = await import("../../src/lib/cluster.js");
+  await runClusterStage(db, { threshold: 0.2 });
+
+  const [topic] = await db.select().from(topics);
+  expect(topic!.label).toBe("Claude Fable 5 发布");
+  expect(topic!.labelDate).toBe(day);
+  expect(topic!.labelN).toBe(0);   // no member linked today; the day still got labeled
 });
 
 // The backlog clusters most items a day or more after they land, so "today's
