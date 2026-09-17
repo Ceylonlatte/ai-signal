@@ -53,20 +53,36 @@ function HealthBanners({ health, budget }: { health: PipelineHealth; budget: Key
         </Notice>
       )}
 
+      {/* Two different ways to run out of money, with two different fixes: the
+          key's own cap, and the account balance it bills to. Naming the wrong
+          one sends you to the wrong OpenRouter page. */}
       {health.budgetExhausted && (
         <Notice tone="alert">
-          <strong>模型额度已用尽</strong>：{fmtCost(budget.usage)}
-          {budget.limit !== null ? ` / 上限 ${fmtCost(budget.limit)}` : ""}
-          {budget.reset ? `（${budget.reset} 重置）` : ""}。
-          打分、摘要、KB 会全部收到 403 并失败。去 OpenRouter 提额或充值后重启 worker。
+          {budget.source === "credits" ? (
+            <>
+              <strong>OpenRouter 账户余额已用尽</strong>：余额 {fmtCost(budget.credits ?? 0)}
+              {budget.keyRemaining !== null
+                ? `（key 限额还剩 ${fmtCost(budget.keyRemaining)}，但账户没有余额，调用一样 402）`
+                : ""}
+              。打分、摘要、KB 会全部失败。去 openrouter.ai/settings/credits 充值后重启 worker。
+            </>
+          ) : (
+            <>
+              <strong>模型 key 额度已用尽</strong>：已用 {fmtCost(budget.usage)}
+              {budget.limit !== null ? ` / 上限 ${fmtCost(budget.limit)}` : ""}
+              {budget.reset ? `（${budget.reset} 重置）` : ""}。
+              打分、摘要、KB 会全部收到 402/403 并失败。去 OpenRouter 提高 key 上限后重启 worker。
+            </>
+          )}
         </Notice>
       )}
 
       {health.budgetLow && (
         <Notice tone="warn">
-          <strong>模型额度紧张</strong>：仅剩 {fmtCost(budget.remaining ?? 0)}
-          {budget.limit !== null ? ` / ${fmtCost(budget.limit)}` : ""}
-          （不足 10%）。用尽后流水线会整体停摆。
+          <strong>{budget.source === "credits" ? "账户余额紧张" : "模型 key 额度紧张"}</strong>
+          ：仅剩 {fmtCost(budget.remaining ?? 0)}
+          {budget.source === "key" && budget.limit !== null ? ` / ${fmtCost(budget.limit)}` : ""}
+          。用尽后流水线会整体停摆。
         </Notice>
       )}
 
@@ -307,9 +323,11 @@ export default async function Status() {
             hint={
               !budget.ok
                 ? "探测失败"
-                : budget.limit === null
-                  ? "key 未设上限"
-                  : `上限 ${fmtCost(budget.limit)}${budget.reset ? ` · ${budget.reset} 重置` : ""}`
+                : budget.source === "credits"
+                  ? `账户余额${budget.keyRemaining !== null ? ` · key 限额还剩 ${fmtCost(budget.keyRemaining)}` : ""}`
+                  : budget.limit === null
+                    ? "key 未设上限"
+                    : `key 上限 ${fmtCost(budget.limit)}${budget.reset ? ` · ${budget.reset} 重置` : ""}`
             }
           />
           <Stat

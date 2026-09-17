@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { assessHealth, STALL_MINUTES, FEED_STALE_HOURS, type KeyBudget } from "../../src/app/status-queries.js";
+import {
+  assessHealth, STALL_MINUTES, FEED_STALE_HOURS, CREDITS_LOW_USD, type KeyBudget,
+} from "../../src/app/status-queries.js";
 
 const NOW = new Date("2026-08-31T12:00:00Z");
 const agoMin = (m: number) => new Date(NOW.getTime() - m * 60_000).toISOString();
 const agoHr = (h: number) => agoMin(h * 60);
 
 const budget = (over: Partial<KeyBudget> = {}): KeyBudget => ({
-  ok: true, limit: 10, usage: 1, remaining: 9, reset: "weekly", error: null, ...over,
+  ok: true, limit: 10, usage: 1, keyRemaining: 9, remaining: 9, credits: 40,
+  source: "key", reset: "weekly", error: null, ...over,
 });
 
 const base = {
@@ -65,16 +68,55 @@ describe("assessHealth", () => {
   it("stays silent on budget when the probe failed — unknown is not fine", () => {
     const h = assessHealth({
       ...base,
-      budget: { ok: false, limit: null, usage: 0, remaining: null, reset: null, error: "timeout" },
+      budget: budget({
+        ok: false, limit: null, usage: 0, keyRemaining: null, remaining: null,
+        credits: null, source: null, reset: null, error: "timeout",
+      }),
     });
     expect(h.budgetExhausted).toBe(false);
     expect(h.budgetLow).toBe(false);
   });
 
-  it("leaves an uncapped key alone", () => {
-    const h = assessHealth({ ...base, budget: budget({ limit: null, remaining: null }) });
+  it("leaves an uncapped key on a funded account alone", () => {
+    const h = assessHealth({
+      ...base,
+      budget: budget({ limit: null, keyRemaining: null, remaining: 40, source: "credits" }),
+    });
     expect(h.budgetExhausted).toBe(false);
     expect(h.budgetLow).toBe(false);
+  });
+
+  it("says nothing when neither ceiling is known", () => {
+    const h = assessHealth({
+      ...base,
+      budget: budget({ limit: null, keyRemaining: null, remaining: null, credits: null, source: null }),
+    });
+    expect(h.budgetExhausted).toBe(false);
+    expect(h.budgetLow).toBe(false);
+  });
+
+  // The outage: $9.69 of a $10 weekly key cap left, account balance at -$0.20,
+  // every model call 402ing. Judging the key cap alone called this healthy.
+  it("flags a drained account even while the key cap looks healthy", () => {
+    const h = assessHealth({
+      ...base,
+      rawPending: 954,
+      budget: budget({ keyRemaining: 9.69, remaining: -0.2, credits: -0.2, source: "credits" }),
+    });
+    expect(h.budgetExhausted).toBe(true);
+    expect(h.budgetLow).toBe(false);
+  });
+
+  it("warns on a thin account balance, which has no cap to be a percentage of", () => {
+    const h = assessHealth({
+      ...base,
+      budget: budget({
+        limit: null, keyRemaining: null,
+        remaining: CREDITS_LOW_USD / 2, credits: CREDITS_LOW_USD / 2, source: "credits",
+      }),
+    });
+    expect(h.budgetLow).toBe(true);
+    expect(h.budgetExhausted).toBe(false);
   });
 
   it("flags a stale feed past the threshold", () => {

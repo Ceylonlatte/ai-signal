@@ -169,68 +169,126 @@ export async function getModelUsage(db: Db): Promise<ModelUsageSummary> {
 }
 
 export interface KeyBudget {
-  // `ok: false` means the probe itself failed (no network, bad key, OpenRouter
-  // down) — that's "unknown budget", not "budget fine", so the UI stays quiet
-  // about spend but still says the probe didn't land.
+  // `ok: false` means a probe failed (no network, bad key, OpenRouter down) —
+  // that's "unknown budget", not "budget fine", so the UI stays quiet about
+  // the numbers but still says the probe didn't land.
   ok: boolean;
-  limit: number | null; // null = uncapped key
-  usage: number;
-  remaining: number | null; // null = uncapped
+  limit: number | null; // the key's own cap; null = uncapped key
+  usage: number; // this key's own spend against that cap
+  keyRemaining: number | null; // headroom under the key cap alone
+  // Effective headroom: whichever ceiling runs out first (see mergeBudget).
+  remaining: number | null; // null = uncapped key on an unmetered account
   // OpenRouter's own reset cadence for a capped key ("weekly"/"monthly"/null).
   reset: string | null;
   error: string | null;
+  // Which ceiling `remaining` describes, so the banner can name the right fix
+  // (top up the account vs. raise the key's cap). The incident that added
+  // this: the key still had $9.69 of its $10 weekly cap while the ACCOUNT
+  // balance sat at -$0.20, so every call 402'd and /status called it healthy.
+  source: "key" | "credits" | null;
+  // Account credit balance (total_credits - total_usage). Goes slightly
+  // negative because OpenRouter settles a little past zero.
+  credits: number | null;
 }
 
 const BUDGET_TTL_MS = 60_000;
 const BUDGET_TIMEOUT_MS = 5_000;
 let budgetCache: { at: number; value: KeyBudget } | null = null;
 
-// Live credit headroom on the OpenRouter key, straight from their `/key`
-// endpoint. This is the one failure that silently freezes the whole pipeline
-// (the worker keeps looping on 403s and nothing reaches the feed), so the
-// status page reads it rather than leaving it to be inferred from a flat spend
-// chart. The status page auto-refreshes every 5s; this is cached for a minute
-// so it stays one probe per minute, not one per render.
+export type KeyProbe = {
+  limit: number | null;
+  usage: number;
+  remaining: number | null;
+  reset: string | null;
+};
+
+const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+async function openRouterGet(path: string): Promise<Record<string, unknown>> {
+  const res = await fetch(`https://openrouter.ai/api/v1/${path}`, {
+    headers: { authorization: `Bearer ${config.OPENROUTER_API_KEY}` },
+    signal: AbortSignal.timeout(BUDGET_TIMEOUT_MS),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`OpenRouter /${path} ${res.status}`);
+  return (((await res.json()) as { data?: unknown })?.data ?? {}) as Record<string, unknown>;
+}
+
+// This key's own cap and what's left of it in the current reset window.
+async function probeKey(): Promise<KeyProbe> {
+  const d = await openRouterGet("key");
+  const limit = num(d?.limit);
+  const usage = num(d?.usage) ?? 0;
+  // `limit_remaining` is authoritative when present (it accounts for the
+  // key's reset window); fall back to limit - usage for older payloads.
+  const remaining = num(d?.limit_remaining) ?? (limit === null ? null : limit - usage);
+  return { limit, usage, remaining, reset: typeof d?.limit_reset === "string" ? d.limit_reset : null };
+}
+
+// The account's credit balance, which the per-key cap says nothing about: a key
+// sitting well under its cap still 402s the moment the account behind it runs
+// dry, and that is exactly how the pipeline froze for a day while this page
+// reported a healthy $9.69 of key headroom.
+async function probeCredits(): Promise<number> {
+  const d = await openRouterGet("credits");
+  const total = num(d?.total_credits);
+  const used = num(d?.total_usage);
+  if (total === null || used === null) throw new Error("OpenRouter /credits：返回格式异常");
+  return total - used;
+}
+
+// Fold both probes into the single "how much headroom is left" verdict the
+// banners read: whichever ceiling is lower is the one that 402s first, so
+// that's the one reported. Either probe failing makes the whole answer
+// `ok: false` — a half-known budget is what let the last outage hide.
+export function mergeBudget(input: {
+  key: KeyProbe | null;
+  credits: number | null;
+  errors: string[];
+}): KeyBudget {
+  const { key, credits, errors } = input;
+  const ceilings: Array<{ source: "key" | "credits"; remaining: number }> = [];
+  if (key && key.remaining !== null) ceilings.push({ source: "key", remaining: key.remaining });
+  if (credits !== null) ceilings.push({ source: "credits", remaining: credits });
+  const tightest = ceilings.sort((a, b) => a.remaining - b.remaining)[0] ?? null;
+
+  return {
+    ok: errors.length === 0,
+    limit: key?.limit ?? null,
+    usage: key?.usage ?? 0,
+    keyRemaining: key?.remaining ?? null,
+    remaining: tightest?.remaining ?? null,
+    reset: key?.reset ?? null,
+    source: tightest?.source ?? null,
+    credits,
+    error: errors.length > 0 ? errors.join("；") : null,
+  };
+}
+
+// Live headroom for the pipeline's model calls: the key's cap AND the account
+// balance behind it. This is the one failure that silently freezes everything
+// (the worker loops on 402/403s and nothing reaches the feed), so the status
+// page probes it rather than leaving it to be inferred from a flat spend chart.
+// The page auto-refreshes every 5s; cached for a minute so it stays one probe
+// per minute, not one per render.
 export async function getKeyBudget(): Promise<KeyBudget> {
   const now = Date.now();
   if (budgetCache && now - budgetCache.at < BUDGET_TTL_MS) return budgetCache.value;
 
-  const fail = (error: string): KeyBudget => ({
-    ok: false, limit: null, usage: 0, remaining: null, reset: null, error,
-  });
-
   let value: KeyBudget;
-  try {
-    if (!config.OPENROUTER_API_KEY) {
-      value = fail("未配置 OPENROUTER_API_KEY");
-    } else {
-      const res = await fetch("https://openrouter.ai/api/v1/key", {
-        headers: { authorization: `Bearer ${config.OPENROUTER_API_KEY}` },
-        signal: AbortSignal.timeout(BUDGET_TIMEOUT_MS),
-        cache: "no-store",
-      });
-      if (!res.ok) {
-        value = fail(`OpenRouter ${res.status}`);
-      } else {
-        const d = (await res.json()).data as Record<string, unknown>;
-        const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
-        const limit = num(d?.limit);
-        const usage = num(d?.usage) ?? 0;
-        // `limit_remaining` is authoritative when present (it accounts for the
-        // key's reset window); fall back to limit - usage for older payloads.
-        const remaining = num(d?.limit_remaining) ?? (limit === null ? null : limit - usage);
-        value = {
-          ok: true,
-          limit,
-          usage,
-          remaining,
-          reset: typeof d?.limit_reset === "string" ? d.limit_reset : null,
-          error: null,
-        };
-      }
-    }
-  } catch (err) {
-    value = fail(err instanceof Error ? err.message : String(err));
+  if (!config.OPENROUTER_API_KEY) {
+    value = mergeBudget({ key: null, credits: null, errors: ["未配置 OPENROUTER_API_KEY"] });
+  } else {
+    const msg = (err: unknown) => (err instanceof Error ? err.message : String(err));
+    const [k, c] = await Promise.allSettled([probeKey(), probeCredits()]);
+    const errors = [k, c]
+      .filter((r): r is PromiseRejectedResult => r.status === "rejected")
+      .map((r) => msg(r.reason));
+    value = mergeBudget({
+      key: k.status === "fulfilled" ? k.value : null,
+      credits: c.status === "fulfilled" ? c.value : null,
+      errors,
+    });
   }
 
   budgetCache = { at: now, value };
@@ -244,6 +302,10 @@ export async function getKeyBudget(): Promise<KeyBudget> {
 export const STALL_MINUTES = 20;
 // Past this, the feed's newest card is old enough that the user notices.
 export const FEED_STALE_HOURS = 12;
+// The account balance has no cap to take a percentage of, so "running low"
+// there has to be an absolute number: under a dollar is a day or two of spend
+// at this volume.
+export const CREDITS_LOW_USD = 1;
 
 export interface PipelineHealth {
   stalled: boolean;
@@ -275,13 +337,14 @@ export function assessHealth(input: {
 
   const { remaining, limit } = input.budget;
   const budgetExhausted = input.budget.ok && remaining !== null && remaining <= 0;
-  const budgetLow =
-    input.budget.ok &&
-    !budgetExhausted &&
-    remaining !== null &&
-    limit !== null &&
-    limit > 0 &&
-    remaining / limit < 0.1;
+  // Either ceiling counts. A percentage only means something against the key
+  // cap, so the account balance is judged in absolute dollars instead.
+  const pctLow =
+    input.budget.source === "key" &&
+    limit !== null && limit > 0 &&
+    remaining !== null && remaining / limit < 0.1;
+  const absLow = remaining !== null && remaining < CREDITS_LOW_USD;
+  const budgetLow = input.budget.ok && !budgetExhausted && (pctLow || absLow);
 
   const feedAgeMins = minsSince(input.latestItemAt);
   const feedAgeHours = feedAgeMins === null ? null : feedAgeMins / 60;
