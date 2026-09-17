@@ -105,6 +105,13 @@ export const itemTopics = pgTable("item_topics", {
   itemId: bigint("item_id", { mode: "number" }).notNull(),
   topicId: bigint("topic_id", { mode: "number" }).notNull(),
   weight: real("weight").notNull().default(1),
+  // When the item joined THIS topic — written by the same cluster pass that
+  // writes the day's topic_trends row. items.created_at can't stand in for it:
+  // the embed/score backlog means most items are clustered a day or more after
+  // they land (on 2026-09-17: 126 items bucketed, only 30 of them created that
+  // day), so an ingest date would put a topic on today's board while claiming
+  // it has nothing from today.
+  linkedAt: timestamp("linked_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({ uq: uniqueIndex("item_topics_uq").on(t.itemId, t.topicId) }));
 
 // Remembers LLM "same story?" verdicts for near-centroid topic pairs so each

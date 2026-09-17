@@ -44,7 +44,7 @@ export async function getTopTopics(db: Db, opts: { date: string }): Promise<TopT
       JOIN items i ON i.id = it.item_id
       LEFT JOIN scores s ON s.item_id = i.id
       WHERE it.topic_id = t.id
-        AND (i.created_at AT TIME ZONE 'UTC')::date = ${opts.date}::date
+        AND (it.linked_at AT TIME ZONE 'UTC')::date = ${opts.date}::date
       ORDER BY s.composite DESC NULLS LAST
       LIMIT 1
     ) rep ON true

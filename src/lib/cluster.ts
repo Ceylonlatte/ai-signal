@@ -48,13 +48,18 @@ const RELABEL_STEP = 2;
 // Both go away by scoping to the day: today's member count restarts at 0 each
 // UTC day and only grows within it, and today's titles are exactly the ones a
 // reader sees at the top of the topic.
+//
+// "Today" means item_topics.linked_at — the day the item joined the topic,
+// written by the same pass that writes the topic_trends row this reads. Using
+// items.created_at instead would compare two different days: the backlog
+// clusters most items well after ingest, so a topic could sit on today's board
+// with no item created today and never qualify.
 async function relabelTodayTopics(db: Db, day: string): Promise<number> {
   const due = await db.execute(sql`
     WITH today AS (
       SELECT it.topic_id, count(*)::int AS n
       FROM item_topics it
-      JOIN items i ON i.id = it.item_id
-      WHERE (i.created_at AT TIME ZONE 'UTC')::date = ${day}::date
+      WHERE (it.linked_at AT TIME ZONE 'UTC')::date = ${day}::date
       GROUP BY it.topic_id
     )
     SELECT tt.topic_id AS id, today.n
@@ -76,7 +81,7 @@ async function relabelTodayTopics(db: Db, day: string): Promise<number> {
       JOIN items i ON i.id = it.item_id
       LEFT JOIN scores s ON s.item_id = i.id
       WHERE it.topic_id = ${Number(topic.id)}
-        AND (i.created_at AT TIME ZONE 'UTC')::date = ${day}::date
+        AND (it.linked_at AT TIME ZONE 'UTC')::date = ${day}::date
       ORDER BY s.composite DESC NULLS LAST
       LIMIT 8
     `);

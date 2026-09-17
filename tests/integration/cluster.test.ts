@@ -216,7 +216,11 @@ it("builds the label from today's items only", async () => {
     { itemId: ins[1]!.id, composite: 0.5, rubricVersion: "test" },
     { itemId: ins[2]!.id, composite: 0.4, rubricVersion: "test" },
   ]);
-  await db.insert(itemTopics).values(ins.map((row) => ({ itemId: row.id, topicId: t!.id })));
+  await db.insert(itemTopics).values([
+    { itemId: ins[0]!.id, topicId: t!.id, linkedAt: yesterday },  // joined yesterday
+    { itemId: ins[1]!.id, topicId: t!.id },
+    { itemId: ins[2]!.id, topicId: t!.id },
+  ]);
   await db.execute(sql`
     INSERT INTO topic_trends (topic_id, bucket_date, item_count, score_sum)
     VALUES (${t!.id}, ${day}, 2, 0.9)
@@ -230,4 +234,39 @@ it("builds the label from today's items only", async () => {
   const seen = vi.mocked(labelTopic).mock.calls.at(-1)![0];
   expect(seen).toEqual(["Claude Fable 5 first impressions", "Fable 5 pricing breakdown"]);
   expect(seen).not.toContain("OLD high-scoring story");
+});
+
+// The backlog clusters most items a day or more after they land, so "today's
+// items" has to mean the day they JOINED the topic. Keying off items.created_at
+// left the majority of the board unlabelable: on 2026-09-17 prod bucketed 126
+// items into today's trends while only 30 of them were created that day, so 67
+// of 92 topics on the board could never be relabeled.
+it("counts an item clustered today even if it was ingested earlier", async () => {
+  await truncateAll();
+  const day = new Date().toISOString().slice(0, 10);
+  const lastWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const [t] = await db.insert(topics).values({
+    label: "seed", centroid: vec(0), labelN: 0, labelDate: null,
+  }).returning();
+
+  const ins = await db.insert(items).values([
+    { rawItemId: 50, source: "hn", title: "Claude Fable 5 first impressions", createdAt: lastWeek, contentHash: "c50" },
+    { rawItemId: 51, source: "hn", title: "Fable 5 pricing breakdown", createdAt: lastWeek, contentHash: "c51" },
+  ]).returning();
+  await db.insert(itemEmbeddings).values(ins.map((row) => ({ itemId: row.id, embedding: vec(0) })));
+  await db.insert(scores).values(ins.map((row) => ({ itemId: row.id, composite: 0.5, rubricVersion: "test" })));
+  // Ingested a week ago, drained out of the backlog and clustered just now.
+  await db.insert(itemTopics).values(ins.map((row) => ({ itemId: row.id, topicId: t!.id })));
+  await db.execute(sql`
+    INSERT INTO topic_trends (topic_id, bucket_date, item_count, score_sum)
+    VALUES (${t!.id}, ${day}, 2, 1.0)
+  `);
+
+  const { runClusterStage } = await import("../../src/lib/cluster.js");
+  await runClusterStage(db, { threshold: 0.2 });
+
+  const [topic] = await db.select().from(topics);
+  expect(topic!.label).toBe("Claude Fable 5 发布");
+  expect(topic!.labelDate).toBe(day);
+  expect(topic!.labelN).toBe(2);
 });
