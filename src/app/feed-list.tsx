@@ -50,9 +50,16 @@ interface FeedSnapshot {
 // then restores the rows already paged in plus the scroll offset, instead of
 // snapping to page 1 at the top — the router remounts this component on every
 // back navigation, so component state alone can't carry that across.
-// Keyed by sort+source because each filter is its own list; the page already
-// remounts FeedList via `key` when either changes.
+// Keyed by scope+sort+source. sort/source because each filter is its own list
+// (the page already remounts FeedList via `key` when either changes), and
+// `scope` because the same sort/source pair belongs to different lists: the
+// home feed and every topic page both render time/all. Without it a topic page
+// restored the home feed's rows under the topic's own heading — and restored
+// its totalPages too, so scrolling paged the whole global feed inside a topic.
 const feedSnapshots = new Map<string, FeedSnapshot>();
+// Topic scopes make the key space unbounded (one entry per topic visited), so
+// keep only the most recently opened lists. Map iterates in insertion order.
+const SNAPSHOT_LIMIT = 20;
 
 // useLayoutEffect warns during SSR; the restore only ever has work to do in the
 // browser, where it must run before paint to avoid a scroll flash.
@@ -64,14 +71,17 @@ export function FeedList({
   totalPages: initialTotalPages,
   sort,
   source,
+  scope,
 }: {
   initialItems: FeedItemData[];
   total: number;
   totalPages: number;
   sort: FeedSort;
   source: FeedSource;
+  /** Which list this is — "feed" for the main feed, `topic:<id>` for a topic. */
+  scope: string;
 }) {
-  const cacheKey = `${sort}:${source}`;
+  const cacheKey = `${scope}:${sort}:${source}`;
   const [restored] = useState<FeedSnapshot | null>(() => feedSnapshots.get(cacheKey) ?? null);
 
   const [items, setItems] = useState<FeedItemData[]>(restored?.items ?? initialItems);
@@ -99,6 +109,10 @@ export function FeedList({
       scrollY: 0,
     };
     feedSnapshots.set(cacheKey, snapshotRef.current);
+    for (const k of feedSnapshots.keys()) {
+      if (feedSnapshots.size <= SNAPSHOT_LIMIT) break;
+      feedSnapshots.delete(k);
+    }
   }
   const snapshot = snapshotRef.current;
 

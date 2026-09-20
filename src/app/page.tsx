@@ -88,6 +88,7 @@ export default async function Home({
           totalPages={totalPages}
           sort={sort}
           source={source}
+          scope="feed"
         />
       )}
     </main>

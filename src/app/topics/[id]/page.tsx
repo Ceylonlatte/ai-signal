@@ -81,7 +81,14 @@ export default async function TopicDetail({
           <p className="placeholder__body">条目入库并完成聚类后会出现在这里。</p>
         </div>
       ) : (
-        <FeedList initialItems={data} total={count} totalPages={1} sort="time" source="all" />
+        <FeedList
+          initialItems={data}
+          total={count}
+          totalPages={1}
+          sort="time"
+          source="all"
+          scope={`topic:${topicId}`}
+        />
       )}
     </main>
   );
