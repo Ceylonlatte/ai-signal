@@ -280,6 +280,24 @@ for a minute or two and needs free disk equal to the table size:
 docker exec ai-signal-db-1 psql -U aisignal -d aisignal -c "VACUUM FULL raw_items, topics, item_embeddings"
 ```
 
+### One-off: repair topic labels that are chat replies
+
+Before labels were validated, the scoring model sometimes read a topic's member
+titles as a question and answered in prose; the first 60 characters of that reply
+were stored as the label ("是的，我很熟悉这个方向。在 LLM Agent 架构中…"). New
+labels can no longer look like that, and any topic that reaches today's board is
+re-labeled by the cluster stage on its own — but a topic that never comes back to
+the board keeps its old reply. This script relabels those:
+
+```bash
+# dry run: how many are there, and what would each become
+docker exec ai-signal-worker-1 npm run relabel-topics
+# apply (one LLM call per topic)
+docker exec ai-signal-worker-1 npm run relabel-topics -- --apply --limit 50
+```
+
+Dry run is the default; `--apply` spends OpenRouter credit and rewrites `topics.label`.
+
 ### Re-processing after a rubric change
 
 Push the rubric change and let CI deploy it first (it runs the migrations). Then,
