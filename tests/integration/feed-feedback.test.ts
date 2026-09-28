@@ -48,7 +48,7 @@ it("surfaces suppressed items in the suppressed view", async () => {
 });
 
 it("ranks liked-similar item above neutral", async () => {
-  const feed = await getFeed(db, { page: 1, pageSize: 50 });
+  const feed = await getFeed(db, { page: 1, pageSize: 50, sort: "score" });
   const titles = feed.items.map((r: any) => r.title).filter((t: string) => ["liked", "neutral"].includes(t));
   expect(titles[0]).toBe("liked");
 });
