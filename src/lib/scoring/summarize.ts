@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { config } from "../../config.js";
 import { recordModelUsage, type OpenRouterUsage } from "../usage.js";
+import { llmRouting } from "../llm-request.js";
 
 export interface BilingualSummary { titleZh: string; summaryEn: string; summaryZh: string; }
 
@@ -30,6 +31,7 @@ export async function summarizeBilingual(input: { title: string; text: string })
     headers: { authorization: `Bearer ${config.OPENROUTER_API_KEY}`, "content-type": "application/json" },
     body: JSON.stringify({
       model: config.SCORING_MODEL,
+      ...llmRouting(),
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: SYSTEM },

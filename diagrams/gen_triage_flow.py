@@ -151,7 +151,7 @@ node_box(CX, 270, 320, 70, "Triage 阶段", ["取 processedAt=null，每批 500 
 node_box(CX, 378, 320, 58, "embedCandidates 整批 embed", ["qwen3-embedding-8b（免费）"], EMBED_FILL, EMBED_STROKE, scolor="#bfdbfe")
 node_box(CX, 482, 320, 58, "hybridRelevance 相关度", ["向量 vs 关键词余弦 + 关键词精确匹配"], NEUTRAL_FILL, NEUTRAL_STROKE, badge=(1, "#38bdf8"))
 node_diamond(CX, 602, 300, 100, "预筛 selectCandidates", ["相关? 或 够热? 或 Twitter following?"], DEC_FILL, DEC_STROKE, badge=(2, "#f59e0b"))
-node_box(CX, 732, 320, 68, "scoreBatch LLM 打分", ["deepseek-v4-flash", "value / topics / reason"], LLM_FILL, LLM_STROKE, scolor="#e9d5ff", badge=(3, "#c084fc"))
+node_box(CX, 732, 320, 68, "scoreBatch LLM 打分", ["deepseek-flash-latest", "value / topics / reason"], LLM_FILL, LLM_STROKE, scolor="#e9d5ff", badge=(3, "#c084fc"))
 node_box(CX, 842, 320, 58, "computeQuality 质量分 Q", ["Q = llmValue ± relevance ± trust"], NEUTRAL_FILL, NEUTRAL_STROKE, badge=(4, "#34d399"))
 node_diamond(CX, 958, 300, 100, "passesGate?", ["Q ≥ 0.55"], DEC_FILL, DEC_STROKE, badge=(5, "#f59e0b"))
 node_diamond(CX, 1086, 300, 100, "和点赞内容够像?", ["likeRescues"], DEC_FILL, DEC_STROKE)
@@ -167,7 +167,7 @@ node_box(150, 900, 170, 58, "丢弃 unscored", ["不打分 / 不入库"], DIS_FI
 rrect(758, 1500, 634, 168, "#0c1322", "#475569", rx=14, sw=1.5, dash="6,6", shadow=False)
 tline(775, 1524, "后续 worker 流水线", 13.5, "#94a3b8", anchor="start", weight="700")
 node_box(865, 1592, 190, 96, "runEmbedStage", ["给漏网 items 补向量", "qwen3-embedding-8b"], EMBED_FILL, EMBED_STROKE, scolor="#bfdbfe")
-node_box(1075, 1592, 190, 96, "runSummarizeStage", ["抓全文 + 双语摘要", "deepseek-v4-flash"], LLM_FILL, LLM_STROKE, scolor="#e9d5ff")
+node_box(1075, 1592, 190, 96, "runSummarizeStage", ["抓全文 + 双语摘要", "deepseek-flash-latest"], LLM_FILL, LLM_STROKE, scolor="#e9d5ff")
 node_box(1285, 1592, 190, 96, "runClusterStage", ["向量质心余弦聚类(qwen3)", "+ labelTopic 标签(deepseek)"], EMBED_FILL, EMBED_STROKE, scolor="#bfdbfe")
 
 # legend
@@ -202,7 +202,7 @@ card(CX2, 230, CW, 206, 2, "#f59e0b", "预筛 selectCandidates（调用 LLM 之�
     "• Twitter following（人工策展时间线，全量送）",
     "否则直接丢弃，不调用付费 LLM",
 ])
-card(CX2, 452, CW, 186, 3, "#c084fc", "LLM 打分 scoreBatch · deepseek-v4-flash", [
+card(CX2, 452, CW, 186, 3, "#c084fc", "LLM 打分 scoreBatch · deepseek-flash-latest", [
     "整批送评（每批 25 条 · 并发 4），输出 value/topics/reason",
     "value 0–100 评分档：",
     "• 80–100 直接可执行 / 必知的重大能力或发布",

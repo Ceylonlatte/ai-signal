@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { config } from "../../config.js";
 import { recordModelUsage, type OpenRouterUsage } from "../usage.js";
+import { llmRouting } from "../llm-request.js";
 import { splitMarkdown } from "./translate.js";
 
 export interface KbNote {
@@ -75,6 +76,7 @@ async function callModel(system: string, user: string): Promise<string> {
     headers: { authorization: `Bearer ${config.OPENROUTER_API_KEY}`, "content-type": "application/json" },
     body: JSON.stringify({
       model: config.SCORING_MODEL,
+      ...llmRouting(),
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: system },

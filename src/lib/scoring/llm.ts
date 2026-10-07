@@ -3,6 +3,7 @@ import { z } from "zod";
 import { config } from "../../config.js";
 import { RUBRIC } from "./rubric.js";
 import { recordModelUsage, type OpenRouterUsage } from "../usage.js";
+import { llmRouting } from "../llm-request.js";
 import type { Candidate } from "./prefilter.js";
 
 // The scoring model intermittently returns id as a string ("12345"), so accept
@@ -73,6 +74,7 @@ async function scoreChunk(chunk: Candidate[]): Promise<ScoreResult[]> {
     },
     body: JSON.stringify({
       model: config.SCORING_MODEL,
+      ...llmRouting(),
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: `${RUBRIC}\nReturn JSON: {"results":[{"id","value","topics","reason"}]}` },
@@ -157,6 +159,7 @@ export async function judgeSameTopic(a: TopicSample, b: TopicSample): Promise<bo
     headers: { authorization: `Bearer ${config.OPENROUTER_API_KEY}`, "content-type": "application/json" },
     body: JSON.stringify({
       model: config.SCORING_MODEL,
+      ...llmRouting(),
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: JUDGE_PROMPT },
@@ -258,6 +261,7 @@ async function requestLabel(titles: string[], retry: boolean): Promise<string> {
     headers: { authorization: `Bearer ${config.OPENROUTER_API_KEY}`, "content-type": "application/json" },
     body: JSON.stringify({
       model: config.SCORING_MODEL,
+      ...llmRouting(),
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: LABEL_PROMPT },

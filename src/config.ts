@@ -14,7 +14,17 @@ const schema = z.object({
   // 允许登录的 Google 邮箱白名单（逗号分隔）；为空 = 拒绝所有人（安全默认）。
   AUTH_ALLOWED_EMAILS: z.string().default(""),
   OPENROUTER_API_KEY: z.string().default(""),
-  SCORING_MODEL: z.string().default("deepseek/deepseek-v4-flash"),
+  SCORING_MODEL: z.string().default("~deepseek/deepseek-flash-latest"),
+  // OpenRouter provider routing for every SCORING_MODEL call. Comma-separated
+  // provider slugs tried in order; empty = let OpenRouter pick. inference-net is
+  // the cheapest endpoint for flash-latest ($0.045 in / $0.30 out per M).
+  LLM_PROVIDER_ORDER: z.string().default("inference-net"),
+  // When the pinned providers are down/rate-limited, fall back to the rest of
+  // the pool (pricier) instead of failing the pipeline. "false" = hard pin.
+  LLM_ALLOW_FALLBACKS: z.string().default("true").transform((v) => v !== "false"),
+  // Scoring/summaries/translation don't need chain-of-thought, and reasoning
+  // tokens bill as output — they were ~97% of completion tokens when left on.
+  LLM_REASONING: z.string().default("false").transform((v) => v === "true"),
   EMBEDDING_MODEL: z.string().default("qwen/qwen3-embedding-8b"),
   // qwen3-embedding-8b is natively 4096-dim; we request a 2048-dim MRL slice so
   // vectors fit the `vector(2048)` columns. MUST equal the schema dimension.

@@ -1,5 +1,6 @@
 import { config } from "../../config.js";
 import { recordModelUsage, type OpenRouterUsage } from "../usage.js";
+import { llmRouting } from "../llm-request.js";
 
 // Long documents are translated in markdown-block chunks: single-shot prompts
 // past a few thousand chars make the model silently leave whole paragraphs in
@@ -86,6 +87,7 @@ async function callModel(input: string): Promise<string> {
     headers: { authorization: `Bearer ${config.OPENROUTER_API_KEY}`, "content-type": "application/json" },
     body: JSON.stringify({
       model: config.SCORING_MODEL,
+      ...llmRouting(),
       messages: [
         { role: "system", content: SYSTEM },
         { role: "user", content: input },
